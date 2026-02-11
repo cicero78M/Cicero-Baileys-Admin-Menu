@@ -3970,11 +3970,9 @@ if (shouldInitWhatsAppClients) {
   // Diagnostic checks to ensure message listeners are attached
   logWaServiceDiagnostics(
     waClient,
-    waUserClient,
-    waGatewayClient,
     getWaReadinessSummarySync()
   );
-  checkMessageListenersAttached(waClient, waUserClient, waGatewayClient);
+  checkMessageListenersAttached(waClient);
 }
 
 export default waClient;
