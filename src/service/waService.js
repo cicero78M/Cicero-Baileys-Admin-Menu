@@ -61,11 +61,7 @@ import { getUsersByClient } from "../model/userModel.js";
 
 // Handler Imports
 import { userMenuHandlers } from "../handler/menu/userMenuHandlers.js";
-import {
-  BULK_STATUS_HEADER_REGEX,
-  clientRequestHandlers,
-  processBulkDeletionRequest,
-} from "../handler/menu/clientRequestHandlers.js";
+import { clientRequestHandlers } from "../handler/menu/clientRequestHandlers.js";
 import { oprRequestHandlers } from "../handler/menu/oprRequestHandlers.js";
 import { dashRequestHandlers } from "../handler/menu/dashRequestHandlers.js";
 import { dirRequestHandlers } from "../handler/menu/dirRequestHandlers.js";
@@ -100,10 +96,6 @@ import {
   getGreeting,
   formatUserData,
 } from "../utils/utilsHelper.js";
-import {
-  handleComplaintMessageIfApplicable,
-  isGatewayComplaintForward,
-} from "./waAutoComplaintService.js";
 import {
   isAdminWhatsApp,
   formatToWhatsAppId,
@@ -1397,24 +1389,7 @@ export function createHandleMessage(waClient, options = {}) {
     let session = getSession(chatId);
 
     if (isGroupChat) {
-      const handledGroupComplaint = await handleComplaintMessageIfApplicable({
-        text,
-        allowUserMenu,
-        session,
-        isAdmin,
-        initialIsMyContact,
-        senderId,
-        chatId,
-        adminOptionSessions,
-        setSession,
-        getSession,
-        waClient,
-        pool,
-        userModel,
-      });
-      if (!handledGroupComplaint) {
-        console.log(`${clientLabel} Ignored group message from ${chatId}`);
-      }
+      console.log(`${clientLabel} Ignored group message from ${chatId}`);
       return;
     }
 
@@ -1745,48 +1720,6 @@ export function createHandleMessage(waClient, options = {}) {
       await waClient.sendMessage(chatId, lines.join("\n"));
       return true;
     };
-
-    if (
-      trimmedText &&
-      BULK_STATUS_HEADER_REGEX.test(trimmedText) &&
-      (!session || session.menu === "clientrequest")
-    ) {
-      const nextSession = {
-        ...(session || {}),
-        menu: "clientrequest",
-        step: "bulkStatus_process",
-      };
-      setSession(chatId, nextSession);
-      session = getSession(chatId);
-      await runMenuHandler({
-        handlers: clientRequestHandlers,
-        menuName: "clientrequest",
-        session,
-        chatId,
-        text: trimmedText,
-        waClient,
-        clientLabel,
-        args: [
-          pool,
-          userModel,
-          clientService,
-          migrateUsersFromFolder,
-          checkGoogleSheetCsvStatus,
-          importUsersFromGoogleSheet,
-          fetchAndStoreInstaContent,
-          fetchAndStoreTiktokContent,
-          formatClientData,
-          handleFetchLikesInstagram,
-          handleFetchKomentarTiktokBatch,
-        ],
-        invalidStepMessage:
-          "⚠️ Sesi menu client tidak dikenali. Ketik *clientrequest* ulang atau *batal*.",
-        failureMessage:
-          "❌ Terjadi kesalahan pada menu client. Ketik *clientrequest* ulang untuk memulai kembali.",
-      });
-      return;
-    }
-
     if (allowUserMenu && userRequestLinkSessions[chatId]) {
       const selection = userRequestLinkSessions[chatId];
       if (lowerText === "batal") {
@@ -2228,25 +2161,6 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
       time: Date.now(),
     });
     await wabotDitbinmasHandlers.main(getSession(chatId), chatId, "", waClient);
-    return;
-  }
-
-  const handledComplaint = await handleComplaintMessageIfApplicable({
-    text,
-    allowUserMenu,
-    session,
-    isAdmin,
-    initialIsMyContact,
-    senderId,
-    chatId,
-    adminOptionSessions,
-    setSession,
-    getSession,
-    waClient,
-    pool,
-    userModel,
-  });
-  if (handledComplaint) {
     return;
   }
 

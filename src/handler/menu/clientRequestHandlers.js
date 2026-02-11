@@ -354,8 +354,7 @@ async function sendKelolaClientMenu(session, chatId, waClient) {
       `1️⃣ Update Data Client\n` +
       `2️⃣ Hapus Client\n` +
       `3️⃣ Info Client\n` +
-      `4️⃣ Ubah Status Massal\n` +
-      `5️⃣ Input Akun Resmi Satbinmas\n` +
+      `4️⃣ Input Akun Resmi Satbinmas\n` +
       `Ketik angka menu di atas atau *batal* untuk keluar.`
   );
 
@@ -1187,7 +1186,7 @@ export const clientRequestHandlers = {
 Ketik *angka* menu, atau *batal* untuk keluar.
 `.trim();
 
-    if (!/^[1-4]$/.test(text.trim())) {
+    if (!/^[1-3]$/.test(text.trim())) {
       session.step = "main";
       await waClient.sendMessage(chatId, msg);
       return;
@@ -1262,13 +1261,12 @@ Ketik *angka* menu, atau *batal* untuk keluar.
 2️⃣ Kelola client (update/hapus/info)
 3️⃣ Kelola user (update/exception/status)
 4️⃣ Hapus WA User
-5️⃣ Penghapusan Massal Status User
-6️⃣ Refresh Aggregator Direktorat
+5️⃣ Refresh Aggregator Direktorat
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Ketik *angka* menu, atau *batal* untuk kembali.
 `.trim());
 
-    if (!/^[1-6]$/.test(text.trim())) {
+    if (!/^[1-5]$/.test(text.trim())) {
       session.step = "clientMenu_management";
       await waClient.sendMessage(chatId, msg);
       return;
@@ -1279,8 +1277,7 @@ Ketik *angka* menu, atau *batal* untuk kembali.
       2: "kelolaClient_choose",
       3: "kelolaUser_choose",
       4: "hapusWAUser_start",
-      5: "bulkStatus_prompt",
-      6: "refreshAggregator_chooseClient",
+      5: "refreshAggregator_chooseClient",
     };
 
     session.step = mapStep[text.trim()];
@@ -1432,13 +1429,12 @@ Ketik *angka* menu, atau *batal* untuk kembali.
 ┏━━━ *Transfer & Laporan* ━━━
 1️⃣ Transfer User
 2️⃣ Absensi Login Web
-3️⃣ Response Komplain
-4️⃣ Absensi Official Account
+3️⃣ Absensi Official Account
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━
 Ketik *angka* menu, atau *batal* untuk kembali.
 `.trim());
 
-    if (!/^[1-4]$/.test(text.trim())) {
+    if (!/^[1-3]$/.test(text.trim())) {
       session.step = "clientMenu_transfer";
       await waClient.sendMessage(chatId, msg);
       return;
@@ -1447,8 +1443,7 @@ Ketik *angka* menu, atau *batal* untuk kembali.
     const mapStep = {
       1: "transferUser_menu",
       2: "absensiLoginWebDitbinmas",
-      3: "respondComplaint_start",
-      4: "absensiSatbinmasOfficial",
+      3: "absensiSatbinmasOfficial",
     };
 
     session.step = mapStep[text.trim()];
@@ -1807,16 +1802,6 @@ Ketik *angka* menu, atau *batal* untuk kembali.
       }
       session.step = "main";
     } else if (text.trim() === "4") {
-      await clientRequestHandlers.bulkStatus_prompt(
-        session,
-        chatId,
-        "",
-        waClient,
-        pool,
-        userModel,
-        clientService
-      );
-    } else if (text.trim() === "5") {
       session.satbinmasOfficialDraft = {
         selectedRole: null,
         targetClientId: session.selected_client_id,
@@ -2480,7 +2465,7 @@ Ketik *angka* menu, atau *batal* untuk kembali.
     await waClient.sendMessage(
       chatId,
       appendSubmenuBackInstruction(
-        `Kelola User:\n1️⃣ Update Data User\n2️⃣ Update Exception\n3️⃣ Update Status\n4️⃣ Ubah Status Massal\n5️⃣ Ubah Client ID\nKetik angka menu atau *batal* untuk keluar.`
+        `Kelola User:\n1️⃣ Update Data User\n2️⃣ Update Exception\n3️⃣ Update Status\n4️⃣ Ubah Client ID\nKetik angka menu atau *batal* untuk keluar.`
       )
     );
     session.step = "kelolaUser_menu";
@@ -2493,26 +2478,15 @@ Ketik *angka* menu, atau *batal* untuk kembali.
     pool,
     userModel
   ) => {
-    if (!/^[1-5]$/.test(text.trim())) {
+    if (!/^[1-4]$/.test(text.trim())) {
       await waClient.sendMessage(
         chatId,
         "Pilihan tidak valid. Balas angka menu."
       );
       return;
     }
-    if (text.trim() === "4") {
-      delete session.kelolaUser_mode;
-      await clientRequestHandlers.bulkStatus_prompt(
-        session,
-        chatId,
-        "",
-        waClient,
-        pool,
-        userModel
-      );
-      return;
-    }
-    session.kelolaUser_mode = text.trim();
+    const selectedMode = text.trim();
+    session.kelolaUser_mode = selectedMode === "4" ? "5" : selectedMode;
     session.step = "kelolaUser_nrp";
     await waClient.sendMessage(chatId, "Masukkan *user_id* / NRP/NIP user:");
   },

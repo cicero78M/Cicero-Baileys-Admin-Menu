@@ -7,7 +7,7 @@ This document summarizes the three main repositories that make up the **Cicero**
 
 ### 1. Cicero_V2 (Backend)
 - [GitHub: cicero78M/Cicero_V2](https://github.com/cicero78M/Cicero_V2)
-- Node.js/Express REST API used for monitoring Instagram and TikTok, orchestrating WhatsApp messaging, and running the Penmas editorial workflow.
+- Node.js/Express REST API used for monitoring Instagram and TikTok and orchestrating WhatsApp messaging.
 - Maintains two WhatsApp sessions (`waClient` and `waGatewayClient`) for operator menus and directorate broadcasts.
 - Cron buckets are activated when each WhatsApp session is ready, covering Instagram/TikTok ingestion, link amplification (reguler & khusus), directorate recaps, and database backups.
 - OTP emails for data-claim flows are delivered synchronously via SMTP.
@@ -32,6 +32,6 @@ This document summarizes the three main repositories that make up the **Cicero**
 2. Both clients call endpoints such as `/api/insta/rapid-posts`, `/api/dashboard/aggregator`, and `/api/claim/request-otp` to retrieve social media data or update profiles.
 3. Scheduled jobs in the backend collect posts and metrics, generate directorate recaps, and send WhatsApp reminders/reports once the associated WhatsApp client signals readiness.
 4. Heavy tasks can be processed asynchronously using RabbitMQ when enabled.
-5. Editorial users employ the Penmas module to create events and submit approval requests that are reviewed via WhatsApp commands.
+5. Operators use WhatsApp menus for client management, user updates, and recap/report automation.
 
 Together these repositories form a complete system: the backend orchestrates data collection and messaging, the Next.js dashboard presents analytics to administrators, and the Android app enables field personnel to interact with the same data while on the go.

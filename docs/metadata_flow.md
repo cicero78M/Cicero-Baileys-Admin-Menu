@@ -28,7 +28,6 @@ Key tables defined in [`sql/schema.sql`](../sql/schema.sql):
 | `instagram_user`, `instagram_user_metrics`, `ig_ext_*` | Detailed Instagram profile, metrics, and extended RapidAPI data. |
 | `tiktok_post` / `tiktok_post_roles` | TikTok posts associated with a client and role-based visibility. |
 | `tiktok_comment`            | Comments for each TikTok post.            |
-| `editorial_event`, `press_release_detail`, `approval_request`, `change_log` | Penmas editorial workflow entities. |
 | `premium_request`           | Premium subscription applications.        |
 | `link_report`, `link_report_khusus` | Amplification links from field agents. |
 | `saved_contact`             | Google contact references used for WhatsApp messaging. |
@@ -41,7 +40,6 @@ These tables are updated regularly by scheduled jobs and form the basis for anal
    - Cron jobs (`cronDirRequestFetchSosmed.js`, etc.) fetch posts, metrics, and rankings once the relevant WhatsApp client becomes ready. Results are saved to PostgreSQL and cached in Redis.
 2. **Analytics & Attendance**
    - The backend matches likes or comments with registered users to compute attendance statistics and generates aggregator summaries for dashboards.
-   - Editorial submissions persist to `editorial_event` and related tables, awaiting approvals captured through WhatsApp.
 3. **Reporting & Messaging**
   - Cron tasks (`cronDirRequestFetchSosmed.js`, `cronRekapLink.js`, `cronAmplifyLinkMonthly.js`, etc.) send recaps to administrators through `waClient` or `waGatewayClient`.
    - OTP emails and complaint confirmations are sent immediately via SMTP to reduce follow-up latency.
