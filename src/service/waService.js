@@ -1203,16 +1203,7 @@ export async function waitForAllMessageQueues() {
 }
 
 export function sendGatewayMessage(jid, text) {
-  const waFallbackClients = [
-    { client: waClient, label: "WA" },
-  ];
-  return sendWithClientFallback({
-    chatId: jid,
-    message: text,
-    clients: waFallbackClients,
-    reportClient: waClient,
-    reportContext: { source: "sendGatewayMessage", jid },
-  });
+  return safeSendMessage(waClient, jid, text);
 }
 
 // Handle QR code (scan)
