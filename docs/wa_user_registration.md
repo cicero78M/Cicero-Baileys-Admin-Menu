@@ -1,3 +1,5 @@
+> ⚠️ **DINONAKTIFKAN**: Alur registrasi `userrequest` sudah tidak tersedia pada bot saat ini.
+
 # Panduan Registrasi User lewat Bot WhatsApp
 *Last updated: 2025-09-24*
 

@@ -1,3 +1,5 @@
+> ⚠️ **DINONAKTIFKAN**: Flow menu *Response Komplain* pada WA bot telah dihapus.
+
 # Panduan Respon Komplain
 
 > **Untuk Frontend Developers**: Jika Anda mengalami error 403 atau ingin mengintegrasikan endpoint komplain, lihat panduan lengkap di [frontend_complaint_api_guide.md](./frontend_complaint_api_guide.md) yang mencakup solusi troubleshooting, contoh implementasi, dan penjelasan detail tentang authentication.

@@ -62,9 +62,7 @@ import { getUsersByClient } from "../model/userModel.js";
 // Handler Imports
 import { userMenuHandlers } from "../handler/menu/userMenuHandlers.js";
 import {
-  BULK_STATUS_HEADER_REGEX,
   clientRequestHandlers,
-  processBulkDeletionRequest,
 } from "../handler/menu/clientRequestHandlers.js";
 import { oprRequestHandlers } from "../handler/menu/oprRequestHandlers.js";
 import { dashRequestHandlers } from "../handler/menu/dashRequestHandlers.js";
@@ -100,10 +98,6 @@ import {
   getGreeting,
   formatUserData,
 } from "../utils/utilsHelper.js";
-import {
-  handleComplaintMessageIfApplicable,
-  isGatewayComplaintForward,
-} from "./waAutoComplaintService.js";
 import {
   isAdminWhatsApp,
   formatToWhatsAppId,
@@ -1397,24 +1391,7 @@ export function createHandleMessage(waClient, options = {}) {
     let session = getSession(chatId);
 
     if (isGroupChat) {
-      const handledGroupComplaint = await handleComplaintMessageIfApplicable({
-        text,
-        allowUserMenu,
-        session,
-        isAdmin,
-        initialIsMyContact,
-        senderId,
-        chatId,
-        adminOptionSessions,
-        setSession,
-        getSession,
-        waClient,
-        pool,
-        userModel,
-      });
-      if (!handledGroupComplaint) {
-        console.log(`${clientLabel} Ignored group message from ${chatId}`);
-      }
+      console.log(`${clientLabel} Ignored group message from ${chatId}`);
       return;
     }
 
@@ -1746,47 +1723,6 @@ export function createHandleMessage(waClient, options = {}) {
       return true;
     };
 
-    if (
-      trimmedText &&
-      BULK_STATUS_HEADER_REGEX.test(trimmedText) &&
-      (!session || session.menu === "clientrequest")
-    ) {
-      const nextSession = {
-        ...(session || {}),
-        menu: "clientrequest",
-        step: "bulkStatus_process",
-      };
-      setSession(chatId, nextSession);
-      session = getSession(chatId);
-      await runMenuHandler({
-        handlers: clientRequestHandlers,
-        menuName: "clientrequest",
-        session,
-        chatId,
-        text: trimmedText,
-        waClient,
-        clientLabel,
-        args: [
-          pool,
-          userModel,
-          clientService,
-          migrateUsersFromFolder,
-          checkGoogleSheetCsvStatus,
-          importUsersFromGoogleSheet,
-          fetchAndStoreInstaContent,
-          fetchAndStoreTiktokContent,
-          formatClientData,
-          handleFetchLikesInstagram,
-          handleFetchKomentarTiktokBatch,
-        ],
-        invalidStepMessage:
-          "⚠️ Sesi menu client tidak dikenali. Ketik *clientrequest* ulang atau *batal*.",
-        failureMessage:
-          "❌ Terjadi kesalahan pada menu client. Ketik *clientrequest* ulang untuk memulai kembali.",
-      });
-      return;
-    }
-
     if (allowUserMenu && userRequestLinkSessions[chatId]) {
       const selection = userRequestLinkSessions[chatId];
       if (lowerText === "batal") {
@@ -1882,44 +1818,9 @@ export function createHandleMessage(waClient, options = {}) {
         });
         return;
       }
-      if (/^2$/.test(text.trim())) {
-        delete operatorOptionSessions[chatId];
-        if (!allowUserMenu) {
-          return;
-        }
-        const pengirim = chatId.replace(/[^0-9]/g, "");
-        const userByWA = await userModel.findUserByWhatsApp(pengirim);
-        const salam = getGreeting();
-        if (userByWA) {
-          userMenuContext[chatId] = {
-            step: "confirmUserByWaUpdate",
-            user_id: userByWA.user_id,
-          };
-          const msg = `${salam}, Bapak/Ibu\n${formatUserSummary(userByWA)}\n\nApakah Anda ingin melakukan perubahan data?\nBalas *ya* untuk memulai update atau *tidak* untuk melewati.`;
-          await waClient.sendMessage(chatId, msg.trim());
-          setMenuTimeout(
-            chatId,
-            waClient,
-            shouldExpectQuickReply(userMenuContext[chatId])
-          );
-        } else {
-          userMenuContext[chatId] = { step: "inputUserId" };
-          const msg =
-            `${salam}! Nomor WhatsApp Anda belum terdaftar.` +
-            "\n\nBalas pesan ini dengan memasukan NRP Anda," +
-            "\n\n*Contoh Pesan Balasan : 87020990*";
-          await waClient.sendMessage(chatId, msg.trim());
-          setMenuTimeout(
-            chatId,
-            waClient,
-            shouldExpectQuickReply(userMenuContext[chatId])
-          );
-        }
-        return;
-      }
       await waClient.sendMessage(
         chatId,
-        "Balas *1* untuk Menu Operator atau *2* untuk perubahan data username."
+        "Balas *1* untuk Menu Operator."
       );
       setOperatorOptionTimeout(chatId);
       return;
@@ -1948,44 +1849,9 @@ export function createHandleMessage(waClient, options = {}) {
         }
         return;
       }
-      if (/^3$/.test(text.trim())) {
-        delete adminOptionSessions[chatId];
-        if (!allowUserMenu) {
-          return;
-        }
-        const pengirim = chatId.replace(/[^0-9]/g, "");
-        const userByWA = await userModel.findUserByWhatsApp(pengirim);
-        const salam = getGreeting();
-        if (userByWA) {
-          userMenuContext[chatId] = {
-            step: "confirmUserByWaUpdate",
-            user_id: userByWA.user_id,
-          };
-          const msg = `${salam}, Bapak/Ibu\n${formatUserSummary(userByWA)}\n\nApakah Anda ingin melakukan perubahan data?\nBalas *ya* untuk memulai update atau *tidak* untuk melewati.`;
-          await waClient.sendMessage(chatId, msg.trim());
-          setMenuTimeout(
-            chatId,
-            waClient,
-            shouldExpectQuickReply(userMenuContext[chatId])
-          );
-        } else {
-          userMenuContext[chatId] = { step: "inputUserId" };
-          const msg =
-            `${salam}! Nomor WhatsApp Anda belum terdaftar.` +
-            "\n\nBalas pesan ini dengan memasukan NRP Anda," +
-            "\n\n*Contoh Pesan Balasan : 87020990*";
-          await waClient.sendMessage(chatId, msg.trim());
-          setMenuTimeout(
-            chatId,
-            waClient,
-            shouldExpectQuickReply(userMenuContext[chatId])
-          );
-        }
-        return;
-      }
       await waClient.sendMessage(
         chatId,
-        "Balas *1* untuk Menu Client, *2* untuk Menu Operator, atau *3* untuk perubahan data user."
+        "Balas *1* untuk Menu Client atau *2* untuk Menu Operator."
       );
       setAdminOptionTimeout(chatId);
       return;
@@ -2231,25 +2097,6 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
     return;
   }
 
-  const handledComplaint = await handleComplaintMessageIfApplicable({
-    text,
-    allowUserMenu,
-    session,
-    isAdmin,
-    initialIsMyContact,
-    senderId,
-    chatId,
-    adminOptionSessions,
-    setSession,
-    getSession,
-    waClient,
-    pool,
-    userModel,
-  });
-  if (handledComplaint) {
-    return;
-  }
-
   const handledClientRequestSession = await handleClientRequestSessionStep({
     session,
     chatId,
@@ -2294,7 +2141,7 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
       } else {
         await waClient.sendMessage(
           chatId,
-          "⚠️ Sesi menu user tidak dikenal, silakan ketik *userrequest* ulang atau *batal*."
+          "⚠️ Sesi menu user tidak dikenal. Silakan ketik *batal* untuk keluar atau gunakan menu lain yang tersedia."
         );
         clearTimeout(session.timeout);
         clearTimeout(session.warningTimeout);
@@ -2306,10 +2153,10 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
 
     // ========== Mulai Menu Interaktif User ==========
     if (lowerText === "userrequest") {
-      if (!allowUserMenu) {
-        return;
-      }
-      await startUserMenuSession();
+      await waClient.sendMessage(
+        chatId,
+        "⚠️ Menu *userrequest* sudah dinonaktifkan. Gunakan menu *clientrequest*, *oprrequest*, atau *dirrequest* sesuai akses Anda."
+      );
       return;
     }
 
@@ -3702,11 +3549,10 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
         await safeSendMessage(
           waClient,
           chatId,
-          `${salam}! Nomor ini terdaftar sebagai *admin*.` +
+        `${salam}! Nomor ini terdaftar sebagai *admin*.` +
             "\n1️⃣ Menu Client" +
             "\n2️⃣ Menu Operator" +
-            "\n3️⃣ Perubahan Data Username" +
-            "\nBalas angka *1*, *2*, atau *3*."
+            "\nBalas angka *1* atau *2*."
         );
       return;
     }
@@ -3726,8 +3572,7 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
           accessRow.nama || accessRow.client_id
         }*.` +
           "\n1️⃣ Menu Operator" +
-          "\n2️⃣ Perubahan Data Username" +
-          "\nBalas angka *1* atau *2*."
+          "\nBalas angka *1*."
       );
       return;
     }
@@ -3854,9 +3699,8 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
   }
 
   // Untuk user lama (pesan tidak dikenal)
-  const helpInstruction = allowUserMenu
-    ? "Untuk melihat daftar perintah dan bantuan penggunaan, silakan ketik *userrequest*."
-    : "Untuk melihat daftar perintah dan bantuan penggunaan, silakan hubungi nomor *WA-USER* dan ketik *userrequest*.";
+  const helpInstruction =
+    "Untuk melihat daftar perintah dan bantuan penggunaan, silakan gunakan *clientrequest*, *oprrequest*, atau *dirrequest*.";
   await waClient.sendMessage(
     chatId,
     "🤖 Maaf, perintah yang Anda kirim belum dikenali oleh sistem.\n\n" +
