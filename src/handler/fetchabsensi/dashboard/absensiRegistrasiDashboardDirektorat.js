@@ -74,6 +74,8 @@ function ensureDirectorateMetadata(directorateMetadata, directorateId) {
 
 /**
  * Rekap registrasi user dashboard + absensi web untuk menu 1️⃣1️⃣ (dirrequest).
+ * Konteks direktorat dipakai untuk menentukan role; agregasi menghitung seluruh
+ * user dashboard aktif dengan role yang sama (tanpa filter client_id/client_type).
  *
  * Mapping resmi Direktorat→role:
  * - DITBINMAS → ditbinmas
@@ -121,10 +123,8 @@ export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS
      JOIN dashboard_user_clients duc ON du.dashboard_user_id = duc.dashboard_user_id
      JOIN clients c ON UPPER(c.client_id) = UPPER(duc.client_id)
      WHERE LOWER(r.role_name) = LOWER($1)
-       AND du.status = true
-       AND LOWER(TRIM(c.client_type)) = 'direktorat'
-       AND UPPER(duc.client_id) = $2`,
-    [roleName, directorateId]
+       AND du.status = true`,
+    [roleName]
   );
 
   const { rows: directorateLoginRows } = await query(
@@ -136,11 +136,9 @@ export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS
      JOIN login_log ll ON ll.actor_id = du.dashboard_user_id::TEXT
      WHERE LOWER(r.role_name) = LOWER($1)
        AND du.status = true
-       AND LOWER(TRIM(c.client_type)) = 'direktorat'
-       AND UPPER(duc.client_id) = $2
        AND ll.login_source = 'web'
-       AND ll.logged_at >= $3`,
-    [roleName, directorateId, startOfToday]
+       AND ll.logged_at >= $2`,
+    [roleName, startOfToday]
   );
 
   const directorateName = selectedDirektorat.nama || directorateId;
@@ -159,7 +157,7 @@ export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS
   msg += "Absensi Registrasi User Direktorat :\n\n";
   msg += `${directorateName.toUpperCase()} : ${directorateDashboardCount} ${roleLabel} (${directorateAttendanceCount} absensi web)\n\n`;
   msg +=
-    "Catatan: Rekap ini hanya menghitung user dashboard dengan client_id yang sama dengan Direktorat terpilih dan client_type=direktorat.";
+    "Catatan: Rekap ini menghitung seluruh user dashboard aktif yang memiliki role sama dengan Direktorat terpilih (tidak dibatasi client_id/client_type).";
 
   return msg.trim();
 }
