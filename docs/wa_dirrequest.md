@@ -75,6 +75,14 @@ dirrequest tanpa langkah tambahan.
 - Rekap absensi likes Instagram (menu dirrequest untuk Direktorat) kini
   menampilkan setiap divisi sebagai header tebal, dipisahkan satu baris kosong
   agar mudah dibaca pada WhatsApp.
+- Rekap ini tidak menghitung personel dari satfung/divisi **Sat Intel** dan
+  **Sat Intelkam** dalam total personel maupun akumulasi pelaksanaan.
+- Catatan perubahan perilaku (changelog singkat):
+  - **Sebelum update:** personel Sat Intel dan Sat Intelkam masih ikut
+    perhitungan rekap absensi likes direktorat.
+  - **Sesudah update:** personel Sat Intel dan Sat Intelkam dikecualikan dari
+    rekap, sehingga angka total personel dan akumulasi pelaksanaan dapat
+    terlihat lebih rendah dibanding rekap historis.
 - Urutan divisi utama disusun berdasarkan **Akumulasi Pelaksanaan** tertinggi
   (total likes dari seluruh personel pada divisi), lalu fallback ke persentase
   ketercapaian/ukuran divisi bila nilainya sama.

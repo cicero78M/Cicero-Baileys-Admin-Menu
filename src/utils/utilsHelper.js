@@ -497,14 +497,15 @@ function normalizeDivisionName(value) {
 }
 
 /**
- * Filter user attendance data for direktorat clients by excluding specific satfung.
+ * Filter user attendance data untuk client bertipe direktorat dengan
+ * mengecualikan personel satfung/divisi Sat Intel dan Sat Intelkam.
  *
  * Pengecualian hanya berlaku untuk `clientType === "direktorat"` agar perilaku
- * klien non-direktorat tidak berubah.
+ * client non-direktorat tidak berubah.
  *
- * @param {Array} users - Array of user objects
- * @param {string} clientType - Type of client (e.g., "direktorat", "org")
- * @returns {Array} Filtered array of users
+ * @param {Array} users - Array of user objects.
+ * @param {string} clientType - Type of client (contoh: "direktorat", "org").
+ * @returns {Array} Filtered array of users.
  */
 export function filterAttendanceUsers(users, clientType) {
   if (!Array.isArray(users)) return [];
