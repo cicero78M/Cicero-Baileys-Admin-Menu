@@ -179,6 +179,22 @@ dirrequest tanpa langkah tambahan.
   3. Perbarui `tests/absensiRegistrasiDashboardDirektorat.test.js` untuk
      skenario sukses dan validasi error fail-fast.
 
+
+## Rekap Data Personil Dirrequest (Menu 3️⃣)
+- Submenu **3️⃣ Rekap data personil** kini menegakkan scope data berdasarkan
+  **client_id direktorat terpilih secara murni**. Data user lintas client ORG
+  tidak lagi ikut terhitung walau user memiliki role direktorat yang sama.
+- Validasi ini memastikan hasil rekap konsisten dengan pilihan client pada awal
+  sesi dirrequest (contoh: memilih `DITBINMAS` hanya menghitung user dengan
+  `user.client_id = DITBINMAS`).
+- Saat memilih kategori **1 (Semua)**, output per divisi kini dikelompokkan
+  menjadi tiga blok status agar cepat ditindaklanjuti:
+  - `✅ Sudah` (Instagram dan TikTok terisi),
+  - `⚠️ Kurang` (salah satu masih kosong),
+  - `❌ Belum` (Instagram dan TikTok masih kosong).
+- Ringkasan total pada header tetap menampilkan agregasi `Lengkap`, `Kurang`,
+  dan `Belum` untuk seluruh user pada client direktorat yang dipilih.
+
 ## Rekap Kelengkapan data Personil Satker (Menu 1)
 - Label menu utama diperbarui menjadi **1️⃣ Rekap Kelengkapan data Personil Satker.**
   Contoh cuplikan bagian *Rekap Data* pada menu utama:
