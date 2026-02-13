@@ -153,22 +153,21 @@ dirrequest tanpa langkah tambahan.
   - jika role hasil mapping belum ada di tabel `roles`, proses dihentikan
     dengan error eksplisit bahwa konfigurasi role belum sinkron.
 - Sistem tidak melakukan fallback diam-diam ke role `ditbinmas`.
-- Scope client menu **1️⃣1️⃣** kini dibatasi ketat hanya untuk direktorat
-  terpilih:
+- Scope menu **1️⃣1️⃣** kini menerapkan validasi ketat pada direktorat
+  terpilih untuk menentukan role mapping:
   1. validasi metadata direktorat terpilih harus sinkron (`client_id` +
      `client_type=direktorat`),
-  2. perhitungan `dashboard_user` dan `login_log` hanya mengambil data user
-     dashboard dengan `dashboard_user_clients.client_id` yang sama persis
-     dengan direktorat terpilih,
-  3. query absensi menambahkan guard `clients.client_type = direktorat` agar
-     data client type `org` tidak ikut terhitung.
+  2. perhitungan `dashboard_user` dan `login_log` menghitung **seluruh user
+     dashboard aktif** yang memiliki role mapped yang sama,
+  3. query absensi **tidak lagi** membatasi `clients.client_type = direktorat`
+     maupun `dashboard_user_clients.client_id` direktorat terpilih.
 - Dampak perilaku:
-  - output menu **1️⃣1️⃣** hanya menampilkan ringkasan satu direktorat yang
-    dipilih,
-  - tidak ada lagi daftar ORG "sudah punya/belum punya user dashboard" pada
-    rekap menu **1️⃣1️⃣**.
-- Rekap WA menu **1️⃣1️⃣** menambahkan catatan validasi bahwa data yang dihitung
-  hanya `client_id` direktorat terpilih dengan `client_type=direktorat`.
+  - output menu **1️⃣1️⃣** tetap dijalankan dari konteks direktorat yang
+    dipilih (untuk mapping role),
+  - namun angka rekap merepresentasikan agregasi semua user aktif dengan role
+    yang sama di seluruh client yang terhubung.
+- Rekap WA menu **1️⃣1️⃣** kini menambahkan catatan bahwa data dihitung berbasis
+  role aktif yang sama, tanpa pembatasan `client_id`/`client_type`.
 
 - Prosedur menambah Direktorat baru untuk menu **1️⃣1️⃣**:
   1. Tambahkan mapping `CLIENT_ID_DIREKTORAT → role_name` pada konstanta
