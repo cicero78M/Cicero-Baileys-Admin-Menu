@@ -201,3 +201,19 @@ Jika `regional_id` dikirim, data post dan personil hanya akan dihitung untuk cli
 The `GET /likes/instagram` endpoint returns the same payload as above but
 always aggregates data for users with the `ditbinmas` role. It does not require
 `client_id` and ignores the authenticated user's role and client filters.
+
+
+## Attendance Division Exclusion Rules
+
+- Helper `filterAttendanceUsers(users, clientType)` otomatis dipakai oleh jalur
+  rekap absensi likes Instagram (akumulasi direktorat dan non-direktorat)
+  melalui handler `absensiLikesInsta`.
+- Saat `clientType === "direktorat"`, user dengan nilai divisi/satfung berikut
+  akan dikecualikan dari perhitungan:
+  - `sat intel`
+  - `sat intelkam`
+- Normalisasi divisi memakai lower-case + trim + collapse spasi, sehingga
+  variasi input seperti `SAT  INTEL`, `satintel`, ` Sat   Intelkam ` tetap
+  dianggap sama.
+- Untuk `clientType` selain `direktorat`, tidak ada pengecualian tambahan
+  sehingga perilaku existing non-direktorat tetap konsisten.
