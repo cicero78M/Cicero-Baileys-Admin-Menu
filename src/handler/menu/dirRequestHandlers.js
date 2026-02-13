@@ -826,7 +826,9 @@ async function formatRekapDataPersonil(clientId, category = "all") {
   // (bukan berdasarkan role lintas client ORG).
   const normalizedTargetClientId = targetClientId.toLowerCase();
   const users = filterAttendanceUsers(allUsers, clientType).filter(
-    (user) => String(user.client_id || "").trim().toLowerCase() === normalizedTargetClientId
+    (user) =>
+      String(user.client_id || "").trim().toLowerCase() === normalizedTargetClientId &&
+      user.status === true
   );
 
   const salam = getGreeting();
