@@ -1186,7 +1186,7 @@ export const clientRequestHandlers = {
 Ketik *angka* menu, atau *batal* untuk keluar.
 `.trim();
 
-    if (!/^[1-4]$/.test(text.trim())) {
+    if (!/^[1-3]$/.test(text.trim())) {
       session.step = "main";
       await waClient.sendMessage(chatId, msg);
       return;
@@ -2485,7 +2485,8 @@ Ketik *angka* menu, atau *batal* untuk kembali.
       );
       return;
     }
-    session.kelolaUser_mode = text.trim() === "4" ? "5" : text.trim();
+    const selectedMode = text.trim();
+    session.kelolaUser_mode = selectedMode === "4" ? "5" : selectedMode;
     session.step = "kelolaUser_nrp";
     await waClient.sendMessage(chatId, "Masukkan *user_id* / NRP/NIP user:");
   },

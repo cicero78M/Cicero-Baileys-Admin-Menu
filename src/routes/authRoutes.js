@@ -1,9 +1,6 @@
 import express from "express";
 import jwt from "jsonwebtoken";
 import { query } from "../db/index.js";
-import bcrypt from "bcrypt";
-import { v4 as uuidv4 } from "uuid";
-import * as penmasUserModel from "../model/penmasUserModel.js";
 import * as userModel from "../model/userModel.js";
 import {
   isAdminWhatsApp,
@@ -37,79 +34,6 @@ async function notifyAdmin(message) {
 }
 
 const router = express.Router();
-
-router.post('/penmas-register', async (req, res) => {
-  const { username, password, role = 'penulis' } = req.body;
-  if (!username || !password) {
-    return res
-      .status(400)
-      .json({ success: false, message: 'username dan password wajib diisi' });
-  }
-  const existing = await penmasUserModel.findByUsername(username);
-  if (existing) {
-    return res
-      .status(400)
-      .json({ success: false, message: 'username sudah terpakai' });
-  }
-  const user_id = uuidv4();
-  const password_hash = await bcrypt.hash(password, 10);
-  const user = await penmasUserModel.createUser({
-    user_id,
-    username,
-    password_hash,
-    role,
-  });
-  return res.status(201).json({ success: true, user_id: user.user_id });
-});
-
-router.post('/penmas-login', async (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password) {
-    return res
-      .status(400)
-      .json({ success: false, message: 'username dan password wajib diisi' });
-  }
-  const user = await penmasUserModel.findByUsername(username);
-  if (!user) {
-    return res
-      .status(401)
-      .json({ success: false, message: 'Login gagal: data tidak ditemukan' });
-  }
-  const match = await bcrypt.compare(password, user.password_hash);
-  if (!match) {
-    return res
-      .status(401)
-      .json({ success: false, message: 'Login gagal: password salah' });
-  }
-  const payload = { user_id: user.user_id, role: user.role };
-  const token = jwt.sign(payload, process.env.JWT_SECRET, {
-    expiresIn: '2h',
-  });
-  try {
-    await redis.sAdd(`penmas_login:${user.user_id}`, token);
-    await redis.set(`login_token:${token}`, `penmas:${user.user_id}`, {
-      EX: 2 * 60 * 60,
-    });
-  } catch (err) {
-    console.error('[AUTH] Gagal menyimpan token login penmas:', err.message);
-  }
-  res.cookie('token', token, {
-    httpOnly: true,
-    sameSite: 'lax',
-    maxAge: 2 * 60 * 60 * 1000,
-    secure: process.env.NODE_ENV === 'production',
-  });
-  await insertLoginLog({
-    actorId: user.user_id,
-    loginType: 'operator',
-    loginSource: 'web'
-  });
-  const time = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
-  notifyAdmin(
-    `\uD83D\uDD11 Login Penmas: ${user.username} (${user.role})\nWaktu: ${time}`
-  );
-  return res.json({ success: true, token, user: payload });
-});
 
 router.post("/login", async (req, res) => {
   const { client_id, client_operator } = req.body;
