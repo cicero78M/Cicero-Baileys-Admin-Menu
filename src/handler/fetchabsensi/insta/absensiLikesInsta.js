@@ -136,7 +136,7 @@ export async function absensiLikes(client_id, opts = {}) {
       const cid = polresIds[i];
       const allUsers = usersByClient[cid] || [];
       const { nama: clientName, clientType: cidType } = await getClientInfo(cid);
-      // Filter out sat intelkam users for direktorat clients
+      // Filter out excluded satfung users for direktorat clients (sat intel/sat intelkam)
       const users = filterAttendanceUsers(allUsers, cidType);
       const sudah = [];
       const kurang = [];
@@ -211,7 +211,7 @@ export async function absensiLikes(client_id, opts = {}) {
   }
 
   const allUsers = await getUsersByClient(clientFilter || client_id, roleFlag);
-  // Filter out sat intelkam users for direktorat clients
+  // Filter out excluded satfung users for direktorat clients (sat intel/sat intelkam)
   const users = filterAttendanceUsers(allUsers, clientType);
   const targetClient = clientFilter || client_id;
   let shortcodes;

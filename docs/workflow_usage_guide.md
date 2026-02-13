@@ -33,15 +33,16 @@ Hot reload hanya memantau kode (`app.js` dan folder `src`). Folder data seperti 
 
 Bot WhatsApp menyediakan beberapa perintah untuk operator dan pengguna:
 - `oprrequest` → mengelola data user, rekap link harian, serta **Menu Manajemen Engagement** untuk absensi Likes Instagram/Komentar TikTok sesuai status aktif akun client. Laporan absensi engagement pada mode akumulasi kini dikelompokkan per satfung dengan sub-list **lengkap/kurang/belum**. Operator/Super Admin client dapat masuk langsung, sedangkan Admin WhatsApp wajib memilih client bertipe **org** sebelum masuk menu operator. Submenu **Absensi registrasi user** dan **Absensi update data username** berada di *Kelola User* dan seluruh submenu menampilkan instruksi **ketik back** untuk kembali. Detail pada `docs/wa_operator_request.md`.
-- `userrequest` → registrasi dan pengelolaan data user. Lihat `docs/wa_user_registration.md`.
+- `userrequest` → **dinonaktifkan** dan tidak lagi tersedia pada bot.
 - `dirrequest` → menu Direktorat untuk rekap data, absensi, dan pengambilan konten. Submenu *1️⃣1️⃣ Absensi user web dashboard Direktorat/Bidang* kini merespons normal setelah validasi scope client diperbaiki (menggunakan daftar `scopeClientIds` yang benar), sehingga balasan tidak lagi berhenti tanpa output.
+- *Bulk Penghapusan Status User* → **dinonaktifkan** dan tidak lagi diproses oleh bot.
 - Normalisasi pesan (lowercase dan trim) dilakukan di awal fungsi `processMessage`
   agar seluruh percabangan—termasuk perintah `batal` di menu interaktif—selalu
   menggunakan teks yang sudah stabil tanpa memicu `ReferenceError`.
 
 Sistem menjalankan *dua* nomor WhatsApp:
 1. **Nomor utama** menangani seluruh perintah bot seperti `oprrequest`, `dashrequest`, dan lainnya.
-2. **Nomor kedua** khusus untuk perintah `userrequest` (registrasi dan pemutakhiran data user).
+2. Alur `userrequest` telah dinonaktifkan sehingga tidak diperlukan nomor khusus registrasi user.
 
 ### Konfigurasi Environment
 Tambahkan variabel berikut pada `.env` untuk mengatur sesi WhatsApp:
@@ -50,8 +51,6 @@ Tambahkan variabel berikut pada `.env` untuk mengatur sesi WhatsApp:
 # ID sesi untuk nomor utama (opsional, default `wa-admin`)
 APP_SESSION_NAME=wa-admin
 
-# ID sesi untuk nomor kedua (`userrequest`)
-USER_WA_CLIENT_ID=wa-userrequest-prod
 
 # ID sesi untuk nomor gateway (harus beda dari USER_WA_CLIENT_ID)
 GATEWAY_WA_CLIENT_ID=wa-gateway-prod
@@ -89,7 +88,7 @@ Fallback readiness akan melakukan reinit ketika `getState` tetap `unknown` setel
 ### Langkah Login
 1. Jalankan `npm run dev` atau `npm start`.
 2. Terminal menampilkan QR `[WA]` untuk nomor utama; pindai dengan akun WhatsApp utama.
-3. Terminal juga menampilkan QR `[WA-USER]` untuk nomor kedua; pindai dengan nomor khusus `userrequest`.
+3. Gunakan QR untuk sesi WA yang aktif sesuai konfigurasi layanan utama.
 4. Setelah dipindai, sesi tersimpan di folder `~/.cicero/wwebjs_auth/` (atau `WA_AUTH_DATA_PATH` jika di-set). Pastikan folder tersebut writable oleh runtime user; jika `WA_AUTH_DATA_PATH` tidak bisa diakses, adapter akan log error lalu fallback ke path rekomendasi selama folder fallback bisa dibuat dan ditulis.
 5. Saat terjadi `auth_failure` atau `LOGGED_OUT`, adapter akan melakukan `destroy()` + `initialize()` dengan log yang menyertakan `clientId` untuk membantu troubleshooting.
 6. Jika modul web WhatsApp belum siap (`pupPage` tidak tersedia atau evaluasi gagal), sistem mencatat warning dengan `clientId` namun tetap melanjutkan status ready agar alur tidak menggantung.
@@ -105,7 +104,7 @@ Fallback readiness akan melakukan reinit ketika `getState` tetap `unknown` setel
    ```
    Perbarui pin jika WhatsApp Web merilis update besar dan log `initialize`/`load` mulai gagal (misalnya blank page, `LocalWebCache.persist`, atau `Cannot read properties of null`). Gunakan versi terbaru dari payload cache yang tervalidasi.
 
-Pengguna cukup menyimpan nomor bot yang sesuai, mengirim perintah `userrequest`, lalu mengikuti instruksi balasan.
+Pengguna menggunakan command menu yang aktif seperti `clientrequest`, `oprrequest`, atau `dirrequest` sesuai hak akses.
 
 ## 5. Akses Dashboard
 

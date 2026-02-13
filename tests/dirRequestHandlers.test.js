@@ -2557,6 +2557,44 @@ test('choose_menu option 3 opens rekap personil category submenu', async () => {
   expect(msg).toContain('Belum');
 });
 
+test('choose_rekap_personil_category option 1 (all) groups per divisi into sudah/kurang/belum and enforces exact client_id', async () => {
+  mockFindClientById.mockResolvedValue({ client_type: 'direktorat', nama: 'DIT BINMAS' });
+  mockGetUsersSocialByClient.mockResolvedValue([
+    { client_id: 'DITBINMAS', divisi: 'Div A', title: 'AKP', nama: 'Budi', insta: 'budiig', tiktok: 'buditt' },
+    { client_id: 'DITBINMAS', divisi: 'Div A', title: 'IPTU', nama: 'Adi', insta: 'adiig', tiktok: null },
+    { client_id: 'DITBINMAS', divisi: 'Div A', title: 'BRIPKA', nama: 'Cici', insta: null, tiktok: null },
+    { client_id: 'ORG01', divisi: 'Div A', title: 'AKBP', nama: 'Lintas Role', insta: 'lintasig', tiktok: 'lintastt' },
+  ]);
+
+  const session = {
+    selectedClientId: 'ditbinmas',
+    dir_client_id: 'DITBINMAS',
+    clientName: 'DIT BINMAS',
+    step: 'choose_rekap_personil_category'
+  };
+  const chatId = '444';
+  const waClient = { sendMessage: jest.fn() };
+
+  await dirRequestHandlers.choose_rekap_personil_category(session, chatId, '1', waClient);
+
+  expect(mockGetUsersSocialByClient).toHaveBeenCalledWith('DITBINMAS', 'ditbinmas');
+  const msg = waClient.sendMessage.mock.calls[0][1];
+
+  expect(msg).toMatch(/Total User: 3/);
+  expect(msg).toMatch(/Lengkap: 1/);
+  expect(msg).toMatch(/Kurang: 1/);
+  expect(msg).toMatch(/Belum: 1/);
+
+  expect(msg).toMatch(/\*DIV A\* \(3\)/);
+  expect(msg).toMatch(/✅ Sudah \(1\)/);
+  expect(msg).toMatch(/⚠️ Kurang \(1\)/);
+  expect(msg).toMatch(/❌ Belum \(1\)/);
+  expect(msg).toMatch(/AKP Budi \(IG: @budiig, TikTok: @buditt\)/);
+  expect(msg).toMatch(/IPTU Adi \(IG: @adiig\), TikTok kosong/);
+  expect(msg).toMatch(/BRIPKA Cici, Instagram dan TikTok kosong/);
+  expect(msg).not.toMatch(/Lintas Role/);
+});
+
 test('choose_rekap_personil_category option 3 (incomplete) shows users with social media info', async () => {
   mockGetUsersSocialByClient.mockResolvedValue([
     { client_id: 'DITBINMAS', divisi: 'Div A', title: 'AKP', nama: 'Budi', insta: null, tiktok: 'buditt' },

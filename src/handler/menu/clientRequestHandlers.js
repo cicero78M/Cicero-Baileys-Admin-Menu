@@ -3986,391 +3986,44 @@ Ketik *angka* menu, atau *batal* untuk kembali.
     }
     session.step = "main";
   },
-
   // ================== BULK STATUS USER ==================
   bulkStatus_prompt: async (session, chatId, _text, waClient) => {
-    session.step = "bulkStatus_process";
-    const exampleLines = [
-      "Permohonan Penghapusan Data Personil – SATKER",
-      "",
-      "1. Nama Personel – 75020201 – mutasi",
-      "2. Nama Personel – 75020202 – pensiun",
-      "3. Nama Personel – 75020203 – double data",
-    ];
-    await waClient.sendMessage(
-      chatId,
-      [
-        "Kirimkan template *Permohonan Penghapusan Data Personil – ...* dari satker yang bersangkutan.",
-        "Gunakan format daftar berikut agar dapat diproses otomatis:",
-        "",
-        ...exampleLines,
-        "",
-        "Tuliskan alasan asli (mis. mutasi/pensiun/double data).",
-        "Balas *batal* untuk membatalkan.",
-      ].join("\n")
-    );
+    session.step = "main";
+    await waClient.sendMessage(chatId, "Fitur bulk deletion dinonaktifkan.");
   },
-  bulkStatus_process: async (
-    session,
-    chatId,
-    text,
-    waClient,
-    pool,
-    userModel
-  ) => {
-    await processBulkDeletionRequest({
-      session,
-      chatId,
-      text,
-      waClient,
-      userModel,
-    });
+  bulkStatus_process: async (session, chatId, _text, waClient) => {
+    session.step = "main";
+    await waClient.sendMessage(chatId, "Fitur bulk deletion dinonaktifkan.");
   },
   bulkStatus_chooseRole: async (session, chatId, _text, waClient) => {
-    if (!session?.bulkStatusContext?.pendingSelections?.length) {
-      session.step = "main";
-      await waClient.sendMessage(
-        chatId,
-        "Tidak ada role yang perlu dipilih. Ketik *clientrequest* untuk memulai ulang."
-      );
-      return;
-    }
-    await sendBulkRolePrompt(session, chatId, waClient);
+    session.step = "main";
+    await waClient.sendMessage(chatId, "Fitur bulk deletion dinonaktifkan.");
   },
-  bulkStatus_applySelection: async (
-    session,
-    chatId,
-    text,
-    waClient,
-    _pool,
-    userModel
-  ) => {
-    const trimmed = (text || "").trim();
-    if (/^(batal|cancel|exit)$/i.test(trimmed)) {
-      const remaining = session?.bulkStatusContext?.pendingSelections?.length || 0;
-      delete session.bulkStatusContext;
-      session.step = "main";
-      await waClient.sendMessage(
-        chatId,
-        `Permohonan penghapusan dibatalkan. ${remaining} entri belum diproses.`
-      );
-      clearSession(chatId);
-      return;
-    }
-
-    const context = session?.bulkStatusContext;
-    const pending = context?.pendingSelections || [];
-    const current = pending[0];
-    if (!context || !current) {
-      session.step = "main";
-      await waClient.sendMessage(
-        chatId,
-        "Sesi pemilihan role tidak ditemukan. Ketik *clientrequest* untuk memulai ulang."
-      );
-      return;
-    }
-
-    const choiceIndex = Number.parseInt(trimmed, 10) - 1;
-    if (!Number.isInteger(choiceIndex) || !current.roles?.[choiceIndex]) {
-      await waClient.sendMessage(
-        chatId,
-        "Pilihan tidak valid. Balas dengan angka sesuai daftar role atau ketik *batal* untuk keluar."
-      );
-      return;
-    }
-
-    const chosenRole = current.roles[choiceIndex];
-    pending.shift();
-
-    await applyBulkDeletionChoice({
-      entry: current,
-      targetRole: chosenRole,
-      userModel,
-      successes: context.successes,
-      failures: context.failures,
-    });
-
-    if (pending.length) {
-      session.step = "bulkStatus_chooseRole";
-      await sendBulkRolePrompt(session, chatId, waClient);
-      return;
-    }
-
-    await sendBulkDeletionSummary({
-      headerLine: context.headerLine,
-      successes: context.successes,
-      failures: context.failures,
-      chatId,
-      waClient,
-      session,
-    });
+  bulkStatus_applySelection: async (session, chatId, _text, waClient) => {
+    session.step = "main";
+    await waClient.sendMessage(chatId, "Fitur bulk deletion dinonaktifkan.");
   },
 
-  // ================== RESPONSE KOMPLAIN ==================
+  // ================== RESPOND COMPLAINT ==================
   respondComplaint_start: async (session, chatId, _text, waClient) => {
-    session.respondComplaint = {};
-    session.step = "respondComplaint_message";
-    await waClient.sendMessage(
-      chatId,
-      [
-        "Kirimkan *pesan komplain lengkap* dari pelapor dengan format seperti di bawah ini:",
-        "",
-        "Pesan Komplain",
-        "NRP    : 75020201",
-        "Nama   : Nama Pelapor",
-        "Polres : Satuan",
-        "Username IG : @username",
-        "Username TikTok : @username",
-        "",
-        "Kendala",
-        "- Sudah melaksanakan Instagram belum terdata.",
-        "- Sudah melaksanakan TikTok belum terdata.",
-        "",
-        "Atau ketik *batal* untuk keluar."
-      ].join("\n")
-    );
+    delete session.respondComplaint;
+    session.step = "main";
+    await waClient.sendMessage(chatId, "Fitur respon komplain dinonaktifkan.");
   },
-  respondComplaint_message: async (
-    session,
-    chatId,
-    text,
-    waClient,
-    _pool,
-    userModel
-  ) => {
-    const input = text.trim();
-    if (!input) {
-      await waClient.sendMessage(
-        chatId,
-        "Pesan komplain tidak boleh kosong. Kirimkan pesan komplain atau ketik *batal* untuk keluar."
-      );
-      return;
-    }
-    if (input.toLowerCase() === "batal") {
-      delete session.respondComplaint;
-      session.step = "main";
-      await waClient.sendMessage(chatId, "Respon komplain dibatalkan.");
-      return;
-    }
-    const parsedComplaint = parseComplaintMessage(text);
-    const nrp = normalizeUserId(parsedComplaint.nrp || "");
-    if (!nrp) {
-      await waClient.sendMessage(
-        chatId,
-        "Format NRP/NIP tidak ditemukan atau tidak valid pada pesan komplain. Mohon periksa kembali dan kirim ulang."
-      );
-      return;
-    }
-    const user = await userModel.findUserById(nrp);
-    if (!user) {
-      await waClient.sendMessage(
-        chatId,
-        `User dengan NRP ${nrp} tidak ditemukan. Coba lagi atau ketik *batal* untuk keluar.`
-      );
-      return;
-    }
-
-    const userSummary = [
-      "👤 *Data Pelapor*",
-      formatUserData(user),
-    ].join("\n");
-    await waClient.sendMessage(chatId, userSummary);
-
-    const whatsappNumber = user?.whatsapp ? String(user.whatsapp).trim() : "";
-    const normalizedEmail = normalizeEmail(user?.email);
-    const hasWhatsapp = Boolean(whatsappNumber);
-    const hasEmail = Boolean(normalizedEmail);
-
-    if (!hasWhatsapp && !hasEmail) {
-      await waClient.sendMessage(
-        chatId,
-        `User *${nrp}* (${formatNama(user) || user.nama || "-"}) belum memiliki nomor WhatsApp terdaftar. Masukkan NRP lain atau ketik *batal* untuk keluar.`
-      );
-      return;
-    }
-    const contactChannel = hasWhatsapp ? "whatsapp" : "email";
-    session.respondComplaint = {
-      ...(session.respondComplaint || {}),
-      nrp,
-      user,
-      channel: contactChannel,
-    };
-    const instaUsername =
-      typeof user.insta === "string" ? user.insta.trim() : user.insta || "";
-    const tiktokUsername =
-      typeof user.tiktok === "string" ? user.tiktok.trim() : user.tiktok || "";
-    const hasInsta = Boolean(instaUsername);
-    const hasTiktok = Boolean(tiktokUsername);
-
-    const formattedComplaint = formatComplaintIssue(parsedComplaint.raw);
-    if (formattedComplaint) {
-      await waClient.sendMessage(chatId, formattedComplaint);
-    }
-
-    if (!isUserActive(user)) {
-      const solution = [
-        "Akun Cicero personel saat ini *tidak aktif*.",
-        "Mohon hubungi operator satker untuk melakukan aktivasi akun sebelum melanjutkan pelaporan tugas atau komplain.",
-        "Setelah akun aktif, silakan informasikan kembali melalui menu *Client Request* bila kendala masih terjadi.",
-      ].join("\n");
-
-      session.respondComplaint = {
-        ...(session.respondComplaint || {}),
-        nrp,
-        user,
-        accountStatus: null,
-        issue: formattedComplaint || "Akun personel tidak aktif.",
-        solution,
-        parsedComplaint,
-      };
-
-      await processComplaintResolution(session, chatId, waClient);
-      return;
-    }
-
-    const accountStatus = await buildAccountStatus(user);
-    if (accountStatus.adminMessage) {
-      await waClient.sendMessage(chatId, accountStatus.adminMessage);
-    }
-
-    if (!hasInsta && !hasTiktok) {
-      session.respondComplaint = {
-        ...(session.respondComplaint || {}),
-        nrp,
-        user,
-        accountStatus,
-        issue: "Akun sosial media masih belum terisi",
-        solution: [
-          "Belum terdapat username Instagram maupun TikTok pada data personel.",
-          "",
-          "Langkah tindak lanjut:",
-          buildUpdateDataInstructions("Instagram dan TikTok"),
-          "",
-          `Tautan update data personel: ${UPDATE_DATA_LINK}`,
-        ].join("\n"),
-      };
-
-      await processComplaintResolution(session, chatId, waClient);
-      return;
-    }
-    const complaintIssues = Array.isArray(parsedComplaint.issues)
-      ? parsedComplaint.issues.filter((issue) => issue && issue.trim())
-      : [];
-    const formattedIssues = complaintIssues.length
-      ? formatComplaintIssue(
-          [
-            "Pesan Komplain",
-            `NRP/NIP: ${nrp}`,
-            parsedComplaint.name ? `Nama: ${parsedComplaint.name}` : "",
-            parsedComplaint.polres ? `Polres: ${parsedComplaint.polres}` : "",
-            parsedComplaint.instagram
-              ? `Instagram: ${parsedComplaint.instagram}`
-              : "",
-            parsedComplaint.tiktok ? `TikTok: ${parsedComplaint.tiktok}` : "",
-            "",
-            "Kendala",
-            ...complaintIssues.map((issue) => `- ${issue}`),
-          ]
-            .filter(Boolean)
-            .join("\n")
-        )
-      : formatComplaintIssue(parsedComplaint.raw);
-
-    session.respondComplaint = {
-      ...(session.respondComplaint || {}),
-      nrp,
-      user,
-      accountStatus,
-      issue: formattedIssues,
-      parsedComplaint,
-    };
-
-    const { solutionText } = await buildComplaintSolutionsFromIssues(
-      parsedComplaint,
-      user,
-      accountStatus
-    );
-
-    if (solutionText) {
-      session.respondComplaint.solution = solutionText;
-      await processComplaintResolution(session, chatId, waClient);
-      return;
-    }
-
-    await waClient.sendMessage(
-      chatId,
-      "Kendala belum memiliki solusi otomatis. Tuliskan *solusi/tindak lanjut* yang akan dikirim ke pelapor (atau ketik *batal* untuk keluar):"
-    );
-    session.step = "respondComplaint_solution";
+  respondComplaint_message: async (session, chatId, _text, waClient) => {
+    delete session.respondComplaint;
+    session.step = "main";
+    await waClient.sendMessage(chatId, "Fitur respon komplain dinonaktifkan.");
   },
-  respondComplaint_issue: async (session, chatId, text, waClient) => {
-    const input = text.trim();
-    if (!input) {
-      await waClient.sendMessage(
-        chatId,
-        "Pesan kendala tidak boleh kosong. Tuliskan kendala atau ketik *batal* untuk keluar."
-      );
-      return;
-    }
-    if (input.toLowerCase() === "batal") {
-      delete session.respondComplaint;
-      session.step = "main";
-      await waClient.sendMessage(chatId, "Respon komplain dibatalkan.");
-      return;
-    }
-    const formattedIssue = formatComplaintIssue(input);
-    session.respondComplaint = {
-      ...(session.respondComplaint || {}),
-      issue: formattedIssue,
-    };
-
-    if (await maybeHandleAutoSolution(session, chatId, waClient)) {
-      return;
-    }
-
-    session.step = "respondComplaint_solution";
-    await waClient.sendMessage(
-      chatId,
-      "Tuliskan *solusi/tindak lanjut* yang akan dikirim ke pelapor (atau ketik *batal* untuk keluar):"
-    );
+  respondComplaint_issue: async (session, chatId, _text, waClient) => {
+    delete session.respondComplaint;
+    session.step = "main";
+    await waClient.sendMessage(chatId, "Fitur respon komplain dinonaktifkan.");
   },
-  respondComplaint_solution: async (
-    session,
-    chatId,
-    text,
-    waClient
-  ) => {
-    const input = text.trim();
-    if (!input) {
-      await waClient.sendMessage(
-        chatId,
-        "Solusi tidak boleh kosong. Tuliskan solusi atau ketik *batal* untuk keluar."
-      );
-      return;
-    }
-    if (input.toLowerCase() === "batal") {
-      delete session.respondComplaint;
-      session.step = "main";
-      await waClient.sendMessage(chatId, "Respon komplain dibatalkan.");
-      return;
-    }
-    const data = session.respondComplaint || {};
-    const { nrp, user, issue } = data;
-    if (!nrp || !user || !issue) {
-      delete session.respondComplaint;
-      session.step = "main";
-      await waClient.sendMessage(
-        chatId,
-        "Data komplain tidak lengkap. Silakan mulai ulang proses respon komplain."
-      );
-      return;
-    }
-    const solution = input;
-    session.respondComplaint = {
-      ...data,
-      solution,
-    };
-    await processComplaintResolution(session, chatId, waClient);
+  respondComplaint_solution: async (session, chatId, _text, waClient) => {
+    delete session.respondComplaint;
+    session.step = "main";
+    await waClient.sendMessage(chatId, "Fitur respon komplain dinonaktifkan.");
   },
 
   // ================== ABSENSI OFFICIAL ACCOUNT ==================
@@ -4468,9 +4121,6 @@ Ketik *angka* menu, atau *batal* untuk kembali.
 export {
   normalizeComplaintHandle,
   parseComplaintMessage,
-  parseBulkStatusEntries,
-  processBulkDeletionRequest,
-  BULK_STATUS_HEADER_REGEX,
 };
 
 export default clientRequestHandlers;

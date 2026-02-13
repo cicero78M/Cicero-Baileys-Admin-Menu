@@ -1,5 +1,9 @@
 # User Request Menu - Documentation
 
+> ⚠️ **DINONAKTIFKAN**: Menu `userrequest` sudah dihapus dari alur bot dan tidak diproses lagi.
+> Dokumentasi ini dipertahankan hanya sebagai arsip historis.
+
+
 Last updated: 2026-02-08
 
 ## Overview

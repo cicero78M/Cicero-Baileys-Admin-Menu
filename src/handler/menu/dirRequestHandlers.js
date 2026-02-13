@@ -821,8 +821,15 @@ async function formatRekapDataPersonil(clientId, category = "all") {
     );
   }
 
-  // Filter out sat intelkam users from attendance
-  const users = filterAttendanceUsers(allUsers, clientType);
+  // Filter out sat intelkam users from attendance.
+  // Untuk client bertipe direktorat, menu ini wajib murni client_id terpilih
+  // (bukan berdasarkan role lintas client ORG).
+  const normalizedTargetClientId = targetClientId.toLowerCase();
+  const users = filterAttendanceUsers(allUsers, clientType).filter(
+    (user) =>
+      String(user.client_id || "").trim().toLowerCase() === normalizedTargetClientId &&
+      user.status === true
+  );
 
   const salam = getGreeting();
   const now = new Date();
@@ -899,28 +906,72 @@ async function formatRekapDataPersonil(clientId, category = "all") {
       break;
   }
 
-  const lines = sortDivisionKeys(Object.keys(categoryData)).map((div) => {
-    const userList = categoryData[div]
-      .sort(
-        (a, b) =>
-          rankIdx(a.title) - rankIdx(b.title) ||
-          formatNama(a).localeCompare(formatNama(b))
-      )
-      .map((u) => {
-        const name = formatNama(u);
-        const socialMedia = [];
-        if (u.insta) socialMedia.push(`IG: @${u.insta}`);
-        if (u.tiktok) socialMedia.push(`TikTok: @${u.tiktok}`);
-        const socialMediaInfo = socialMedia.length > 0 ? ` (${socialMedia.join(", ")})` : "";
-        
-        if (showMissing && u.missing) {
-          return `${name}${socialMediaInfo}, ${u.missing}`;
-        }
-        return `${name}${socialMediaInfo}`;
-      })
-      .join("\n");
-    return `*${div.toUpperCase()}* (${categoryData[div].length})\n${userList}`;
-  });
+  const buildUserLine = (u, withMissing = false) => {
+    const name = formatNama(u);
+    const socialMedia = [];
+    if (u.insta) socialMedia.push(`IG: @${u.insta}`);
+    if (u.tiktok) socialMedia.push(`TikTok: @${u.tiktok}`);
+    const socialMediaInfo = socialMedia.length > 0 ? ` (${socialMedia.join(", ")})` : "";
+    if (withMissing && u.missing) {
+      return `${name}${socialMediaInfo}, ${u.missing}`;
+    }
+    return `${name}${socialMediaInfo}`;
+  };
+
+  const sortUsers = (list = []) =>
+    [...list].sort(
+      (a, b) =>
+        rankIdx(a.title) - rankIdx(b.title) ||
+        formatNama(a).localeCompare(formatNama(b))
+    );
+
+  let lines = [];
+
+  if (category === "all") {
+    const divisionMap = {};
+    users.forEach((u) => {
+      const div = u.divisi || "-";
+      if (!divisionMap[div]) {
+        divisionMap[div] = { complete: [], incomplete: [], notYet: [] };
+      }
+      const hasInsta = !!u.insta;
+      const hasTiktok = !!u.tiktok;
+      if (hasInsta && hasTiktok) {
+        divisionMap[div].complete.push(u);
+      } else if (!hasInsta && !hasTiktok) {
+        divisionMap[div].notYet.push({ ...u, missing: "Instagram dan TikTok kosong" });
+      } else {
+        const missing = [];
+        if (!hasInsta) missing.push("Instagram kosong");
+        if (!hasTiktok) missing.push("TikTok kosong");
+        divisionMap[div].incomplete.push({ ...u, missing: missing.join(", ") });
+      }
+    });
+
+    lines = sortDivisionKeys(Object.keys(divisionMap)).map((div) => {
+      const section = divisionMap[div];
+      const completeList = sortUsers(section.complete).map((u) => `- ${buildUserLine(u)}`);
+      const incompleteList = sortUsers(section.incomplete).map((u) => `- ${buildUserLine(u, true)}`);
+      const notYetList = sortUsers(section.notYet).map((u) => `- ${buildUserLine(u, true)}`);
+
+      return [
+        `*${div.toUpperCase()}* (${section.complete.length + section.incomplete.length + section.notYet.length})`,
+        `✅ Sudah (${section.complete.length})`,
+        completeList.length ? completeList.join("\n") : "- Tidak ada",
+        `⚠️ Kurang (${section.incomplete.length})`,
+        incompleteList.length ? incompleteList.join("\n") : "- Tidak ada",
+        `❌ Belum (${section.notYet.length})`,
+        notYetList.length ? notYetList.join("\n") : "- Tidak ada",
+      ].join("\n");
+    });
+  } else {
+    lines = sortDivisionKeys(Object.keys(categoryData)).map((div) => {
+      const userList = sortUsers(categoryData[div])
+        .map((u) => buildUserLine(u, showMissing))
+        .join("\n");
+      return `*${div.toUpperCase()}* (${categoryData[div].length})\n${userList}`;
+    });
+  }
 
   if (!lines.length) {
     return `${salam},\n\nTidak ada data personil kategori ${categoryLabel} untuk ${clientName.toUpperCase()}.`;

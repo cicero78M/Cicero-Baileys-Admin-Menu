@@ -1,5 +1,7 @@
 # Panduan Operator WA Bot
-*Last updated: 2026-01-28*
+*Last updated: 2026-02-12*
+
+> Perubahan terbaru: menu *userrequest*, *bulk deletion*, dan *Response Komplain* pada alur WA bot telah dinonaktifkan/hapus.
 
 Dokumen ini menjelaskan cara menggunakan perintah `oprrequest` pada Bot WhatsApp **Cicero_V2**. Menu ini hanya untuk operator client dan berguna untuk mengelola data user serta update tugas harian. Akses menu dibatasi sebagai berikut:
 - Nomor operator dan **Super Admin** client yang terdaftar pada data client aktif dapat langsung masuk ke menu operator.
