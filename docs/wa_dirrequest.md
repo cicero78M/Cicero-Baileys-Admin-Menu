@@ -194,6 +194,9 @@ dirrequest tanpa langkah tambahan.
   - `❌ Belum` (Instagram dan TikTok masih kosong).
 - Ringkasan total pada header tetap menampilkan agregasi `Lengkap`, `Kurang`,
   dan `Belum` untuk seluruh user pada client direktorat yang dipilih.
+- Rekap menu **3️⃣** kini menambahkan guard eksplisit `user.status = true`
+  pada tahap formatting sebagai lapisan validasi tambahan, sehingga hanya
+  personil aktif yang ikut dihitung meskipun sumber data berubah di level query.
 
 ## Rekap Kelengkapan data Personil Satker (Menu 1)
 - Label menu utama diperbarui menjadi **1️⃣ Rekap Kelengkapan data Personil Satker.**

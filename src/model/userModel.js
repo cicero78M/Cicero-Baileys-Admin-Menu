@@ -407,7 +407,7 @@ export async function getUsersSocialByClient(clientId, roleFilter = null) {
   }
 
   const res = await query(
-      `SELECT u.user_id, u.nama, u.title, u.divisi, u.insta, u.tiktok, u.client_id
+      `SELECT u.user_id, u.nama, u.title, u.divisi, u.insta, u.tiktok, u.client_id, u.status
        FROM "user" u
        WHERE ${directorateClause} AND status = true
        ORDER BY u.client_id, u.divisi, u.nama`,
