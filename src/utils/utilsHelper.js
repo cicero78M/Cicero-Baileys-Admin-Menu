@@ -489,25 +489,40 @@ export function extractInstagramShortcode(text) {
   return null;
 }
 
+function normalizeDivisionName(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
 /**
- * Filter to exclude users with direktorat client_type and satfung "sat intelkam"
- * from attendance reports. This should be applied to user arrays in attendance functions.
- * 
+ * Filter user attendance data for direktorat clients by excluding specific satfung.
+ *
+ * Pengecualian hanya berlaku untuk `clientType === "direktorat"` agar perilaku
+ * klien non-direktorat tidak berubah.
+ *
  * @param {Array} users - Array of user objects
- * @param {string} clientType - Type of client (e.g., 'direktorat', 'org')
+ * @param {string} clientType - Type of client (e.g., "direktorat", "org")
  * @returns {Array} Filtered array of users
  */
 export function filterAttendanceUsers(users, clientType) {
   if (!Array.isArray(users)) return [];
-  
+
+  const excludedDivisions = new Set([
+    normalizeDivisionName("sat intel"),
+    normalizeDivisionName("satintel"),
+    normalizeDivisionName("sat intelkam"),
+    normalizeDivisionName("satintelkam"),
+  ]);
+
   return users.filter((u) => {
     // Only filter if client is direktorat type
     if (clientType?.toLowerCase() !== "direktorat") {
       return true;
     }
-    
-    // Filter out users with satfung = "sat intelkam" (case insensitive)
-    const satfung = (u.divisi || "").toLowerCase().trim();
-    return satfung !== "sat intelkam" && satfung !== "satintelkam";
+
+    const satfung = normalizeDivisionName(u.divisi);
+    return !excludedDivisions.has(satfung);
   });
 }
