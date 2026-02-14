@@ -22,6 +22,19 @@ import { sortUsersByPositionRankAndName } from "../../../utils/sortingHelper.js"
 // Use the comprehensive sorting function from sortingHelper
 const sortUsersByRankAndName = sortUsersByPositionRankAndName;
 
+function getFilteredSimpleLikesUsers(allUsers, targetClientId, clientType) {
+  const normalizedTargetClientId = String(targetClientId || "")
+    .trim()
+    .toUpperCase();
+  const matchedClientUsers = (allUsers || []).filter(
+    (user) =>
+      String(user?.client_id || "")
+        .trim()
+        .toUpperCase() === normalizedTargetClientId
+  );
+  return filterAttendanceUsers(matchedClientUsers, clientType);
+}
+
 export async function collectLikesRecap(clientId, opts = {}) {
   const roleName = String(clientId || "").toLowerCase();
   let shortcodes;
@@ -502,7 +515,7 @@ export async function absensiLikesDitbinmasSimple(clientId = "DITBINMAS") {
     console.error(error);
     return "Maaf, gagal mengambil data konten Instagram.";
   }
-  const { nama: clientName } = await getClientInfo(targetClientId);
+  const { nama: clientName, clientType } = await getClientInfo(targetClientId);
 
   if (!shortcodes.length)
     return `*Belum ada konten Instagram terbaru pada akun official ${clientName.toUpperCase()} pada hari ini.*`;
@@ -525,8 +538,13 @@ export async function absensiLikesDitbinmasSimple(clientId = "DITBINMAS") {
     return "Maaf, gagal mengelompokkan pengguna.";
   }
   const allUsers = usersByClient[targetClientId] || [];
-  const { summary, userStats } = computeDitbinmasLikesStats(
+  const filteredUsers = getFilteredSimpleLikesUsers(
     allUsers,
+    targetClientId,
+    clientType
+  );
+  const { summary, userStats } = computeDitbinmasLikesStats(
+    filteredUsers,
     likesSets,
     shortcodes.length
   );
@@ -610,7 +628,7 @@ export async function absensiLikesDitbinmasReport(clientId = "DITBINMAS") {
   const hari = hariIndo[now.getDay()];
   const tanggal = now.toLocaleDateString("id-ID");
   const jam = now.toLocaleTimeString("id-ID", { hour12: false });
-  const { nama: clientName } = await getClientInfo(targetClientId);
+  const { nama: clientName, clientType } = await getClientInfo(targetClientId);
 
   let shortcodes;
   try {
@@ -642,8 +660,13 @@ export async function absensiLikesDitbinmasReport(clientId = "DITBINMAS") {
     return "Maaf, gagal mengelompokkan pengguna.";
   }
   const allUsers = usersByClient[targetClientId] || [];
-  const { summary: summaryTotals, userStats } = computeDitbinmasLikesStats(
+  const filteredUsers = getFilteredSimpleLikesUsers(
     allUsers,
+    targetClientId,
+    clientType
+  );
+  const { summary: summaryTotals, userStats } = computeDitbinmasLikesStats(
+    filteredUsers,
     likesSets,
     shortcodes.length
   );
