@@ -72,14 +72,13 @@ dirrequest tanpa langkah tambahan.
   dilewati kecuali dipaksa manual sebelum 17.00 WIB.
 
 ## Absensi Likes Instagram (Format Dirrequest)
-- Submenu **5️⃣ (Simple)** dan **6️⃣ (Report)** untuk likes direktorat kini
-  menggunakan filtering personel yang konsisten: hanya user aktif dengan
-  `client_id` yang **persis sama** dengan direktorat terpilih (perbandingan
-  uppercase), lalu difilter lagi via kebijakan `filterAttendanceUsers`
-  (termasuk eksklusi satfung tertentu pada konteks direktorat).
+- Submenu **6️⃣ (Simple)** kini memakai filtering personil yang sama dengan
+  menu **9️⃣**: hanya **user aktif**, `client_id` harus **persis** sesuai
+  **client direktorat terpilih** (normalisasi uppercase), lalu diterapkan
+  pengecualian **divisi/satfung** tertentu melalui `filterAttendanceUsers`.
 - Ringkasan angka `total/lengkap/kurang/belum/noUsername` pada output likes
-  simple sekarang dihitung dari dataset filter yang sama dengan report,
-  sehingga tidak ada mismatch angka lintas submenu.
+  simple dihitung dari dataset filter yang sama, sehingga konsisten dengan
+  hasil rekap lintas submenu absensi likes direktorat.
 - Rekap absensi likes Instagram (menu dirrequest untuk Direktorat) kini
   menampilkan setiap divisi sebagai header tebal, dipisahkan satu baris kosong
   agar mudah dibaca pada WhatsApp.
