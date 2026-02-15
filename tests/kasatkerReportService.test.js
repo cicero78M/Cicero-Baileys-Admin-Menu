@@ -33,6 +33,7 @@ describe('generateKasatkerReport', () => {
       clientId: 'DITBINMAS',
       roleFlag: 'ditbinmas',
       period: 'today',
+      reportDate: new Date('2026-02-15T05:00:00.000Z'),
     });
 
     expect(mockCollectEngagementRanking).toHaveBeenCalledWith('DITBINMAS', 'ditbinmas', {
@@ -41,7 +42,7 @@ describe('generateKasatkerReport', () => {
       endDate: undefined,
     });
 
-    expect(narrative).toContain('Selamat Pagi / Siang/Sore/Malam,');
+    expect(narrative).toContain('Selamat Siang,');
     expect(narrative).toContain('Mohon ijin Komandan,');
     expect(narrative).toContain('Melaporan kepatuhan pelaksanaan Likes dan Komentar Media Sosial.');
     expect(narrative).toContain('*KRITERIA KEPATUHAN*');

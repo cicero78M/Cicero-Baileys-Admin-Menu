@@ -25,6 +25,26 @@ function categorizeCompliance(compliancePct) {
   return CATEGORY_RULES[2];
 }
 
+function resolveTimeGreeting(referenceDate = new Date()) {
+  const hourLabel = new Intl.DateTimeFormat('en-GB', {
+    hour: '2-digit',
+    hour12: false,
+    timeZone: 'Asia/Jakarta',
+  }).format(referenceDate);
+  const hour = Number.parseInt(hourLabel, 10);
+
+  if (hour >= 4 && hour < 11) {
+    return 'Pagi';
+  }
+  if (hour >= 11 && hour < 15) {
+    return 'Siang';
+  }
+  if (hour >= 15 && hour < 18) {
+    return 'Sore';
+  }
+  return 'Malam';
+}
+
 function buildCategorySections(grouped) {
   return CATEGORY_RULES.map((rule) => {
     const entries = grouped[rule.key] || [];
@@ -48,6 +68,7 @@ export async function generateKasatkerReport({
   period = 'today',
   startDate,
   endDate,
+  reportDate = new Date(),
 } = {}) {
   const {
     clientId: normalizedClientId,
@@ -105,19 +126,10 @@ export async function generateKasatkerReport({
 
   const sections = buildCategorySections(grouped);
 
-  const now = new Date();
-  const tanggal = now.toLocaleDateString('id-ID', {
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-  });
-  const jam = now.toLocaleTimeString('id-ID', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  const greetingTime = resolveTimeGreeting(reportDate);
 
   const headerLines = [
-    'Selamat Pagi / Siang/Sore/Malam,',
+    `Selamat ${greetingTime},`,
     '',
     'Mohon ijin Komandan,',
     '',
