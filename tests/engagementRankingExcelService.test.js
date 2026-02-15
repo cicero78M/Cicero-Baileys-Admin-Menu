@@ -84,6 +84,7 @@ describe('engagementRankingExcelService', () => {
     mockFindClientById.mockImplementation(async (cid) => {
       const map = {
         ditbinmas: { nama: 'Direktorat Binmas', client_type: 'direktorat' },
+        ditlantas: { nama: 'Direktorat Lantas', client_type: 'direktorat' },
         polres_a: { nama: 'Polres A', client_type: 'org' },
         polres_b: { nama: 'Polres B', client_type: 'org' },
       };
@@ -175,6 +176,23 @@ describe('engagementRankingExcelService', () => {
     expect(result.ttPostsCount).toBe(2);
     expect(result.periodInfo.period).toBe('today');
     expect(result.periodInfo.label).toMatch(/Hari, Tanggal:/);
+  });
+
+
+  test('collectEngagementRanking memprioritaskan client direktorat terpilih saat roleFlag tidak selaras', async () => {
+    await collectEngagementRanking('DITLANTAS', 'ditbinmas');
+
+    expect(mockGroupUsersByClientDivision).toHaveBeenCalledWith('ditlantas');
+    expect(mockGetShortcodesByDateRange).toHaveBeenCalledWith(
+      'ditlantas',
+      expect.any(String),
+      expect.any(String)
+    );
+    expect(mockGetPostsByClientAndDateRange).toHaveBeenCalledWith(
+      'ditlantas',
+      expect.any(String),
+      expect.any(String)
+    );
   });
 
   test('collectEngagementRanking menggunakan rentang semua periode saat diminta', async () => {

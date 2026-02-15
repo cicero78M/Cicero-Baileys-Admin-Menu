@@ -42,7 +42,7 @@ describe('generateKasatkerReport', () => {
     });
 
     expect(narrative).toContain('*KEPADA YTH.*');
-    expect(narrative).toContain('KASAT BINMAS POLRES JAJARAN POLDA JAWA TIMUR');
+    expect(narrative).toContain('KASATKER POLRES JAJARAN DIT BINMAS');
     expect(narrative).toContain('*KRITERIA KEPATUHAN*');
     expect(narrative).toContain('*KEPATUHAN AKTIF* (1 Satker)');
     expect(narrative).toMatch(/POLRES A : 95%/);
@@ -50,7 +50,7 @@ describe('generateKasatkerReport', () => {
     expect(narrative).toMatch(/POLRES B : 70%/);
     expect(narrative).toContain('*KEPATUHAN RENDAH* (1 Satker)');
     expect(narrative).toMatch(/POLRES C : 0% \(Belum ada pelaksanaan\)/);
-    expect(narrative).toContain('https://chat.whatsapp.com/Hga2FkPQOw5BuZW7nSFYV1');
+    expect(narrative).toContain('kanal koordinasi DIT BINMAS');
   });
 
   test('tetap menampilkan satker yang berasal dari data user', async () => {

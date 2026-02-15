@@ -304,7 +304,11 @@ export async function collectEngagementRanking(
     throw new Error("Menu ini hanya tersedia untuk direktorat.");
   }
 
-  const roleName = (roleFlag || normalizedClientId).toLowerCase();
+  const normalizedRoleFlag = String(roleFlag || "").trim().toLowerCase();
+  const roleName =
+    normalizedRoleFlag && normalizedRoleFlag === normalizedClientId
+      ? normalizedRoleFlag
+      : normalizedClientId;
   const { polresIds, usersByClient } = await groupUsersByClientDivision(roleName);
 
   const periodInfo = resolvePeriodRange(options.period, options);
