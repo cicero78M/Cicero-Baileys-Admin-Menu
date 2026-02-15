@@ -30,7 +30,6 @@ Key tables defined in [`sql/schema.sql`](../sql/schema.sql):
 | `tiktok_comment`            | Comments for each TikTok post.            |
 | `premium_request`           | Premium subscription applications.        |
 | `link_report`, `link_report_khusus` | Amplification links from field agents. |
-| `saved_contact`             | Google contact references used for WhatsApp messaging. |
 
 These tables are updated regularly by scheduled jobs and form the basis for analytics and attendance calculations.
 

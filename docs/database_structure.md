@@ -39,7 +39,6 @@ for PostgreSQL but can work with MySQL or SQLite via the DB adapter.
 | change_log | mutation history for editorial events |
 | premium_request | premium subscription requests |
 | login_log | history of login events |
-| saved_contact | Google People API cache used for WhatsApp messaging |
 
 ## Tables
 
@@ -377,59 +376,6 @@ Tracks changes applied to an editorial event.
 - `status` – textual status after the change
 - `changes` – textual diff summary
 - `logged_at`
-
-### `saved_contact`
-Google People API cache for WhatsApp integrations.
-- `phone_number` – primary key
-- `resource_name` – People API resource identifier
-- `created_at`
-
-## Relationships
-
-```mermaid
-erDiagram
-    clients ||--o{ user : "has"
-    clients ||--o{ insta_post : "posts"
-    clients ||--o{ tiktok_post : "videos"
-    satbinmas_official_accounts ||..|| satbinmas_tiktok_accounts : "secuid = author_secuid"
-    satbinmas_tiktok_accounts ||--o{ satbinmas_tiktok_posts : "videos"
-    satbinmas_tiktok_posts ||--o{ satbinmas_tiktok_post_hashtags : "hashtags"
-    insta_post ||--|| insta_like : "likes"
-    tiktok_post ||--|| tiktok_comment : "comments"
-    tiktok_post ||--o{ tiktok_comment_audit : "audit snapshots"
-    editorial_event ||--|| press_release_detail : "detail"
-    editorial_event ||--o{ approval_request : "approvals"
-    editorial_event ||--o{ change_log : "history"
-```
-
-The diagram shows how each `client` owns many `user`, `insta_post` and
-`tiktok_post` records. Instagram and TikTok posts have one-to-one tables for
-likes and comments. Satbinmas TikTok snapshots live in the
-`satbinmas_tiktok_accounts` and `satbinmas_tiktok_posts` tables keyed by
-`secUid`, which can be joined to `satbinmas_official_accounts` without reusing
-the legacy `tiktok_post` structure. Editorial events maintain optional
-press-release details and multiple
-approval/change log entries.
-
-## PostgreSQL Table Management
-
-Use the SQL scripts inside the [`sql`](../sql) directory to create the tables:
-
-```bash
-psql -U <dbuser> -d <dbname> -f sql/schema.sql
-```
-
-To remove tables no longer in use, run `DROP TABLE` via `psql` (add `IF EXISTS`
-to avoid errors):
-
-```bash
-psql -U <dbuser> -d <dbname> -c "DROP TABLE IF EXISTS old_table_name;"
-```
-
-Repeat the command for each unused table. Always ensure a recent backup exists
-before dropping tables.
-
-Refer to [docs/naming_conventions.md](naming_conventions.md) for code style guidelines.
 
 ### `satbinmas_official_accounts`
 Stores the verified Satbinmas social media handles for each client so they can be audited separately from generic client metadata.
