@@ -200,6 +200,10 @@ dirrequest tanpa langkah tambahan.
   - `❌ Belum` (Instagram dan TikTok masih kosong).
 - Ringkasan total pada header tetap menampilkan agregasi `Lengkap`, `Kurang`,
   dan `Belum` untuk seluruh user pada client direktorat yang dipilih.
+- Header laporan menu **3️⃣** diperjelas agar tujuan pesan langsung terbaca
+  sebagai **progres update data personil**. Ringkasan kini memakai label yang
+  lebih eksplisit: `Username lengkap`, `Username kurang lengkap`, dan
+  `Belum update username`, lalu diikuti kalimat pembuka detail per divisi.
 - Rekap menu **3️⃣** kini menambahkan guard eksplisit `user.status = true`
   pada tahap formatting sebagai lapisan validasi tambahan, sehingga hanya
   personil aktif yang ikut dihitung meskipun sumber data berubah di level query.
