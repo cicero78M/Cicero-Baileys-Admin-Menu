@@ -574,8 +574,10 @@ berpindah ke dashboard web atau menjalankan skrip manual.
   (bukan lagi terkunci ke role login awal), sehingga direktorat seperti
   DITLANTAS/BIDHUMAS/DITSAMAPTA tetap menghasilkan rekap satker yang sesuai
   client aktif.
-- Header narasi laporan menu **3️⃣0️⃣** kini adaptif memakai nama direktorat
-  terpilih (`client.nama`) agar tidak lagi hardcoded ke Ditbinmas.
+- Pembuka narasi laporan menu **3️⃣0️⃣** kini memakai sapaan dinamis sesuai
+  jam laporan WIB (`Selamat Pagi,` / `Selamat Siang,` / `Selamat Sore,` /
+  `Selamat Malam,`) lalu `Mohon ijin Komandan,` dan kalimat laporan
+  kepatuhan likes/komentar, diikuti periode laporan.
 - Rekap hanya dikirim ke daftar Operator Ditbinmas (`client_operator`) tanpa
   broadcast ke grup maupun Super Admin.
 
