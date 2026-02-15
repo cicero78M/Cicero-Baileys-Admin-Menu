@@ -986,13 +986,13 @@ async function formatRekapDataPersonil(clientId, category = "all") {
   const body = lines.join("\n\n");
   const header =
     `${salam},\n\n` +
-    `Mohon ijin Komandan, melaporkan personil ${clientName.toUpperCase()} kategori *${categoryLabel}* pada hari ${hari}, ${tanggal}, pukul ${jam} WIB.\n\n` +
-    `📊 *Ringkasan:*\n` +
+    `Mohon ijin Komandan, melaporkan *progres update data personil* ${clientName.toUpperCase()} kategori *${categoryLabel}* pada hari ${hari}, ${tanggal}, pukul ${jam} WIB.\n\n` +
+    `📊 *Ringkasan Progres Update Username Instagram/TikTok:*\n` +
     `• Total User: ${totalUsers}\n` +
-    `• Lengkap: ${totalComplete}\n` +
-    `• Kurang: ${totalIncomplete}\n` +
-    `• Belum: ${totalNotYet}\n\n` +
-    `Berikut detailnya:\n\n`;
+    `• Username lengkap: ${totalComplete}\n` +
+    `• Username kurang lengkap: ${totalIncomplete}\n` +
+    `• Belum update username: ${totalNotYet}\n\n` +
+    `Berikut detail personil per divisi:\n\n`;
 
   return (header + body).trim();
 }
