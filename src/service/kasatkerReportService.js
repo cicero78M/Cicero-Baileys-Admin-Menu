@@ -117,16 +117,11 @@ export async function generateKasatkerReport({
   });
 
   const headerLines = [
-    '*KEPADA YTH.*',
-    `KASATKER POLRES JAJARAN ${uppercaseClientName}`,
+    'Selamat Pagi / Siang/Sore/Malam,',
     '',
-    '*DARI :*',
-    `PIMPINAN ${uppercaseClientName}`,
+    'Mohon ijin Komandan,',
     '',
-    '*TEMBUSAN :*',
-    `• PIMPINAN ${uppercaseClientName}`,
-    '',
-    '*Laporan kepatuhan pelaksanaan _Likes_ dan _Komentar_ Media Sosial.*',
+    'Melaporan kepatuhan pelaksanaan Likes dan Komentar Media Sosial.',
     `Periode ${periodLabel}.`,
     '',
     `Dalam rangka monitoring kepatuhan pelaksanaan tugas likes dan komentar terhadap konten akun resmi ${uppercaseClientName} melalui aplikasi Cicero, berikut disampaikan hasil rekapitulasi tingkat kepatuhan personel per Polres.`,
