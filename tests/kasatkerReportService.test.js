@@ -41,8 +41,9 @@ describe('generateKasatkerReport', () => {
       endDate: undefined,
     });
 
-    expect(narrative).toContain('*KEPADA YTH.*');
-    expect(narrative).toContain('KASATKER POLRES JAJARAN DIT BINMAS');
+    expect(narrative).toContain('Selamat Pagi / Siang/Sore/Malam,');
+    expect(narrative).toContain('Mohon ijin Komandan,');
+    expect(narrative).toContain('Melaporan kepatuhan pelaksanaan Likes dan Komentar Media Sosial.');
     expect(narrative).toContain('*KRITERIA KEPATUHAN*');
     expect(narrative).toContain('*KEPATUHAN AKTIF* (1 Satker)');
     expect(narrative).toMatch(/POLRES A : 95%/);
