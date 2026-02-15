@@ -5,8 +5,7 @@ import {
   sortDivisionKeys,
   getGreeting,
 } from "../../utils/utilsHelper.js";
-import { saveContactIfNew } from "../../service/googleContactsService.js";
-import { formatToWhatsAppId, normalizeWhatsappNumber } from "../../utils/waHelper.js";
+import { normalizeWhatsappNumber } from "../../utils/waHelper.js";
 import {
   formatUserReport,
   formatFieldList,
@@ -218,13 +217,7 @@ export const userMenuHandlers = {
         console.log(`[userrequest] Storing WhatsApp ${waNum} for user ${user_id}`);
         await userModel.updateUserField(user_id, "whatsapp", waNum);
         
-        try {
-          await saveContactIfNew(formatToWhatsAppId(waNum));
-        } catch (err) {
-          console.error('[confirmBindUser] Error saving contact:', err);
-          // Non-critical, continue
-        }
-        
+
         const user = await userModel.findUserById(user_id);
         console.log(`[userrequest] Binding successful. User record now has whatsapp=${user.whatsapp}`);
         session.isDitbinmas = !!user.ditbinmas;
@@ -282,13 +275,7 @@ export const userMenuHandlers = {
         const nrp = session.updateUserId;
         await userModel.updateUserField(nrp, "whatsapp", waNum);
         
-        try {
-          await saveContactIfNew(formatToWhatsAppId(waNum));
-        } catch (err) {
-          console.error('[confirmBindUpdate] Error saving contact:', err);
-          // Non-critical, continue
-        }
-        
+
         await waClient.sendMessage(chatId, `✅ Nomor berhasil dihubungkan ke NRP/NIP *${nrp}*.`);
         session.identityConfirmed = true;
         session.user_id = nrp;
@@ -485,16 +472,7 @@ export const userMenuHandlers = {
       // Update database with proper error handling
       await userModel.updateUserField(user_id, dbField, value);
       
-      // Save contact if WhatsApp field was updated
-      if (dbField === "whatsapp" && value) {
-        try {
-          await saveContactIfNew(formatToWhatsAppId(value));
-        } catch (err) {
-          console.error('[updateAskValue] Error saving contact:', err);
-          // Non-critical error, continue
-        }
-      }
-      
+
       // Format display value
       const displayValue = (dbField === "insta" || dbField === "tiktok") ? `@${value}` : value;
       const fieldDisplayName = getFieldDisplayName(dbField);

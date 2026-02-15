@@ -27,7 +27,6 @@ import path from "path";
 import os from "os";
 import { mdToPdf } from "md-to-pdf";
 import { query } from "../../db/index.js";
-import { saveContactIfNew } from "../../service/googleContactsService.js";
 import { formatToWhatsAppId } from "../../utils/waHelper.js";
 import { fetchInstagramInfo } from "../../service/instaRapidService.js";
 import { fetchTiktokProfile } from "../../service/tiktokRapidService.js";
@@ -2572,9 +2571,6 @@ Ketik *angka* menu, atau *batal* untuk kembali.
         session.updateField,
         value
       );
-      if (session.updateField === "whatsapp" && value) {
-        await saveContactIfNew(formatToWhatsAppId(value));
-      }
       await waClient.sendMessage(
         chatId,
         `✅ Data *${session.updateField}* untuk user *${session.target_user_id}* berhasil diupdate.`

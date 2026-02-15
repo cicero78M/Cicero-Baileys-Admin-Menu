@@ -37,12 +37,6 @@ import {
 } from "../handler/fetchpost/tiktokFetchPost.js";
 import { fetchInstagramProfile } from "./instagramApi.js";
 import { fetchTiktokProfile } from "./tiktokRapidService.js";
-import {
-  saveContactIfNew,
-  authorize,
-  searchByNumbers,
-  saveGoogleContact,
-} from "./googleContactsService.js";
 
 import {
   absensiLikes,
@@ -1412,11 +1406,6 @@ export function createHandleMessage(waClient, options = {}) {
       savedInWhatsapp: false,
       user: null,
     };
-    // Save contact for non-group chats
-    if (!chatId.endsWith("@g.us")) {
-      await saveContactIfNew(chatId);
-    }
-
     let cachedUserByWa = null;
     let userByWaError = null;
     let userByWaFetched = false;
@@ -1455,34 +1444,10 @@ export function createHandleMessage(waClient, options = {}) {
         user: null,
       };
 
-      let savedInDb = false;
-      if (userWaNum) {
-        try {
-          const lookup = await query(
-            "SELECT 1 FROM saved_contact WHERE phone_number = $1 LIMIT 1",
-            [userWaNum]
-          );
-          savedInDb = lookup.rowCount > 0;
-        } catch (err) {
-          console.error(
-            `${clientLabel} failed to check saved_contact for ${chatId}: ${err.message}`
-          );
-        }
-      }
+      let savedInDb = true;
 
       const user = await getUserByWa();
       result.user = user || null;
-
-      if (user && !savedInDb) {
-        try {
-          await saveContactIfNew(chatId);
-          savedInDb = true;
-        } catch (err) {
-          console.error(
-            `${clientLabel} failed to persist contact for ${chatId}: ${err.message}`
-          );
-        }
-      }
 
       let savedInWhatsapp =
         typeof initialIsMyContact === "boolean" ? initialIsMyContact : null;
@@ -1506,11 +1471,11 @@ export function createHandleMessage(waClient, options = {}) {
         savedInWhatsapp = await refreshContactState();
       }
 
-      if (user && savedInDb && savedInWhatsapp !== true) {
+      if (user && savedInWhatsapp !== true) {
         savedInWhatsapp = await refreshContactState();
       }
 
-      const isMutual = Boolean(savedInWhatsapp) && savedInDb;
+      const isMutual = Boolean(savedInWhatsapp);
 
       if (!isMutual) {
         result.shouldRemind = true;
@@ -2210,31 +2175,6 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
       chatId,
       "❌ Anda tidak memiliki akses ke sistem ini."
     );
-    return;
-  }
-
-  if (text.toLowerCase() === "savecontact") {
-    try {
-      const auth = await authorize();
-      const users = await userModel.getActiveUsersWithWhatsapp();
-      let saved = 0;
-      for (const u of users) {
-        const exists = await searchByNumbers(auth, [u.whatsapp]);
-        if (!exists[u.whatsapp]) {
-          await saveGoogleContact(auth, { name: u.nama, phone: u.whatsapp });
-          saved++;
-        }
-      }
-      await waClient.sendMessage(
-        chatId,
-        `✅ Kontak tersimpan ke Google: ${saved}`
-      );
-    } catch (err) {
-      await waClient.sendMessage(
-        chatId,
-        `❌ Gagal menyimpan kontak: ${err.message}`
-      );
-    }
     return;
   }
 

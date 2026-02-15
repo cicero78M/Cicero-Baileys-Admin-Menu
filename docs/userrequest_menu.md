@@ -133,9 +133,9 @@ Display formatting utilities:
 - Generic user-facing message
 - Session maintained (no crash)
 
-### Network Errors (Google Contacts)
-- Non-critical errors are logged and ignored
-- User update succeeds even if contact save fails
+### Network Errors
+- Non-critical integration errors are logged and ignored
+- User profile update flow continues when external lookups fail
 
 ## Session Management
 
@@ -242,7 +242,6 @@ Display formatting utilities:
 ### Performance Optimizations
 1. Cache frequently accessed data (pangkat list, satfung list)
 2. Batch database updates if multiple fields changed
-3. Async contact saving to reduce latency
 
 ## Maintenance Notes
 

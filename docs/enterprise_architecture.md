@@ -21,7 +21,7 @@ The backend exposes REST endpoints to manage clients, users, and social media an
 
 - `app.js` – Express entry point registering middleware, routes, and scheduled cron buckets based on WhatsApp readiness.
 - `src/controller` – Controller layer for clients, users, OAuth callbacks, dashboard metrics, aggregator feeds, premium flows, and social media endpoints.
-- `src/service` – Cron helpers, API wrappers, WhatsApp helpers, OTP/email delivery, Google contact sync, RabbitMQ queues, and various utility functions.
+- `src/service` – Cron helpers, API wrappers, WhatsApp helpers, OTP/email delivery, RabbitMQ queues, and various utility functions.
 - `src/handler` – WhatsApp menu logic, link amplification processors, and fetch helpers for automation.
 - `src/routes` – API routes for auth, clients, users, Instagram/TikTok, logs, metadata, dashboards, aggregator widgets, OTP claim flows, premium requests, and link amplification.
 - `src/middleware` – Authentication (JWT and dashboard), request deduplication, debugging, and global error handling.
@@ -81,8 +81,8 @@ Below is a conceptual diagram of the main components and their interactions:
 +-------------+
      |  ^            Redis & RabbitMQ            ^
      |  |--------------------------------------- |
-     |        External Services (Instagram, TikTok, WhatsApp, SMTP, Google People API)
-     |             via RapidAPI, whatsapp-web.js, Nodemailer, Google SDK
+     |        External Services (Instagram, TikTok, WhatsApp, SMTP)
+     |             via RapidAPI, Baileys, Nodemailer
 ```
 
 The frontend communicates only with the backend. The backend orchestrates data retrieval, persistence, caching, and messaging integrations.
