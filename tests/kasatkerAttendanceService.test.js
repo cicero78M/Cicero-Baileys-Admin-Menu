@@ -162,6 +162,66 @@ describe('generateKasatkerAttendanceSummary', () => {
     expect(summary).not.toContain('- POLRES B (Polres B)');
   });
 
+
+  test('for DITINTELKAM filters Kasat Intel and Kasat Intelkam with dynamic header', async () => {
+    mockGetUsersByClient.mockResolvedValue([
+      {
+        user_id: '1',
+        nama: 'Intel One',
+        title: 'AKP',
+        client_name: 'Polres Intel A',
+        jabatan: 'Kasat Intel',
+        insta: 'intel.one',
+        tiktok: null,
+      },
+      {
+        user_id: '2',
+        nama: 'Intel Two',
+        title: 'IPTU',
+        client_name: 'Polres Intel B',
+        jabatan: 'Kasat Intelkam',
+        insta: null,
+        tiktok: 'intel.two',
+      },
+      {
+        user_id: '3',
+        nama: 'Binmas',
+        title: 'AKP',
+        client_name: 'Polres Intel C',
+        jabatan: 'Kasat Binmas',
+        insta: null,
+        tiktok: null,
+      },
+    ]);
+
+    const summary = await generateKasatkerAttendanceSummary({
+      clientId: 'ditintelkam',
+      roleFlag: 'ditbinmas',
+    });
+
+    expect(mockGetUsersByClient).toHaveBeenCalledWith('DITINTELKAM', 'ditintelkam');
+    expect(summary).toContain('📋 *Absensi Kasatker (Kasat Intelkam)*');
+    expect(summary).toContain('Total Kasat Intelkam: 2');
+    expect(summary).toContain('Intel One');
+    expect(summary).toContain('Intel Two');
+    expect(summary).not.toContain('Binmas');
+  });
+
+  test('for DITINTELKAM fallback text uses Kasat Intelkam label', async () => {
+    mockGetUsersByClient.mockResolvedValue([{ user_id: '1', jabatan: 'Operator' }]);
+
+    const summary = await generateKasatkerAttendanceSummary({
+      clientId: 'DITINTELKAM',
+      roleFlag: 'ditbinmas',
+    });
+
+    expect(summary).toBe(
+      'Dari 1 user aktif DITINTELKAM (ditintelkam), tidak ditemukan data Kasat Intelkam.\n' +
+        '🚧 Polres tanpa Kasat Intelkam terdeteksi:\n' +
+        '- Data client ORG tidak tersedia untuk pembanding.'
+    );
+  });
+
   test('shows no missing Polres message when all ORG clients have Kasat Binmas detected', async () => {
     mockFindAllOrgClients.mockResolvedValue([
       { client_id: 'POLRES X', nama: 'Polres X' },

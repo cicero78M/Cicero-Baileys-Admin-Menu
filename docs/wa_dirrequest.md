@@ -578,6 +578,12 @@ berpindah ke dashboard web atau menjalankan skrip manual.
   jam laporan WIB (`Selamat Pagi,` / `Selamat Siang,` / `Selamat Sore,` /
   `Selamat Malam,`) lalu `Mohon ijin Komandan,` dan kalimat laporan
   kepatuhan likes/komentar, diikuti periode laporan.
+- Menu **3️⃣3️⃣ Absensi Kasatker** kini menyesuaikan jabatan, role query,
+  dan header berdasarkan direktorat terpilih: untuk **DITINTELKAM** bot
+  memakai role `ditintelkam`, mengabsen jabatan yang mengandung kata
+  **Kasat Intel**/**Kasat Intelkam**, dan menampilkan header
+  `Absensi Kasatker (Kasat Intelkam)`; direktorat lain tetap memakai profil
+  **Kasat Binmas**.
 - Rekap hanya dikirim ke daftar Operator Ditbinmas (`client_operator`) tanpa
   broadcast ke grup maupun Super Admin.
 

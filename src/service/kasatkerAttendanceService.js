@@ -35,6 +35,7 @@ const REGION_KEYWORDS = [
 ];
 const REGION_REGEX = new RegExp(`\\b(${REGION_KEYWORDS.join("|")})\\b`, "g");
 const KASAT_BINMAS_REGEX = /^KASAT\s*BINMAS\b/;
+const KASAT_INTELKAM_REGEX = /\bKASAT\s+INTEL(?:KAM)?\b/;
 
 function rankWeight(rank) {
   const idx = PANGKAT_ORDER.indexOf(String(rank || "").toUpperCase());
@@ -68,6 +69,33 @@ export function matchesKasatBinmasJabatan(jabatan) {
   }
 
   return KASAT_BINMAS_REGEX.test(normalized);
+}
+
+function matchesKasatIntelkamJabatan(jabatan) {
+  const sanitized = sanitizeJabatanText(jabatan);
+  if (!sanitized) {
+    return false;
+  }
+
+  return KASAT_INTELKAM_REGEX.test(sanitized.replace(/\s+/g, " "));
+}
+
+function resolveKasatkerProfile(clientId) {
+  const normalizedClientId = normalizeKey(clientId);
+
+  if (normalizedClientId === "DITINTELKAM") {
+    return {
+      label: "Kasat Intelkam",
+      matcher: matchesKasatIntelkamJabatan,
+      role: "ditintelkam",
+    };
+  }
+
+  return {
+    label: "Kasat Binmas",
+    matcher: matchesKasatBinmasJabatan,
+    role: null,
+  };
 }
 
 function formatAccountStatus(user) {
@@ -118,8 +146,8 @@ function getMissingPolres(orgClients, detectedPolresSet) {
   });
 }
 
-function formatMissingPolresSection(orgClients, missingPolres) {
-  const lines = ["🚧 Polres tanpa Kasat Binmas terdeteksi:"];
+function formatMissingPolresSection(orgClients, missingPolres, kasatLabel = "Kasat Binmas") {
+  const lines = [`🚧 Polres tanpa ${kasatLabel} terdeteksi:`];
 
   if (!orgClients?.length) {
     lines.push("- Data client ORG tidak tersedia untuk pembanding.");
@@ -127,7 +155,7 @@ function formatMissingPolresSection(orgClients, missingPolres) {
   }
 
   if (!missingPolres.length) {
-    lines.push("- Tidak ada; semua Polres ORG sudah memiliki Kasat Binmas terdata.");
+    lines.push(`- Tidak ada; semua Polres ORG sudah memiliki ${kasatLabel} terdata.`);
     return lines;
   }
 
@@ -145,21 +173,23 @@ export async function generateKasatkerAttendanceSummary({
   roleFlag,
 } = {}) {
   const targetClientId = (clientId || DITBINMAS_CLIENT_ID).toUpperCase();
-  const targetRole = roleFlag || TARGET_ROLE;
+  const kasatkerProfile = resolveKasatkerProfile(targetClientId);
+  const targetRole =
+    kasatkerProfile.role ||
+    roleFlag ||
+    TARGET_ROLE;
   const users = await getUsersByClient(targetClientId, targetRole);
-  const kasatkers = (users || []).filter((user) =>
-    matchesKasatBinmasJabatan(user?.jabatan)
-  );
+  const kasatkers = (users || []).filter((user) => kasatkerProfile.matcher(user?.jabatan));
 
   const orgClients = mapOrgClients(await findAllOrgClients());
   const detectedPolresSet = buildDetectedPolresSet(kasatkers);
   const missingPolres = getMissingPolres(orgClients, detectedPolresSet);
+  const missingSection = formatMissingPolresSection(orgClients, missingPolres, kasatkerProfile.label);
 
   if (!kasatkers.length) {
     const totalUsers = users?.length || 0;
-    const missingSection = formatMissingPolresSection(orgClients, missingPolres);
     return [
-      `Dari ${totalUsers} user aktif ${targetClientId} (${targetRole}), tidak ditemukan data Kasat Binmas.`,
+      `Dari ${totalUsers} user aktif ${targetClientId} (${targetRole}), tidak ditemukan data ${kasatkerProfile.label}.`,
       ...missingSection,
     ]
       .filter(Boolean)
@@ -169,9 +199,9 @@ export async function generateKasatkerAttendanceSummary({
   const withInsta = kasatkers.filter((user) => !!user.insta).length;
   const withTiktok = kasatkers.filter((user) => !!user.tiktok).length;
   const summaryLines = [
-    "📋 *Absensi Kasatker (Kasat Binmas)*",
+    `📋 *Absensi Kasatker (${kasatkerProfile.label})*`,
     `Client: ${targetClientId}`,
-    `Total Kasat Binmas: ${kasatkers.length}`,
+    `Total ${kasatkerProfile.label}: ${kasatkers.length}`,
     `IG terdaftar: ${withInsta}/${kasatkers.length}`,
     `TikTok terdaftar: ${withTiktok}/${kasatkers.length}`,
     "",
@@ -193,7 +223,7 @@ export async function generateKasatkerAttendanceSummary({
       }),
   ];
 
-  summaryLines.push("", ...formatMissingPolresSection(orgClients, missingPolres));
+  summaryLines.push("", ...missingSection);
 
   return summaryLines.filter(Boolean).join("\n");
 }
