@@ -87,12 +87,14 @@ function resolveKasatkerProfile(clientId) {
     return {
       label: "Kasat Intelkam",
       matcher: matchesKasatIntelkamJabatan,
+      role: "ditintelkam",
     };
   }
 
   return {
     label: "Kasat Binmas",
     matcher: matchesKasatBinmasJabatan,
+    role: null,
   };
 }
 
@@ -171,8 +173,11 @@ export async function generateKasatkerAttendanceSummary({
   roleFlag,
 } = {}) {
   const targetClientId = (clientId || DITBINMAS_CLIENT_ID).toUpperCase();
-  const targetRole = roleFlag || TARGET_ROLE;
   const kasatkerProfile = resolveKasatkerProfile(targetClientId);
+  const targetRole =
+    kasatkerProfile.role ||
+    roleFlag ||
+    TARGET_ROLE;
   const users = await getUsersByClient(targetClientId, targetRole);
   const kasatkers = (users || []).filter((user) => kasatkerProfile.matcher(user?.jabatan));
 

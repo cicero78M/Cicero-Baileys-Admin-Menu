@@ -196,7 +196,7 @@ describe('generateKasatkerAttendanceSummary', () => {
 
     const summary = await generateKasatkerAttendanceSummary({
       clientId: 'ditintelkam',
-      roleFlag: 'ditintelkam',
+      roleFlag: 'ditbinmas',
     });
 
     expect(mockGetUsersByClient).toHaveBeenCalledWith('DITINTELKAM', 'ditintelkam');
@@ -212,7 +212,7 @@ describe('generateKasatkerAttendanceSummary', () => {
 
     const summary = await generateKasatkerAttendanceSummary({
       clientId: 'DITINTELKAM',
-      roleFlag: 'ditintelkam',
+      roleFlag: 'ditbinmas',
     });
 
     expect(summary).toBe(
