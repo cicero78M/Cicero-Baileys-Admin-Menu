@@ -6,9 +6,6 @@ const CATEGORY_RULES = [
   { key: 'rendah', label: '\n*KEPATUHAN RENDAH*', threshold: 0 },
 ];
 
-const WA_FOLLOW_UP_LINK =
-  'https://chat.whatsapp.com/Hga2FkPQOw5BuZW7nSFYV1';
-
 function toPercentLabel(value) {
   const pct = Number.isFinite(value) ? Math.max(0, value) : 0;
   const rounded = Math.round(pct * 10) / 10;
@@ -64,6 +61,7 @@ export async function generateKasatkerReport({
   });
 
   const periodLabel = periodInfo?.label || `Periode ${periodInfo?.period || period}`;
+  const uppercaseClientName = (clientName || normalizedClientId || '').toString().toUpperCase();
 
   const satkerEntries = (entries || []).filter(
     (entry) => entry?.cid !== normalizedClientId
@@ -120,19 +118,18 @@ export async function generateKasatkerReport({
 
   const headerLines = [
     '*KEPADA YTH.*',
-    'KASAT BINMAS POLRES JAJARAN POLDA JAWA TIMUR',
+    `KASATKER POLRES JAJARAN ${uppercaseClientName}`,
     '',
     '*DARI :*',
-    'KASUBDIT BHABINKAMTIBMAS',
+    `PIMPINAN ${uppercaseClientName}`,
     '',
     '*TEMBUSAN :*',
-    '• DIR BINMAS',
-    '• PJU DIT BINMAS',
+    `• PIMPINAN ${uppercaseClientName}`,
     '',
     '*Laporan kepatuhan pelaksanaan _Likes_ dan _Komentar_ Media Sosial.*',
     `Periode ${periodLabel}.`,
     '',
-    'Dalam rangka monitoring kepatuhan pelaksanaan tugas likes dan komentar terhadap konten akun resmi Direktorat Binmas Polda Jawa Timur melalui aplikasi Cicero, berikut disampaikan hasil rekapitulasi tingkat kepatuhan personel per Polres.',
+    `Dalam rangka monitoring kepatuhan pelaksanaan tugas likes dan komentar terhadap konten akun resmi ${uppercaseClientName} melalui aplikasi Cicero, berikut disampaikan hasil rekapitulasi tingkat kepatuhan personel per Polres.`,
     '',
     '*KRITERIA KEPATUHAN* - Persentase personel yang melaksanakan tugas _Likes_ dan _Komentar_',
     '',
@@ -146,14 +143,14 @@ export async function generateKasatkerReport({
   const followUpLines = [
     '',
     '*ARAHAN TINDAK LANJUT*',
-    '✅ Kepada Kasat Binmas dengan kategori Aktif.',
+    '✅ Kepada Kasatker dengan kategori Aktif.',
     'Disampaikan terima kasih dan apresiasi atas kinerja yang konsisten dalam memastikan seluruh personel melaksanakan tugas likes dan komentar dengan baikk. Diharapkan agar tingkat kepatuhan tersebut dapat dipertahankan dan menjadi contoh bagi satuan lainnya.',
     '',
-    '⚠️ Kepada Kasat Binmas dengan kategori Rendah.',
+    '⚠️ Kepada Kasatker dengan kategori Rendah.',
     'Diharapkan segera melakukan langkah-langkah perbaikan sebagai berikut:',
-    '- Memanggil operator atau staf pengelola media sosial untuk aktif mengikuti arahan dari sistem Cicero melalui grup WhatsApp Manajemen Sosmed Ditbinmas, tautan: https://chat.whatsapp.com/Hga2FkPQOw5BuZW7nSFYV1',
-    '- Menginstruksikan operator agar setiap hari membagikan (share) daftar konten yang wajib di-like dan di-comment oleh jajaran Binmas.',
-    '- Mendorong seluruh staf Binmas, jajaran Binmas dan personel Bhabinkamtibmas untuk aktif berinteraksi (like dan comment) pada setiap konten resmi yang diunggah oleh Direktorat Binmas.',
+    `- Memanggil operator atau staf pengelola media sosial untuk aktif mengikuti arahan dari sistem Cicero melalui kanal koordinasi ${uppercaseClientName} (contoh grup WhatsApp internal direktorat).`,
+    '- Menginstruksikan operator agar setiap hari membagikan (share) daftar konten yang wajib di-like dan di-comment oleh jajaran satker.',
+    `- Mendorong seluruh personel pada jajaran ${uppercaseClientName} untuk aktif berinteraksi (like dan comment) pada setiap konten resmi direktorat.`,
     '',
     'Terima kasih atas perhatian dan kerja samanya.',
   ];

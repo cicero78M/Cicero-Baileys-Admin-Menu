@@ -569,6 +569,13 @@ berpindah ke dashboard web atau menjalankan skrip manual.
 - Cron `cronDirRequestDitbinmasOperatorDaily.js` berjalan setiap hari pukul
   **18:12 WIB** untuk menjalankan menu **3️⃣0️⃣** dengan pilihan data
   **hari ini**.
+- Mekanisme menu **3️⃣0️⃣ Laporan Kasatker** kini selalu mengambil data
+  berdasarkan `client_id` direktorat yang dipilih di sesi `dirrequest`
+  (bukan lagi terkunci ke role login awal), sehingga direktorat seperti
+  DITLANTAS/BIDHUMAS/DITSAMAPTA tetap menghasilkan rekap satker yang sesuai
+  client aktif.
+- Header narasi laporan menu **3️⃣0️⃣** kini adaptif memakai nama direktorat
+  terpilih (`client.nama`) agar tidak lagi hardcoded ke Ditbinmas.
 - Rekap hanya dikirim ke daftar Operator Ditbinmas (`client_operator`) tanpa
   broadcast ke grup maupun Super Admin.
 
