@@ -84,6 +84,11 @@ Menu ini hanya muncul jika client memiliki kanal engagement yang aktif. Aturan a
 - **Update Tugas Instagram**
   1. Bot menjalankan proses pengambilan tugas terbaru untuk client terkait.
   2. Sistem juga menjalankan cron otomatis setiap 30 menit (08.00-21.00 WIB) untuk client bertipe org yang aktif dengan amplifikasi aktif, sehingga tugas rutin tetap terbarui tanpa perlu trigger manual.
+- **Input Tugas Khusus**
+  1. Operator mengirim link post Instagram pada submenu *Input tugas khusus*.
+  2. Sistem mengekstrak `shortcode` lalu memeriksa apakah `shortcode` tersebut sudah tersimpan di `insta_post_khusus`.
+  3. Jika `shortcode` sudah dipakai oleh `client_id` lain, input ditolak dengan pesan agar satker mengunggah konten melalui akun khusus miliknya sendiri.
+  4. Jika valid, sistem mengambil metadata post Instagram dan menyimpan data ke `insta_post_khusus` serta sinkron ke `insta_post` untuk kebutuhan rekap lintas menu.
 - **Absensi Likes Instagram**
   1. Bot menampilkan rekap absensi likes Instagram untuk user operator berdasarkan mode (semua/sudah/belum).
   2. Mode akumulasi menampilkan daftar per satfung dengan sub-list *lengkap/kurang/belum* (lengkap = seluruh konten terpenuhi).

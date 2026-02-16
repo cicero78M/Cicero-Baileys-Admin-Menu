@@ -5,7 +5,10 @@ import { query } from "../../db/index.js";
 import { sendDebug } from "../../middleware/debugHandler.js";
 import { fetchInstagramPosts, fetchInstagramPostInfo } from "../../service/instagramApi.js";
 import { savePostWithMedia } from "../../model/instaPostExtendedModel.js";
-import { upsertInstaPost as upsertInstaPostKhusus } from "../../model/instaPostKhususModel.js";
+import {
+  findPostByShortcode as findKhususPostByShortcode,
+  upsertInstaPost as upsertInstaPostKhusus,
+} from "../../model/instaPostKhususModel.js";
 import { upsertInstaPost } from "../../model/instaPostModel.js";
 import { extractInstagramShortcode } from "../../utils/utilsHelper.js";
 
@@ -361,6 +364,19 @@ export async function fetchAndStoreInstaContent(
 export async function fetchSinglePostKhusus(linkOrCode, clientId) {
   const code = extractInstagramShortcode(linkOrCode);
   if (!code) throw new Error('invalid link');
+
+  const existingKhususPost = await findKhususPostByShortcode(code);
+  if (
+    existingKhususPost?.client_id &&
+    String(existingKhususPost.client_id).toLowerCase() !== String(clientId || "").toLowerCase()
+  ) {
+    const err = new Error(
+      "Link tugas khusus sudah diinput dan digunakan oleh Polres lain. Upload konten pada akun khusus milik satker Anda kemudian upload link tersebut sebagai tugas khusus."
+    );
+    err.statusCode = 409;
+    throw err;
+  }
+
   const info = await fetchInstagramPostInfo(code);
   if (!info) throw new Error('post not found');
   const data = {
