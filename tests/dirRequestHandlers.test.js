@@ -1162,7 +1162,7 @@ test('choose_menu option 9 absensi komentar ditbinmas simple', async () => {
 
 test('choose_menu option 7 absensi likes mengikuti client pilihan', async () => {
   mockAbsensiLikes.mockResolvedValue('laporan');
-  mockFindClientById.mockResolvedValue({ client_type: 'org', nama: 'POLRES A' });
+  mockFindClientById.mockResolvedValue({ client_type: 'direktorat', nama: 'DITBINMAS' });
 
   const session = {
     role: 'ditbinmas',
@@ -1175,7 +1175,7 @@ test('choose_menu option 7 absensi likes mengikuti client pilihan', async () => 
 
   await dirRequestHandlers.choose_menu(session, chatId, '7', waClient);
 
-  expect(mockAbsensiLikes).toHaveBeenCalledWith('POLRES_A', {
+  expect(mockAbsensiLikes).toHaveBeenCalledWith('DITBINMAS', {
     mode: 'all',
     roleFlag: 'ditbinmas',
   });
