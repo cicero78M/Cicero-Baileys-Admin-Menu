@@ -1,5 +1,5 @@
 # Link Reports API
-*Last updated: 2026-02-16*
+*Last updated: 2025-09-27*
 
 Dokumen ini menjelaskan endpoint untuk mengambil data link report.
 
@@ -82,92 +82,5 @@ GET /api/link-reports-khusus?user_id=84110583&post_id=DSl7lfmgd14
       "thumbnail_url": "..."
     }
   ]
-}
-```
-
-## POST /api/link-reports-khusus
-Membuat atau memperbarui (upsert) link report khusus berdasarkan `shortcode` dan `user_id` hasil resolusi role.
-
-### Aturan payload berdasarkan role
-- **Role `user`**
-  - `user_id` dari body akan diabaikan.
-  - Sistem selalu memakai `req.user.user_id` sebagai `data.user_id`.
-  - `target_user_id` tidak wajib.
-- **Role non-`user`**
-  - Wajib kirim `target_user_id`.
-  - Sistem memvalidasi bahwa `target_user_id` ada dan berada pada `client_id` yang sama.
-  - Jika valid, `data.user_id` diisi dari `target_user_id`.
-
-### Body Parameters
-- `client_id` (wajib)
-- `instagram_link` (wajib, URL post Instagram)
-- `target_user_id` (wajib untuk role non-`user`)
-- `facebook_link`, `twitter_link`, `tiktok_link`, `youtube_link` **tidak diizinkan** pada modul khusus.
-
-### Contoh Request (role user)
-```json
-POST /api/link-reports-khusus
-Authorization: Bearer <token-role-user>
-Content-Type: application/json
-
-{
-  "client_id": "bidhumas",
-  "instagram_link": "https://www.instagram.com/p/DX1Y2Z3aBcD/"
-}
-```
-
-### Contoh Request (role non-user)
-```json
-POST /api/link-reports-khusus
-Authorization: Bearer <token-role-admin>
-Content-Type: application/json
-
-{
-  "client_id": "bidhumas",
-  "target_user_id": "84110583",
-  "instagram_link": "https://www.instagram.com/p/DX1Y2Z3aBcD/"
-}
-```
-
-### Contoh Response Sukses
-```json
-{
-  "success": true,
-  "data": {
-    "shortcode": "DX1Y2Z3aBcD",
-    "user_id": "84110583",
-    "instagram_link": "https://www.instagram.com/p/DX1Y2Z3aBcD/",
-    "facebook_link": null,
-    "twitter_link": null,
-    "tiktok_link": null,
-    "youtube_link": null,
-    "created_at": "2026-02-16T09:15:00.000Z"
-  }
-}
-```
-
-### Contoh Response Error
-
-#### 401 Unauthorized (context user tidak ada)
-```json
-{
-  "success": false,
-  "message": "unauthorized"
-}
-```
-
-#### 400 Bad Request (target_user_id wajib untuk non-user)
-```json
-{
-  "success": false,
-  "message": "target_user_id is required for non-user role"
-}
-```
-
-#### 403 Forbidden (target user tidak valid / beda client)
-```json
-{
-  "success": false,
-  "message": "target_user_id is invalid or does not belong to the same client_id"
 }
 ```
