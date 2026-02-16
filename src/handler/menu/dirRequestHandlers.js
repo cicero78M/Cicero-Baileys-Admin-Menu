@@ -1895,7 +1895,7 @@ async function performAction(
     : {};
   const userClient = userClientId ? await findClientById(userClientId) : null;
   const userType = userClient?.client_type?.toLowerCase();
-  const attendanceClientId = String(userClientId || clientId || "").toUpperCase();
+  const attendanceClientId = String(clientId || userClientId || "").toUpperCase();
   const normalizedRoleFlag = (roleFlag || attendanceClientId).toLowerCase();
   switch (action) {
     case "1": {
