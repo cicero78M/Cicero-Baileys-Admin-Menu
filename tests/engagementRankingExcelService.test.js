@@ -235,6 +235,43 @@ describe('engagementRankingExcelService', () => {
     expect(shadowEntry.name).toBe('POLRES_SHADOW');
   });
 
+  test('collectEngagementRanking excludes peer directorates from entries', async () => {
+    // Mock scenario where DITLANTAS appears in usersByClient
+    // (e.g., due to shared users or cross-directorate data)
+    mockGroupUsersByClientDivision.mockResolvedValueOnce({
+      polresIds: ['DITBINMAS', 'POLRES_A'],
+      usersByClient: {
+        DITBINMAS: [
+          { insta: '@dit1', tiktok: '@dit1', exception: false },
+        ],
+        DITLANTAS: [
+          // This is a peer directorate and should be excluded
+          { insta: '@lantas1', tiktok: '@lantas1', exception: false },
+        ],
+        POLRES_A: [
+          { insta: '@userA', tiktok: '@userA', exception: false },
+        ],
+      },
+    });
+    mockGetShortcodesByDateRange.mockResolvedValueOnce(['sc1']);
+    mockGetLikesSets.mockResolvedValueOnce([new Set(['dit1', 'usera'])]);
+    mockGetPostsByClientAndDateRange.mockResolvedValueOnce([{ video_id: 'vid1' }]);
+    mockGetCommentsByVideoId.mockResolvedValueOnce({
+      comments: [{ username: '@userA' }],
+    });
+
+    const result = await collectEngagementRanking('DITBINMAS', 'ditbinmas');
+
+    // DITLANTAS should be excluded from entries
+    const entryCids = result.entries.map((entry) => entry.cid);
+    expect(entryCids).not.toContain('ditlantas');
+    
+    // Should only include DITBINMAS (self) and POLRES_A (subordinate)
+    expect(entryCids).toContain('ditbinmas');
+    expect(entryCids).toContain('polres_a');
+    expect(result.entries).toHaveLength(2);
+  });
+
   test('saveEngagementRankingExcel writes workbook and returns file path', async () => {
     const { filePath, fileName } = await saveEngagementRankingExcel({
       clientId: 'DITBINMAS',

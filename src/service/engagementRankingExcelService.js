@@ -366,6 +366,16 @@ export async function collectEngagementRanking(
     const cidUpper = String(cidRaw || "").toUpperCase();
     const users = usersByClient?.[cidUpper] || [];
 
+    // Get client info to check client type
+    const info = await getClientInfoCached(clientCache, cidUpper);
+    
+    // Skip directorates that are not the requesting directorate
+    // to prevent peer directorates from appearing as subordinates
+    const clientType = (info?.client_type || '').toLowerCase();
+    if (clientType === 'direktorat' && cidUpper.toLowerCase() !== normalizedClientId) {
+      continue;
+    }
+
     const { summary: igSummary, userStats: igUserStats } = computeDitbinmasLikesStats(
       users,
       likesSets,
@@ -399,7 +409,6 @@ export async function collectEngagementRanking(
       return acc + (Number.isFinite(user.count) ? user.count : 0);
     }, 0);
 
-    const info = await getClientInfoCached(clientCache, cidUpper);
     const name = (info?.nama || cidUpper).toUpperCase();
 
     const igPct = totalPersonil ? igSudah / totalPersonil : 0;
