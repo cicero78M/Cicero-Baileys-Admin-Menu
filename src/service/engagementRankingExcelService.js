@@ -364,6 +364,7 @@ export async function collectEngagementRanking(
 
   for (const cidRaw of allIds) {
     const cidUpper = String(cidRaw || "").toUpperCase();
+    const cidLower = cidUpper.toLowerCase();
     const users = usersByClient?.[cidUpper] || [];
 
     // Get client info to check client type
@@ -372,7 +373,7 @@ export async function collectEngagementRanking(
     // Skip directorates that are not the requesting directorate
     // to prevent peer directorates from appearing as subordinates
     const clientType = (info?.client_type || '').toLowerCase();
-    if (clientType === 'direktorat' && cidUpper.toLowerCase() !== normalizedClientId) {
+    if (clientType === 'direktorat' && cidLower !== normalizedClientId) {
       continue;
     }
 
@@ -417,7 +418,7 @@ export async function collectEngagementRanking(
     const engagementTotal = igLikeCount + ttCommentCount;
 
     entries.push({
-      cid: cidUpper.toLowerCase(),
+      cid: cidLower,
       name,
       totalPersonil,
       igSudah,
