@@ -65,6 +65,8 @@ import { syncSatbinmasOfficialTiktokSecUidForOrgClients } from "../../service/sa
 import { generateInstagramAllDataRecap } from "../../service/instagramAllDataRecapService.js";
 import { generateTiktokAllDataRecap } from "../../service/tiktokAllDataRecapService.js";
 import { appendSubmenuBackInstruction } from "./menuPromptHelpers.js";
+import { fetchSinglePostKhusus } from "../fetchpost/instaFetchPost.js";
+import { fetchAndStoreSingleTiktokPost } from "../fetchpost/tiktokFetchPost.js";
 
 const dirRequestGroup = "120363419830216549@g.us";
 const DITBINMAS_CLIENT_ID = "DITBINMAS";
@@ -248,6 +250,31 @@ const KASAT_BINMAS_TIKTOK_COMMENT_EXCEL_MENU_TEXT = appendSubmenuBackInstruction
       .join("\n") +
     "\n\nBalas angka pilihan atau ketik *batal* untuk kembali."
 );
+
+const DIRREQUEST_INPUT_IG_MANUAL_PROMPT = appendSubmenuBackInstruction(
+  "Kirim link Instagram post yang ingin diinput manual.\n\n" +
+    "Contoh: https://www.instagram.com/p/XXXXXXXXXXX/\n" +
+    "Ketik *batal* untuk kembali ke menu utama."
+);
+
+const DIRREQUEST_INPUT_TIKTOK_MANUAL_PROMPT = appendSubmenuBackInstruction(
+  "Kirim link atau video ID TikTok yang ingin diinput manual.\n\n" +
+    "Contoh: https://www.tiktok.com/@username/video/1234567890123456789\n" +
+    "Ketik *batal* untuk kembali ke menu utama."
+);
+
+const formatManualPostDate = (value) => {
+  if (!value) return "-";
+  const parsed = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "-";
+  return parsed.toLocaleString("id-ID", { timeZone: "Asia/Jakarta" });
+};
+
+const sanitizeManualCaption = (caption) => {
+  const text = String(caption || "").replace(/\s+/g, " ").trim();
+  if (!text) return "-";
+  return text.length > 140 ? `${text.slice(0, 137)}...` : text;
+};
 
 const SATBINMAS_OFFICIAL_RECAP_PERIOD_MAP = {
   "1": {
@@ -2854,6 +2881,8 @@ export const dirRequestHandlers = {
         "1️⃣4️⃣ Ambil konten & komentar TikTok\n" +
         "1️⃣5️⃣ Ambil komentar TikTok saja\n" +
         "1️⃣6️⃣ Ambil semua sosmed & buat tugas\n\n" +
+        "4️⃣6️⃣ Input IG post manual\n" +
+        "4️⃣7️⃣ Input TikTok post manual\n\n" +
         "📝 *Laporan*\n" +
         "1️⃣7️⃣ Laporan harian Instagram Direktorat/Bidang\n" +
         "1️⃣8️⃣ Laporan harian TikTok Direktorat/Bidang\n" +
@@ -3045,6 +3074,8 @@ export const dirRequestHandlers = {
           "43",
           "44",
           "45",
+          "46",
+          "47",
         ].includes(choice)
     ) {
       await waClient.sendMessage(chatId, "Pilihan tidak valid. Ketik angka menu.");
@@ -3104,6 +3135,18 @@ export const dirRequestHandlers = {
     if (choice === "45") {
       session.step = "choose_kasat_binmas_tiktok_comment_excel_period";
       await waClient.sendMessage(chatId, KASAT_BINMAS_TIKTOK_COMMENT_EXCEL_MENU_TEXT);
+      return;
+    }
+
+    if (choice === "46") {
+      session.step = "dirrequest_input_ig_manual_prompt";
+      await waClient.sendMessage(chatId, DIRREQUEST_INPUT_IG_MANUAL_PROMPT);
+      return;
+    }
+
+    if (choice === "47") {
+      session.step = "dirrequest_input_tiktok_manual_prompt";
+      await waClient.sendMessage(chatId, DIRREQUEST_INPUT_TIKTOK_MANUAL_PROMPT);
       return;
     }
 
@@ -3172,6 +3215,102 @@ export const dirRequestHandlers = {
       userClientId,
       { username: session.username || session.user?.username }
     );
+    session.step = "main";
+    await dirRequestHandlers.main(session, chatId, "", waClient);
+  },
+
+  async dirrequest_input_ig_manual_prompt(session, chatId, text, waClient) {
+    const input = (text || "").trim();
+    if (!input) {
+      await waClient.sendMessage(chatId, DIRREQUEST_INPUT_IG_MANUAL_PROMPT);
+      return;
+    }
+
+    if (input.toLowerCase() === "batal") {
+      await waClient.sendMessage(chatId, "✅ Input manual Instagram dibatalkan.");
+      session.step = "main";
+      await dirRequestHandlers.main(session, chatId, "", waClient);
+      return;
+    }
+
+    const targetClientId = session.dir_client_id || session.selectedClientId || DITBINMAS_CLIENT_ID;
+    const isValidInstagramLink = /instagram\.com\/(p|reel|tv)\//i.test(input);
+    if (!isValidInstagramLink) {
+      await waClient.sendMessage(
+        chatId,
+        "❌ Link Instagram tidak valid. Kirim URL post/reel Instagram yang benar atau ketik *batal*."
+      );
+      await waClient.sendMessage(chatId, DIRREQUEST_INPUT_IG_MANUAL_PROMPT);
+      return;
+    }
+
+    try {
+      const result = await fetchSinglePostKhusus(input, targetClientId);
+      const summaryLines = [
+        "✅ Post Instagram berhasil ditambahkan (manual).",
+        `Sumber : manual`,
+        `Client : ${targetClientId}`,
+        `Shortcode : ${result.shortcode || "-"}`,
+        `Tanggal post : ${formatManualPostDate(result.created_at)}`,
+        `Likes : ${result.like_count ?? 0}`,
+        `Komentar : ${result.comment_count ?? 0}`,
+        `Caption : ${sanitizeManualCaption(result.caption)}`,
+      ];
+      await waClient.sendMessage(chatId, summaryLines.join("\n"));
+    } catch (error) {
+      console.error("Gagal input manual post Instagram dirrequest:", error);
+      const reason = error?.message || "Terjadi kesalahan saat menyimpan post manual Instagram.";
+      await waClient.sendMessage(chatId, `❌ Gagal input manual post Instagram: ${reason}`);
+    }
+
+    session.step = "main";
+    await dirRequestHandlers.main(session, chatId, "", waClient);
+  },
+
+  async dirrequest_input_tiktok_manual_prompt(session, chatId, text, waClient) {
+    const input = (text || "").trim();
+    if (!input) {
+      await waClient.sendMessage(chatId, DIRREQUEST_INPUT_TIKTOK_MANUAL_PROMPT);
+      return;
+    }
+
+    if (input.toLowerCase() === "batal") {
+      await waClient.sendMessage(chatId, "✅ Input manual TikTok dibatalkan.");
+      session.step = "main";
+      await dirRequestHandlers.main(session, chatId, "", waClient);
+      return;
+    }
+
+    const targetClientId = session.dir_client_id || session.selectedClientId || DITBINMAS_CLIENT_ID;
+    const isValidTikTokInput = /^\d{8,}$/.test(input) || /tiktok\.com\//i.test(input);
+    if (!isValidTikTokInput) {
+      await waClient.sendMessage(
+        chatId,
+        "❌ Input TikTok tidak valid. Kirim link post TikTok atau video ID numerik, atau ketik *batal*."
+      );
+      await waClient.sendMessage(chatId, DIRREQUEST_INPUT_TIKTOK_MANUAL_PROMPT);
+      return;
+    }
+
+    try {
+      const result = await fetchAndStoreSingleTiktokPost(targetClientId, input);
+      const summaryLines = [
+        "✅ Post TikTok berhasil ditambahkan (manual).",
+        `Sumber : manual`,
+        `Client : ${result.clientId || targetClientId}`,
+        `Video ID : ${result.videoId || "-"}`,
+        `Tanggal post : ${formatManualPostDate(result.createdAt)}`,
+        `Likes : ${result.likeCount ?? 0}`,
+        `Komentar : ${result.commentCount ?? 0}`,
+        `Caption : ${sanitizeManualCaption(result.caption)}`,
+      ];
+      await waClient.sendMessage(chatId, summaryLines.join("\n"));
+    } catch (error) {
+      console.error("Gagal input manual post TikTok dirrequest:", error);
+      const reason = error?.message || "Terjadi kesalahan saat menyimpan post manual TikTok.";
+      await waClient.sendMessage(chatId, `❌ Gagal input manual post TikTok: ${reason}`);
+    }
+
     session.step = "main";
     await dirRequestHandlers.main(session, chatId, "", waClient);
   },
