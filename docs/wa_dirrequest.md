@@ -1,5 +1,5 @@
 # Menu DirRequest untuk Operator WA
-*Last updated: 2026-02-10*
+*Last updated: 2026-02-18*
 
 Menu **dirrequest** digunakan tim Ditbinmas untuk memicu pengambilan data,
 rekap, dan laporan langsung dari WhatsApp. Menu utama menampilkan beberapa
@@ -50,6 +50,28 @@ dan baris grand total di bagian bawah.
 Input **4️⃣3️⃣** kini dikenali langsung oleh bot tanpa balasan *"Pilihan tidak
 valid"*, sehingga operator dapat memicu rekap TikTok all data dari menu utama
 dirrequest tanpa langkah tambahan.
+
+## Input Manual Post Instagram/TikTok (Menu 4️⃣6️⃣ & 4️⃣7️⃣)
+- Menu utama dirrequest kini menambahkan dua opsi baru pada blok **Pengambilan
+  Data**:
+  - **4️⃣6️⃣ Input IG post manual**
+  - **4️⃣7️⃣ Input TikTok post manual**
+- Opsi **4️⃣6️⃣** memindahkan sesi ke step
+  `dirrequest_input_ig_manual_prompt`, meminta operator mengirim link
+  Instagram post/reel, mendukung input `batal`, lalu menjalankan
+  `fetchSinglePostKhusus(link, clientId)` untuk menyimpan post ke tabel tugas
+  khusus dan tabel utama Instagram.
+- Opsi **4️⃣7️⃣** memindahkan sesi ke step
+  `dirrequest_input_tiktok_manual_prompt`, menerima link atau video ID TikTok,
+  mendukung input `batal`, lalu memanggil
+  `fetchAndStoreSingleTiktokPost(clientId, videoInput)` untuk menyimpan post
+  TikTok.
+- Setelah simpan berhasil, bot mengirim ringkasan post yang ditambahkan
+  (client, shortcode/video ID, tanggal post, likes, komentar, caption ringkas)
+  dengan penanda sumber **manual**.
+- Jika validasi gagal (format link/ID tidak sesuai) atau proses fetch gagal,
+  bot mengirim pesan error yang jelas lalu tetap mengembalikan sesi ke menu
+  utama agar alur UX stabil.
 
 ## Rekaman Snapshot Engagement per 30 Menit
 - Setiap pengambilan likes Instagram dan komentar TikTok yang berjalan lewat

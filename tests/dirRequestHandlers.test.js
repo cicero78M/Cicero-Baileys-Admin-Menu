@@ -57,6 +57,8 @@ const mockStat = jest.fn();
 const mockSendWAFile = jest.fn();
 const mockSafeSendMessage = jest.fn();
 const mockFetchAndStoreTiktokContent = jest.fn();
+const mockFetchAndStoreSingleTiktokPost = jest.fn();
+const mockFetchSinglePostKhusus = jest.fn();
 const mockHandleFetchKomentarTiktokBatch = jest.fn();
 const mockGenerateSosmedTaskMessage = jest.fn();
 const mockMatchesKasatBinmasJabatan = jest.fn();
@@ -161,12 +163,14 @@ jest.unstable_mockModule('../src/utils/waHelper.js', () => ({
 }));
 jest.unstable_mockModule('../src/handler/fetchpost/instaFetchPost.js', () => ({
   fetchAndStoreInstaContent: mockFetchAndStoreInstaContent,
+  fetchSinglePostKhusus: mockFetchSinglePostKhusus,
 }));
 jest.unstable_mockModule('../src/handler/fetchengagement/fetchLikesInstagram.js', () => ({
   handleFetchLikesInstagram: mockHandleFetchLikesInstagram,
 }));
 jest.unstable_mockModule('../src/handler/fetchpost/tiktokFetchPost.js', () => ({
   fetchAndStoreTiktokContent: mockFetchAndStoreTiktokContent,
+  fetchAndStoreSingleTiktokPost: mockFetchAndStoreSingleTiktokPost,
 }));
 jest.unstable_mockModule('../src/handler/fetchengagement/fetchCommentTiktok.js', () => ({
   handleFetchKomentarTiktokBatch: mockHandleFetchKomentarTiktokBatch,
