@@ -64,6 +64,12 @@ import {
 import { syncSatbinmasOfficialTiktokSecUidForOrgClients } from "../../service/satbinmasOfficialTiktokService.js";
 import { generateInstagramAllDataRecap } from "../../service/instagramAllDataRecapService.js";
 import { generateTiktokAllDataRecap } from "../../service/tiktokAllDataRecapService.js";
+import {
+  collectInstagramJajaranAttendance,
+  collectTiktokJajaranAttendance,
+  formatInstagramJajaranReport,
+  formatTiktokJajaranReport,
+} from "../../service/jajaranAttendanceService.js";
 import { appendSubmenuBackInstruction } from "./menuPromptHelpers.js";
 import { fetchSinglePostKhusus } from "../fetchpost/instaFetchPost.js";
 import { fetchAndStoreSingleTiktokPost } from "../fetchpost/tiktokFetchPost.js";
@@ -2874,7 +2880,9 @@ export const dirRequestHandlers = {
         "8️⃣ Absensi komentar TikTok\n" +
         "9️⃣ Absensi komentar Direktorat/Bidang Simple\n" +
         "1️⃣0️⃣ Absensi komentar Direktorat/Bidang\n" +
-        "1️⃣1️⃣ Absensi user web dashboard Direktorat/Bidang\n\n" +
+        "1️⃣1️⃣ Absensi user web dashboard Direktorat/Bidang\n" +
+        "4️⃣8️⃣ Absensi Instagram Jajaran\n" +
+        "4️⃣9️⃣ Absensi TikTok Jajaran\n\n" +
         "📥 *Pengambilan Data*\n" +
         "1️⃣2️⃣ Ambil konten & like Instagram\n" +
         "1️⃣3️⃣ Ambil like Instagram saja\n" +
@@ -3147,6 +3155,18 @@ export const dirRequestHandlers = {
     if (choice === "47") {
       session.step = "dirrequest_input_tiktok_manual_prompt";
       await waClient.sendMessage(chatId, DIRREQUEST_INPUT_TIKTOK_MANUAL_PROMPT);
+      return;
+    }
+
+    if (choice === "48") {
+      session.step = "absensi_instagram_jajaran";
+      await dirRequestHandlers.absensi_instagram_jajaran(session, chatId, "", waClient);
+      return;
+    }
+
+    if (choice === "49") {
+      session.step = "absensi_tiktok_jajaran";
+      await dirRequestHandlers.absensi_tiktok_jajaran(session, chatId, "", waClient);
       return;
     }
 
@@ -4158,6 +4178,48 @@ export const dirRequestHandlers = {
           error.message.includes("Tidak ada data"))
           ? error.message
           : "❌ Gagal membuat Absensi Kasatker.";
+      await waClient.sendMessage(chatId, msg);
+    }
+
+    session.step = "main";
+    await dirRequestHandlers.main(session, chatId, "", waClient);
+  },
+
+  async absensi_instagram_jajaran(session, chatId, _text, waClient) {
+    const targetClientId = session.dir_client_id || session.selectedClientId || DITBINMAS_CLIENT_ID;
+    const roleFlag = session.role;
+
+    try {
+      await waClient.sendMessage(chatId, "⏳ Sedang mengumpulkan data absensi Instagram jajaran...");
+      
+      const data = await collectInstagramJajaranAttendance(targetClientId, roleFlag);
+      const report = formatInstagramJajaranReport(data);
+      
+      await waClient.sendMessage(chatId, report);
+    } catch (error) {
+      console.error("Gagal membuat absensi Instagram jajaran:", error);
+      const msg = error?.message || "❌ Gagal membuat absensi Instagram jajaran.";
+      await waClient.sendMessage(chatId, msg);
+    }
+
+    session.step = "main";
+    await dirRequestHandlers.main(session, chatId, "", waClient);
+  },
+
+  async absensi_tiktok_jajaran(session, chatId, _text, waClient) {
+    const targetClientId = session.dir_client_id || session.selectedClientId || DITBINMAS_CLIENT_ID;
+    const roleFlag = session.role;
+
+    try {
+      await waClient.sendMessage(chatId, "⏳ Sedang mengumpulkan data absensi TikTok jajaran...");
+      
+      const data = await collectTiktokJajaranAttendance(targetClientId, roleFlag);
+      const report = formatTiktokJajaranReport(data);
+      
+      await waClient.sendMessage(chatId, report);
+    } catch (error) {
+      console.error("Gagal membuat absensi TikTok jajaran:", error);
+      const msg = error?.message || "❌ Gagal membuat absensi TikTok jajaran.";
       await waClient.sendMessage(chatId, msg);
     }
 
