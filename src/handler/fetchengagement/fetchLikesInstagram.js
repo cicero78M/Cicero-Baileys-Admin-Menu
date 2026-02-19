@@ -8,6 +8,12 @@ import { saveLikeSnapshotAudit } from "../../model/instaLikeModel.js";
 
 const SNAPSHOT_INTERVAL_MS = 30 * 60 * 1000;
 
+function getJakartaDateString(date = new Date()) {
+  return date.toLocaleDateString("en-CA", {
+    timeZone: "Asia/Jakarta",
+  });
+}
+
 function normalizeDateInput(value) {
   if (!value) return null;
   if (value instanceof Date) {
@@ -138,13 +144,10 @@ async function fetchAndStoreLikes(shortcode, client_id = null, snapshotWindow = 
 export async function handleFetchLikesInstagram(waClient, chatId, client_id, options = {}) {
   try {
     // Ambil semua post IG milik client hari ini
-    const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, "0");
-    const dd = String(today.getDate()).padStart(2, "0");
+    const todayJakarta = getJakartaDateString();
     const { rows } = await query(
-      `SELECT shortcode FROM insta_post WHERE client_id = $1 AND DATE(created_at) = $2`,
-      [client_id, `${yyyy}-${mm}-${dd}`]
+      `SELECT shortcode FROM insta_post WHERE client_id = $1 AND DATE((created_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Jakarta') = $2`,
+      [client_id, todayJakarta]
     );
 
     if (!rows.length) {

@@ -1,5 +1,5 @@
 # Panduan Operator WA Bot
-*Last updated: 2026-02-12*
+*Last updated: 2026-02-19*
 
 > Perubahan terbaru: menu *userrequest*, *bulk deletion*, dan *Response Komplain* pada alur WA bot telah dinonaktifkan/hapus.
 
@@ -41,12 +41,14 @@ Seluruh laporan di menu ini hanya menampilkan data user dengan role **operator**
 6. Di dalam *Manajemen Engagement*, operator dapat memilih:
    - 1️⃣ Absensi Likes Instagram (hanya jika Instagram client aktif)
    - 2️⃣ Absensi Komentar TikTok (hanya jika TikTok client aktif)
+   - 3️⃣ Fetch Post Engagement (muncul jika Instagram dan TikTok client sama-sama aktif; menjalankan fetch post+likes Instagram dan fetch post+komentar TikTok)
 
 ## Menu Manajemen Engagement
 Menu ini hanya muncul jika client memiliki kanal engagement yang aktif. Aturan aksesnya:
 - **Absensi Likes Instagram** tersedia jika `client_insta_status` aktif.
 - **Absensi Komentar TikTok** tersedia jika `client_tiktok_status` aktif.
 - Jika hanya salah satu platform aktif, bot hanya menampilkan submenu tersebut. Jika kedua status aktif, kedua submenu tampil di menu yang sama.
+- **Fetch Post Engagement** hanya muncul saat kedua platform aktif, lalu bot menjalankan sinkronisasi berurutan: post Instagram → likes Instagram → post TikTok → komentar TikTok.
 
 ## Konvensi Penamaan Menu
 - **Menu** dipakai untuk level utama (contoh: *Menu Kelola User*, *Menu Laporan Amplifikasi*).
@@ -96,6 +98,9 @@ Menu ini hanya muncul jika client memiliki kanal engagement yang aktif. Aturan a
 - **Absensi Komentar TikTok**
   1. Bot menampilkan rekap absensi komentar TikTok untuk user operator berdasarkan mode (semua/sudah/belum).
   2. Mode akumulasi menampilkan daftar per satfung dengan sub-list *lengkap/kurang/belum* (lengkap = seluruh konten terpenuhi).
+
+## Konsistensi Waktu (Asia/Jakarta)
+Seluruh query fetch post/likes/komentar pada menu engagement operator kini menggunakan tanggal **Asia/Jakarta** secara konsisten. Ini mencegah data bergeser hari ketika server berjalan di timezone non-Jakarta.
 
 ### Input Akun Resmi Satbinmas
 Untuk menambahkan akun resmi Satbinmas melalui bot:
