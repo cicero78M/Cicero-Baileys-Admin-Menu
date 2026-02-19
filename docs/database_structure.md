@@ -160,6 +160,9 @@ Stores Instagram posts fetched for a client.
 Stores curated Instagram posts for khusus audiences.
 - Same columns as `insta_post`
 - Independent primary key (`shortcode`) to allow separate scheduling
+- Dipakai juga oleh menu WA **4️⃣6️⃣ Input IG post manual** untuk menyimpan
+  konten manual per-client sebelum/bersamaan dengan sinkronisasi ke
+  `insta_post`.
 
 ### `insta_like`
 List of users who liked an Instagram post.
@@ -194,6 +197,13 @@ Data for TikTok videos associated with a client.
 - `caption`, `like_count`, `comment_count`
 - `source` – data origin marker: `official` (hasil fetch akun resmi) atau `manual` (input link/video ID operator)
 - `created_at`
+
+**Catatan sumber manual:**
+- Saat operator memakai menu WA **4️⃣7️⃣ Input TikTok post manual**, row disimpan
+  melalui upsert dengan `source = 'manual'`.
+- Pipeline fetch rutin akun resmi tetap mengisi row `source = 'official'`.
+- Modul rekap/task melakukan deduplikasi berdasarkan kunci konten
+  (`shortcode`/`video_id`) agar overlap official vs manual tidak dihitung ganda.
 
 ### `tiktok_post_roles`
 Restricts TikTok post visibility by role.
@@ -260,6 +270,16 @@ Stores assignments of users to Instagram posts for follow-up.
 - `user_id` – references `user(user_id)`
 - `created_at` – timestamp of assignment creation
 - Indexed composite `(shortcode, user_id, created_at)` accelerates lookups
+
+### Relasi ke Modul Rekap/Task
+- **Sumber konten Instagram task**: `insta_post` (official + hasil sinkronisasi
+  manual) dan `insta_post_khusus` (staging/manual khusus).
+- **Sumber konten TikTok task/rekap komentar**: `tiktok_post` +
+  `tiktok_comment` (snapshot engagement terbaru) + `tiktok_comment_audit`
+  (riwayat rentang waktu).
+- **Asignment task personel**: tabel `tasks` (Instagram) tetap menjadi relasi
+  utama dengan tabel user; generator pesan tugas memadukan assignment ini dengan
+  metrik engagement dari tabel komentar/likes.
 
 ### `instagram_user`
 Core profile details returned from Instagram scraping.

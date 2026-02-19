@@ -56,6 +56,11 @@ dirrequest tanpa langkah tambahan.
   Data**:
   - **4️⃣6️⃣ Input IG post manual**
   - **4️⃣7️⃣ Input TikTok post manual**
+- Kedua menu ini dipakai saat operator perlu menambah konten tugas di luar hasil
+  crawl akun resmi (misalnya ada konten baru yang belum terambil scheduler).
+  Sumber data tugas sekarang dapat berasal dari:
+  1. **Akun resmi** (hasil fetch rutin/scheduler RapidAPI), dan
+  2. **Input manual** (link/operator trigger RapidAPI per-post).
 - Opsi **4️⃣6️⃣** memindahkan sesi ke step
   `dirrequest_input_ig_manual_prompt`, meminta operator mengirim link
   Instagram post/reel, mendukung input `batal`, lalu menjalankan
@@ -66,6 +71,44 @@ dirrequest tanpa langkah tambahan.
   mendukung input `batal`, lalu memanggil
   `fetchAndStoreSingleTiktokPost(clientId, videoInput)` untuk menyimpan post
   TikTok.
+
+### Format Input, Validasi, dan Konfirmasi Output
+
+#### 4️⃣6️⃣ Input IG post manual
+- **Format input diterima**:
+  - URL post/reel/tv Instagram, contoh:
+    - `https://www.instagram.com/p/C9ABCDEF123/`
+    - `https://www.instagram.com/reel/C9ABCDEF123/`
+- **Validasi**:
+  - Input harus mengandung pola `instagram.com/(p|reel|tv)/`.
+  - Jika format tidak valid, bot merespons:
+    - `❌ Link Instagram tidak valid. Kirim URL post/reel Instagram yang benar atau ketik *batal*.`
+  - Jika link valid tetapi sudah dipakai satker lain pada tabel tugas khusus,
+    proses ditolak dengan pesan konflik agar tidak terjadi bentrok konten lintas
+    Polres.
+- **Output konfirmasi sukses** memuat:
+  - status berhasil,
+  - `Sumber : manual`,
+  - `Client`, `Shortcode`, `Tanggal post`, `Likes`, `Komentar`, dan ringkasan
+    `Caption`.
+
+#### 4️⃣7️⃣ Input TikTok post manual
+- **Format input diterima**:
+  - URL TikTok (contoh `https://www.tiktok.com/@username/video/7488...`), atau
+  - `video_id` numerik langsung (minimal 8 digit).
+- **Validasi**:
+  - Input lolos jika berupa angka numerik panjang atau mengandung
+    `tiktok.com/`.
+  - Jika format gagal, bot merespons:
+    - `❌ Input TikTok tidak valid. Kirim link post TikTok atau video ID numerik, atau ketik *batal*.`
+  - Saat format lolos, service akan ekstrak `/video/<ID>`; jika tetap tidak
+    terbaca, proses fetch dihentikan dengan error format link.
+- **Output konfirmasi sukses** memuat:
+  - status berhasil,
+  - `Sumber : manual`,
+  - `Client`, `Video ID`, `Tanggal post`, `Likes`, `Komentar`, dan ringkasan
+    `Caption`.
+
 - Setelah simpan berhasil, bot mengirim ringkasan post yang ditambahkan
   (client, shortcode/video ID, tanggal post, likes, komentar, caption ringkas)
   dengan penanda sumber **manual**.
@@ -80,6 +123,27 @@ dirrequest tanpa langkah tambahan.
 - Jika validasi gagal (format link/ID tidak sesuai) atau proses fetch gagal,
   bot mengirim pesan error yang jelas lalu tetap mengembalikan sesi ke menu
   utama agar alur UX stabil.
+
+### Backward Compatibility
+- Menu lama (rekap, absensi, fetch rutin, dan opsi numerik yang sudah ada)
+  tetap berjalan tanpa perubahan alur input.
+- Penambahan opsi **4️⃣6️⃣** dan **4️⃣7️⃣** bersifat additive; operator yang tidak
+  menggunakan input manual tetap memakai pipeline lama berbasis akun resmi.
+- Rekap dan task message tetap kompatibel terhadap data lama yang belum memiliki
+  penanda manual eksplisit, karena sumber resmi tetap menjadi default.
+
+### Contoh Skenario End-to-End
+1. Operator membuka menu `dirrequest` lalu memilih **4️⃣6️⃣**.
+2. Bot meminta link IG; operator kirim URL reel.
+3. Bot validasi format, fetch detail via RapidAPI helper, simpan ke
+   `insta_post_khusus` + `insta_post`, lalu kirim konfirmasi sukses dengan
+   `Sumber : manual`.
+4. Operator menjalankan menu rekap/absensi pada periode yang sama.
+5. Generator tugas membaca gabungan konten resmi + manual, menampilkan subtotal
+   masing-masing segmen, dan menghindari double count jika ada shortcode/video
+   yang sama.
+6. Jika operator salah kirim format link pada langkah 2, bot kirim pesan
+   validasi dan meminta input ulang tanpa memutus sesi menu.
 
 ## Rekaman Snapshot Engagement per 30 Menit
 - Setiap pengambilan likes Instagram dan komentar TikTok yang berjalan lewat
