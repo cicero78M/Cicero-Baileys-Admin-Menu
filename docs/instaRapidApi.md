@@ -37,3 +37,14 @@ GET /api/insta/rapid-profile?username=polri
 ### Catatan Perilaku
 - Jika cache tersedia, data diambil dari cache; jika tidak, sistem akan memanggil RapidAPI lalu menyimpan cache.
 - Saat data profil valid, sistem melakukan `upsert` ke tabel profil dan metrik pengguna Instagram.
+
+## Integrasi WA DirRequest (Input Manual IG/TikTok)
+
+Selain endpoint HTTP di atas, backend juga memakai helper RapidAPI yang dipicu dari menu WhatsApp `dirrequest`:
+
+- **4️⃣6️⃣ Input IG post manual** → memanggil helper `fetchSinglePostKhusus(link, clientId)` untuk mengambil detail post Instagram dari link, lalu menyimpan ke `insta_post_khusus` dan `insta_post`.
+- **4️⃣7️⃣ Input TikTok post manual** → memanggil helper `fetchAndStoreSingleTiktokPost(clientId, videoInput)` untuk mengambil detail video TikTok dari link/video ID, lalu upsert ke `tiktok_post` dengan `source = manual`.
+
+Catatan kompatibilitas:
+- Penambahan alur manual ini **tidak mengubah kontrak endpoint HTTP yang sudah ada**.
+- Pipeline fetch akun resmi via scheduler/endpoint tetap berjalan seperti sebelumnya, dan data manual hanya menambah sumber konten untuk modul task/rekap.
