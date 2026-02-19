@@ -133,6 +133,7 @@ export async function collectInstagramJajaranAttendance(clientId, roleFlag = nul
     
     // Calculate execution stats
     let sudahMelaksanakan = 0;
+    let melaksanakanKurangLengkap = 0;
     users.forEach((u) => {
       if (!u.insta || u.insta.trim() === "") return;
       
@@ -142,14 +143,16 @@ export async function collectInstagramJajaranAttendance(clientId, roleFlag = nul
         if (set.has(uname)) count += 1;
       });
       
-      // Consider executed if they completed at least 50% of tasks
+      // Calculate execution percentage
       const percentage = totalKonten ? (count / totalKonten) * 100 : 0;
       if (percentage >= 50) {
         sudahMelaksanakan += 1;
+      } else if (percentage > 0) {
+        melaksanakanKurangLengkap += 1;
       }
     });
     
-    const belumMelaksanakan = sudahInputUsername - sudahMelaksanakan;
+    const belumMelaksanakan = sudahInputUsername - sudahMelaksanakan - melaksanakanKurangLengkap;
     const persenPelaksanaan = totalPersonil > 0 ? (sudahMelaksanakan / totalPersonil) * 100 : 0;
     
     reportEntries.push({
@@ -160,6 +163,7 @@ export async function collectInstagramJajaranAttendance(clientId, roleFlag = nul
       sudahInputUsername,
       belumInputUsername,
       sudahMelaksanakan,
+      melaksanakanKurangLengkap,
       belumMelaksanakan,
       persenPelaksanaan,
     });
@@ -335,6 +339,7 @@ export async function collectTiktokJajaranAttendance(clientId, roleFlag = null) 
     
     // Calculate execution stats
     let sudahMelaksanakan = 0;
+    let melaksanakanKurangLengkap = 0;
     users.forEach((u) => {
       if (!u.tiktok || u.tiktok.trim() === "") return;
       
@@ -344,14 +349,16 @@ export async function collectTiktokJajaranAttendance(clientId, roleFlag = null) 
         if (set.has(uname)) count += 1;
       });
       
-      // Consider executed if they completed at least 50% of tasks
+      // Calculate execution percentage
       const percentage = totalKonten ? (count / totalKonten) * 100 : 0;
       if (percentage >= 50) {
         sudahMelaksanakan += 1;
+      } else if (percentage > 0) {
+        melaksanakanKurangLengkap += 1;
       }
     });
     
-    const belumMelaksanakan = sudahInputUsername - sudahMelaksanakan;
+    const belumMelaksanakan = sudahInputUsername - sudahMelaksanakan - melaksanakanKurangLengkap;
     const persenPelaksanaan = totalPersonil > 0 ? (sudahMelaksanakan / totalPersonil) * 100 : 0;
     
     reportEntries.push({
@@ -362,6 +369,7 @@ export async function collectTiktokJajaranAttendance(clientId, roleFlag = null) 
       sudahInputUsername,
       belumInputUsername,
       sudahMelaksanakan,
+      melaksanakanKurangLengkap,
       belumMelaksanakan,
       persenPelaksanaan,
     });
@@ -420,6 +428,7 @@ export function formatInstagramJajaranReport(data) {
     sudahInputUsername: 0,
     belumInputUsername: 0,
     sudahMelaksanakan: 0,
+    melaksanakanKurangLengkap: 0,
     belumMelaksanakan: 0,
   };
   
@@ -428,6 +437,7 @@ export function formatInstagramJajaranReport(data) {
     totals.sudahInputUsername += entry.sudahInputUsername;
     totals.belumInputUsername += entry.belumInputUsername;
     totals.sudahMelaksanakan += entry.sudahMelaksanakan;
+    totals.melaksanakanKurangLengkap += entry.melaksanakanKurangLengkap;
     totals.belumMelaksanakan += entry.belumMelaksanakan;
   });
   
@@ -450,6 +460,7 @@ export function formatInstagramJajaranReport(data) {
     `*Sudah Input Username Instagram:* ${totals.sudahInputUsername} pers`,
     `*Belum Input Username Instagram:* ${totals.belumInputUsername} pers`,
     `*Sudah Melaksanakan:* ${totals.sudahMelaksanakan} pers`,
+    `*Melaksanakan Kurang Lengkap:* ${totals.melaksanakanKurangLengkap} pers`,
     `*Belum Melaksanakan:* ${totals.belumMelaksanakan} pers`,
     `*Persentase Pelaksanaan:* ${totalPersenPelaksanaan.toFixed(2)}%\n`,
     "*Detail per Satker:*\n",
@@ -462,6 +473,7 @@ export function formatInstagramJajaranReport(data) {
       `   Sudah Input Username: ${entry.sudahInputUsername} pers`,
       `   Belum Input Username: ${entry.belumInputUsername} pers`,
       `   Sudah Melaksanakan: ${entry.sudahMelaksanakan} pers`,
+      `   Melaksanakan Kurang Lengkap: ${entry.melaksanakanKurangLengkap} pers`,
       `   Belum Melaksanakan: ${entry.belumMelaksanakan} pers`,
       `   Persentase: ${entry.persenPelaksanaan.toFixed(2)}%`,
     ].join("\n");
@@ -482,6 +494,7 @@ export function formatTiktokJajaranReport(data) {
     sudahInputUsername: 0,
     belumInputUsername: 0,
     sudahMelaksanakan: 0,
+    melaksanakanKurangLengkap: 0,
     belumMelaksanakan: 0,
   };
   
@@ -490,6 +503,7 @@ export function formatTiktokJajaranReport(data) {
     totals.sudahInputUsername += entry.sudahInputUsername;
     totals.belumInputUsername += entry.belumInputUsername;
     totals.sudahMelaksanakan += entry.sudahMelaksanakan;
+    totals.melaksanakanKurangLengkap += entry.melaksanakanKurangLengkap;
     totals.belumMelaksanakan += entry.belumMelaksanakan;
   });
   
@@ -512,6 +526,7 @@ export function formatTiktokJajaranReport(data) {
     `*Sudah Input Username TikTok:* ${totals.sudahInputUsername} pers`,
     `*Belum Input Username TikTok:* ${totals.belumInputUsername} pers`,
     `*Sudah Melaksanakan:* ${totals.sudahMelaksanakan} pers`,
+    `*Melaksanakan Kurang Lengkap:* ${totals.melaksanakanKurangLengkap} pers`,
     `*Belum Melaksanakan:* ${totals.belumMelaksanakan} pers`,
     `*Persentase Pelaksanaan:* ${totalPersenPelaksanaan.toFixed(2)}%\n`,
     "*Detail per Satker:*\n",
@@ -524,6 +539,7 @@ export function formatTiktokJajaranReport(data) {
       `   Sudah Input Username: ${entry.sudahInputUsername} pers`,
       `   Belum Input Username: ${entry.belumInputUsername} pers`,
       `   Sudah Melaksanakan: ${entry.sudahMelaksanakan} pers`,
+      `   Melaksanakan Kurang Lengkap: ${entry.melaksanakanKurangLengkap} pers`,
       `   Belum Melaksanakan: ${entry.belumMelaksanakan} pers`,
       `   Persentase: ${entry.persenPelaksanaan.toFixed(2)}%`,
     ].join("\n");

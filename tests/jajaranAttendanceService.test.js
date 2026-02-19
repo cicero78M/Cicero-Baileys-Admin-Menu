@@ -233,6 +233,8 @@ describe('Instagram Jajaran Attendance', () => {
     expect(result.reportEntries[0].totalPersonil).toBe(2);
     expect(result.reportEntries[0].sudahInputUsername).toBe(2);
     expect(result.reportEntries[0].sudahMelaksanakan).toBe(1);
+    expect(result.reportEntries[0].melaksanakanKurangLengkap).toBe(0);
+    expect(result.reportEntries[0].belumMelaksanakan).toBe(1);
     expect(result.reportEntries[0].persenPelaksanaan).toBe(50);
   });
 });
@@ -344,7 +346,8 @@ describe('Report Formatting', () => {
           sudahInputUsername: 8,
           belumInputUsername: 2,
           sudahMelaksanakan: 6,
-          belumMelaksanakan: 2,
+          melaksanakanKurangLengkap: 1,
+          belumMelaksanakan: 1,
           persenPelaksanaan: 60,
         },
         {
@@ -355,7 +358,8 @@ describe('Report Formatting', () => {
           sudahInputUsername: 5,
           belumInputUsername: 0,
           sudahMelaksanakan: 4,
-          belumMelaksanakan: 1,
+          melaksanakanKurangLengkap: 1,
+          belumMelaksanakan: 0,
           persenPelaksanaan: 80,
         },
       ],
@@ -393,7 +397,8 @@ describe('Report Formatting', () => {
           sudahInputUsername: 8,
           belumInputUsername: 2,
           sudahMelaksanakan: 6,
-          belumMelaksanakan: 2,
+          melaksanakanKurangLengkap: 1,
+          belumMelaksanakan: 1,
           persenPelaksanaan: 60,
         },
       ],
