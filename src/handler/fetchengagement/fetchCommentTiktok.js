@@ -10,6 +10,12 @@ const MAX_COMMENT_FETCH_ATTEMPTS = 3;
 const COMMENT_FETCH_RETRY_DELAY_MS = 2000;
 const SNAPSHOT_INTERVAL_MS = 30 * 60 * 1000;
 
+function getJakartaDateString(date = new Date()) {
+  return date.toLocaleDateString("en-CA", {
+    timeZone: "Asia/Jakarta",
+  });
+}
+
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -115,14 +121,11 @@ async function upsertTiktokUserComments(video_id, usernamesArr) {
  */
 export async function handleFetchKomentarTiktokBatch(waClient = null, chatId = null, client_id = null, options = {}) {
   try {
-    const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, "0");
-    const dd = String(today.getDate()).padStart(2, "0");
+    const todayJakarta = getJakartaDateString();
     const normalizedId = normalizeClientId(client_id);
     const { rows } = await query(
-      `SELECT video_id FROM tiktok_post WHERE LOWER(TRIM(client_id)) = $1 AND DATE(created_at) = $2`,
-      [normalizedId, `${yyyy}-${mm}-${dd}`]
+      `SELECT video_id FROM tiktok_post WHERE LOWER(TRIM(client_id)) = $1 AND DATE((created_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Jakarta') = $2`,
+      [normalizedId, todayJakarta]
     );
     const videoIds = rows.map((r) => r.video_id);
     const excRes = await query(

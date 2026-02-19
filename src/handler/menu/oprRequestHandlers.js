@@ -431,11 +431,18 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
         const tiktokLabel = tiktokActive
           ? "2️⃣ Absensi Komentar TikTok"
           : "2️⃣ Absensi Komentar TikTok (nonaktif)";
+        const fetchPostLabel = instagramActive && tiktokActive
+          ? "3️⃣ Fetch Post Engagement"
+          : null;
+        const engagementMenuItems = [instaLabel, tiktokLabel];
+        if (fetchPostLabel) {
+          engagementMenuItems.push(fetchPostLabel);
+        }
         session.step = "kelolaEngagement_menu";
         await waClient.sendMessage(
           chatId,
           appendSubmenuBackInstruction(
-            `*Menu Manajemen Engagement*\n${instaLabel}\n${tiktokLabel}\n\nKetik *angka menu* di atas, *menu* untuk kembali, atau *batal* untuk keluar.`
+            `*Menu Manajemen Engagement*\n${engagementMenuItems.join("\n")}\n\nKetik *angka menu* di atas, *menu* untuk kembali, atau *batal* untuk keluar.`
           )
         );
         return;
@@ -562,6 +569,7 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
   },
 
   kelolaEngagement_menu: async (session, chatId, text, waClient, pool, userModel) => {
+    const menuText = (text || "").trim();
     if (/^(menu|kembali|back|0)$/i.test(text.trim())) {
       session.step = "main";
       return oprRequestHandlers.main(session, chatId, "", waClient, pool, userModel);
@@ -574,7 +582,7 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
       await waClient.sendMessage(chatId, "❎ Keluar dari menu operator.");
       return;
     }
-    if (/^1$/i.test(text.trim())) {
+    if (/^1$/i.test(menuText)) {
       const access = await ensureEngagementMenuAccess(
         session,
         chatId,
@@ -600,7 +608,7 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
         userModel
       );
     }
-    if (/^2$/i.test(text.trim())) {
+    if (/^2$/i.test(menuText)) {
       const access = await ensureEngagementMenuAccess(
         session,
         chatId,
@@ -626,9 +634,66 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
         userModel
       );
     }
+    if (/^3$/i.test(menuText)) {
+      const access = await ensureEngagementMenuAccess(session, chatId, waClient, pool);
+      if (!access) {
+        if (isAdminWhatsApp(chatId)) {
+          delete session.selected_client_id;
+        }
+        session.step = "main";
+        return oprRequestHandlers.main(session, chatId, "", waClient, pool, userModel);
+      }
+
+      if (!access.instagramActive || !access.tiktokActive) {
+        await waClient.sendMessage(
+          chatId,
+          "❌ Menu fetch post hanya tersedia jika status Instagram dan TikTok aktif."
+        );
+        return;
+      }
+
+      const clientId = await resolveClientId(session, chatId, pool);
+      if (!clientId) {
+        await waClient.sendMessage(chatId, "❌ Client tidak ditemukan untuk nomor ini.");
+        session.step = "main";
+        return oprRequestHandlers.main(session, chatId, "", waClient, pool, userModel);
+      }
+
+      try {
+        const { fetchAndStoreInstaContent } = await import("../fetchpost/instaFetchPost.js");
+        const { handleFetchLikesInstagram } = await import(
+          "../fetchengagement/fetchLikesInstagram.js"
+        );
+        const { fetchAndStoreTiktokContent } = await import("../fetchpost/tiktokFetchPost.js");
+        const { handleFetchKomentarTiktokBatch } = await import(
+          "../fetchengagement/fetchCommentTiktok.js"
+        );
+
+        await waClient.sendMessage(
+          chatId,
+          `⏳ Memulai fetch post engagement untuk client *${clientId}*...`
+        );
+        await fetchAndStoreInstaContent(null, waClient, chatId, clientId);
+        await handleFetchLikesInstagram(waClient, chatId, clientId);
+        await fetchAndStoreTiktokContent(clientId, waClient, chatId);
+        await handleFetchKomentarTiktokBatch(waClient, chatId, clientId);
+        await waClient.sendMessage(
+          chatId,
+          `✅ Fetch post engagement selesai untuk client *${clientId}*.`
+        );
+      } catch (error) {
+        await waClient.sendMessage(
+          chatId,
+          `❌ Gagal fetch post engagement: ${error.message}`
+        );
+      }
+
+      session.step = "main";
+      return oprRequestHandlers.main(session, chatId, "", waClient, pool, userModel);
+    }
     await waClient.sendMessage(
       chatId,
-      "Menu tidak dikenal. Balas angka 1-2, *menu* untuk kembali, atau ketik *batal* untuk keluar."
+      "Menu tidak dikenal. Balas angka 1-3, *menu* untuk kembali, atau ketik *batal* untuk keluar."
     );
   },
 
