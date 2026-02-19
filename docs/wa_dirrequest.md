@@ -69,6 +69,14 @@ dirrequest tanpa langkah tambahan.
 - Setelah simpan berhasil, bot mengirim ringkasan post yang ditambahkan
   (client, shortcode/video ID, tanggal post, likes, komentar, caption ringkas)
   dengan penanda sumber **manual**.
+- Data manual tersebut juga dipakai oleh generator `generateSosmedTaskMessage`
+  (`src/handler/fetchabsensi/sosmedTask.js`) pada blok **Segmen Tugas Khusus**.
+  Output kini dipisah antara **Segmen Konten Resmi** dan **Segmen Tugas Khusus**,
+  masing-masing menampilkan subtotal jumlah konten + metrik (likes/komentar),
+  sementara header menampilkan total gabungan kedua sumber.
+- Saat ada overlap antara sumber resmi dan manual untuk post yang sama
+  (`shortcode` Instagram atau `video_id` TikTok), perhitungan tugas hanya
+  menghitung satu kali (prioritas data resmi) agar tidak terjadi double count.
 - Jika validasi gagal (format link/ID tidak sesuai) atau proses fetch gagal,
   bot mengirim pesan error yang jelas lalu tetap mengembalikan sesi ke menu
   utama agar alur UX stabil.

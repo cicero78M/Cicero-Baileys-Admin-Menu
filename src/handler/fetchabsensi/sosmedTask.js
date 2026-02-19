@@ -1,12 +1,13 @@
-import {
-  getShortcodesTodayByClient,
-  getPostsTodayByClient as getInstaPostsTodayByClient,
-} from "../../model/instaPostModel.js";
+import { getPostsTodayByClient as getInstaPostsTodayByClient } from "../../model/instaPostModel.js";
+import { getPostsTodayByClient as getManualInstaPostsTodayByClient } from "../../model/instaPostKhususModel.js";
 import {
   getLikesByShortcode,
   getLatestLikeAuditByWindow,
 } from "../../model/instaLikeModel.js";
-import { getPostsTodayByClient as getTiktokPostsToday } from "../../model/tiktokPostModel.js";
+import {
+  getManualPostsTodayByClient as getManualTiktokPostsToday,
+  getOfficialPostsTodayByClient as getOfficialTiktokPostsToday,
+} from "../../model/tiktokPostModel.js";
 import {
   getCommentsByVideoId,
   getLatestCommentAuditByWindow,
@@ -106,6 +107,30 @@ function formatSnapshotWindowLabel(snapshotWindow) {
   return `Data rentang ${startLabel}–${endLabel} WIB`;
 }
 
+function pickUniqueBy(items, keyExtractor, sourceExtractor) {
+  const map = new Map();
+  for (const item of items || []) {
+    const key = keyExtractor(item);
+    if (!key) continue;
+    const normalizedKey = String(key).trim();
+    if (!normalizedKey) continue;
+    const existing = map.get(normalizedKey);
+    if (!existing) {
+      map.set(normalizedKey, item);
+      continue;
+    }
+    const currentSource = sourceExtractor(item);
+    const existingSource = sourceExtractor(existing);
+    if (existingSource === "official" && currentSource === "manual") {
+      continue;
+    }
+    if (existingSource === "manual" && currentSource === "official") {
+      map.set(normalizedKey, item);
+    }
+  }
+  return Array.from(map.values());
+}
+
 async function fetchLikesWithAudit(shortcodes, snapshotWindow) {
   if (!Array.isArray(shortcodes) || shortcodes.length === 0) {
     return { likesList: [], auditUsed: false };
@@ -174,6 +199,31 @@ async function fetchCommentsWithAudit(posts, snapshotWindow) {
   return { commentList, auditUsed: auditMap.size > 0 };
 }
 
+function buildInstaLine(post, index, likesCount, previousIgShortcodes = []) {
+  const shortcode = post?.shortcode;
+  const suffix = likesCount === 1 ? "like" : "likes";
+  const uploadTime = formatUploadTime(post?.created_at);
+  const uploadLabel = uploadTime
+    ? `(upload ${uploadTime} WIB)`
+    : "(upload tidak diketahui)";
+  const isNew = !previousIgShortcodes.includes(shortcode);
+  const newLabel = isNew ? "[BARU] " : "";
+  return `${index + 1}. ${newLabel}https://www.instagram.com/p/${shortcode} ${uploadLabel} : ${likesCount} ${suffix}`;
+}
+
+function buildTiktokLine(post, index, commentCount, previousTiktokVideoIds = [], tiktokUsername = "") {
+  const link = tiktokUsername
+    ? `https://www.tiktok.com/@${tiktokUsername}/video/${post.video_id}`
+    : `https://www.tiktok.com/video/${post.video_id}`;
+  const uploadTime = formatUploadTime(post?.created_at);
+  const uploadLabel = uploadTime
+    ? `(upload ${uploadTime} WIB)`
+    : "(upload tidak diketahui)";
+  const isNew = !previousTiktokVideoIds.includes(post.video_id);
+  const newLabel = isNew ? "[BARU] " : "";
+  return `${index + 1}. ${newLabel}${link} ${uploadLabel} : ${commentCount} komentar`;
+}
+
 export async function generateSosmedTaskMessage(
   clientId = "DITBINMAS",
   options = {}
@@ -214,11 +264,11 @@ export async function generateSosmedTaskMessage(
     // ignore errors, use defaults
   }
 
-  let shortcodes = [];
-  let instaPosts = [];
+  let officialInstaPosts = [];
+  let manualInstaPosts = [];
   try {
-    shortcodes = await getShortcodesTodayByClient(clientId);
-    instaPosts = await getInstaPostsTodayByClient(clientId);
+    officialInstaPosts = await getInstaPostsTodayByClient(clientId);
+    manualInstaPosts = await getManualInstaPostsTodayByClient(clientId);
     if (!skipLikesFetch) {
       await handleFetchLikesInstagram(null, null, clientId, {
         snapshotWindow: snapshotWindow
@@ -227,37 +277,71 @@ export async function generateSosmedTaskMessage(
       });
     }
   } catch {
-    shortcodes = [];
-    instaPosts = [];
+    officialInstaPosts = [];
+    manualInstaPosts = [];
   }
 
-  const instaPostMap = new Map(
-    (instaPosts || []).map((post) => [post.shortcode, post])
+  const dedupedOfficialInstaPosts = pickUniqueBy(
+    officialInstaPosts,
+    (post) => post?.shortcode,
+    () => "official"
+  );
+  const dedupedManualInstaPosts = pickUniqueBy(
+    manualInstaPosts,
+    (post) => post?.shortcode,
+    () => "manual"
+  ).filter(
+    (manualPost) =>
+      !dedupedOfficialInstaPosts.some(
+        (officialPost) => officialPost.shortcode === manualPost.shortcode
+      )
   );
 
+  const mergedInstaPosts = [...dedupedOfficialInstaPosts, ...dedupedManualInstaPosts];
+  const instaShortcodes = mergedInstaPosts.map((post) => post.shortcode);
   const { likesList: likeResults } = await fetchLikesWithAudit(
-    shortcodes,
+    instaShortcodes,
     snapshotWindow
   );
 
-  let totalLikes = 0;
-  const igDetails = shortcodes.map((sc, idx) => {
+  const likesCountByShortcode = new Map();
+  instaShortcodes.forEach((shortcode, idx) => {
     const likes = likeResults[idx];
-    const count = Array.isArray(likes) ? likes.length : 0;
-    totalLikes += count;
-    const suffix = count === 1 ? "like" : "likes";
-    const uploadTime = formatUploadTime(instaPostMap.get(sc)?.created_at);
-    const uploadLabel = uploadTime
-      ? `(upload ${uploadTime} WIB)`
-      : "(upload tidak diketahui)";
-    const isNew = !previousIgShortcodes.includes(sc);
-    const newLabel = isNew ? "[BARU] " : "";
-    return `${idx + 1}. ${newLabel}https://www.instagram.com/p/${sc} ${uploadLabel} : ${count} ${suffix}`;
+    likesCountByShortcode.set(shortcode, Array.isArray(likes) ? likes.length : 0);
   });
 
-  let tiktokPosts = [];
+  const officialIgDetails = dedupedOfficialInstaPosts.map((post, idx) =>
+    buildInstaLine(
+      post,
+      idx,
+      likesCountByShortcode.get(post.shortcode) || 0,
+      previousIgShortcodes
+    )
+  );
+
+  const manualIgDetails = dedupedManualInstaPosts.map((post, idx) =>
+    buildInstaLine(
+      post,
+      idx,
+      likesCountByShortcode.get(post.shortcode) || 0,
+      previousIgShortcodes
+    )
+  );
+
+  const officialIgTotalLikes = dedupedOfficialInstaPosts.reduce(
+    (acc, post) => acc + (likesCountByShortcode.get(post.shortcode) || 0),
+    0
+  );
+  const manualIgTotalLikes = dedupedManualInstaPosts.reduce(
+    (acc, post) => acc + (likesCountByShortcode.get(post.shortcode) || 0),
+    0
+  );
+
+  let officialTiktokPosts = [];
+  let manualTiktokPosts = [];
   try {
-    tiktokPosts = await getTiktokPostsToday(clientId);
+    officialTiktokPosts = await getOfficialTiktokPostsToday(clientId);
+    manualTiktokPosts = await getManualTiktokPostsToday(clientId);
     if (!skipTiktokFetch) {
       await handleFetchKomentarTiktokBatch(null, null, clientId, {
         snapshotWindow: snapshotWindow
@@ -266,56 +350,113 @@ export async function generateSosmedTaskMessage(
       });
     }
   } catch {
-    tiktokPosts = [];
+    officialTiktokPosts = [];
+    manualTiktokPosts = [];
   }
 
+  const dedupedOfficialTiktokPosts = pickUniqueBy(
+    officialTiktokPosts,
+    (post) => post?.video_id,
+    () => "official"
+  );
+  const dedupedManualTiktokPosts = pickUniqueBy(
+    manualTiktokPosts,
+    (post) => post?.video_id,
+    () => "manual"
+  ).filter(
+    (manualPost) =>
+      !dedupedOfficialTiktokPosts.some(
+        (officialPost) => officialPost.video_id === manualPost.video_id
+      )
+  );
+
+  const mergedTiktokPosts = [...dedupedOfficialTiktokPosts, ...dedupedManualTiktokPosts];
   const { commentList: commentResults } = await fetchCommentsWithAudit(
-    tiktokPosts,
+    mergedTiktokPosts,
     snapshotWindow
   );
 
-  let totalComments = 0;
-  const tiktokDetails = tiktokPosts.map((post, idx) => {
+  const commentsCountByVideoId = new Map();
+  mergedTiktokPosts.forEach((post, idx) => {
     const comments = commentResults[idx] || [];
-    const count = Array.isArray(comments) ? comments.length : 0;
-    totalComments += count;
-    const link = tiktokUsername
-      ? `https://www.tiktok.com/@${tiktokUsername}/video/${post.video_id}`
-      : `https://www.tiktok.com/video/${post.video_id}`;
-    const uploadTime = formatUploadTime(post?.created_at);
-    const uploadLabel = uploadTime
-      ? `(upload ${uploadTime} WIB)`
-      : "(upload tidak diketahui)";
-    const isNew = !previousTiktokVideoIds.includes(post.video_id);
-    const newLabel = isNew ? "[BARU] " : "";
-    return `${idx + 1}. ${newLabel}${link} ${uploadLabel} : ${count} komentar`;
+    commentsCountByVideoId.set(post.video_id, Array.isArray(comments) ? comments.length : 0);
   });
+
+  const officialTiktokDetails = dedupedOfficialTiktokPosts.map((post, idx) =>
+    buildTiktokLine(
+      post,
+      idx,
+      commentsCountByVideoId.get(post.video_id) || 0,
+      previousTiktokVideoIds,
+      tiktokUsername
+    )
+  );
+
+  const manualTiktokDetails = dedupedManualTiktokPosts.map((post, idx) =>
+    buildTiktokLine(
+      post,
+      idx,
+      commentsCountByVideoId.get(post.video_id) || 0,
+      previousTiktokVideoIds,
+      tiktokUsername
+    )
+  );
+
+  const officialTiktokTotalComments = dedupedOfficialTiktokPosts.reduce(
+    (acc, post) => acc + (commentsCountByVideoId.get(post.video_id) || 0),
+    0
+  );
+  const manualTiktokTotalComments = dedupedManualTiktokPosts.reduce(
+    (acc, post) => acc + (commentsCountByVideoId.get(post.video_id) || 0),
+    0
+  );
+
+  const allIgCount = dedupedOfficialInstaPosts.length + dedupedManualInstaPosts.length;
+  const allTiktokCount = dedupedOfficialTiktokPosts.length + dedupedManualTiktokPosts.length;
+  const allTotalLikes = officialIgTotalLikes + manualIgTotalLikes;
+  const allTotalComments = officialTiktokTotalComments + manualTiktokTotalComments;
 
   let msg =
     "Mohon Ijin Komandan, Senior, Rekan Operator dan Personil pelaksana Tugas Likes dan komentar Sosial Media " +
     `${clientName}.\n\n` +
     "Tugas Likes dan Komentar Konten Instagram dan Tiktok \n" +
     `${clientName}\n` +
-    `Jumlah konten Instagram hari ini: ${shortcodes.length} \n` +
-    `Total likes semua konten: ${totalLikes} \n\n` +
-    "Rincian:\n";
-  msg += igDetails.length ? igDetails.join("\n") : "-";
+    `Jumlah konten Instagram hari ini (total): ${allIgCount} \n` +
+    `Total likes semua konten: ${allTotalLikes} \n` +
+    `Jumlah konten Tiktok hari ini (total): ${allTiktokCount} \n` +
+    `Total komentar semua konten: ${allTotalComments}\n\n` +
+    "Segmen Konten Resmi\n" +
+    `- Instagram: ${dedupedOfficialInstaPosts.length} konten | Total likes: ${officialIgTotalLikes}\n` +
+    `Rincian Instagram:\n`;
+
+  msg += officialIgDetails.length ? officialIgDetails.join("\n") : "-";
   msg +=
-    `\n\nJumlah konten Tiktok hari ini: ${tiktokPosts.length} \n` +
-    `Total komentar semua konten: ${totalComments}\n\n` +
-    "Rincian:\n";
-  msg += tiktokDetails.length ? tiktokDetails.join("\n") : "-";
+    `\n\n- TikTok: ${dedupedOfficialTiktokPosts.length} konten | Total komentar: ${officialTiktokTotalComments}\n` +
+    "Rincian TikTok:\n";
+  msg += officialTiktokDetails.length ? officialTiktokDetails.join("\n") : "-";
+
+  msg +=
+    "\n\nSegmen Tugas Khusus\n" +
+    `- Instagram (manual): ${dedupedManualInstaPosts.length} konten | Total likes: ${manualIgTotalLikes}\n` +
+    "Rincian Instagram manual:\n";
+  msg += manualIgDetails.length ? manualIgDetails.join("\n") : "-";
+
+  msg +=
+    `\n\n- TikTok (manual): ${dedupedManualTiktokPosts.length} konten | Total komentar: ${manualTiktokTotalComments}\n` +
+    "Rincian TikTok manual:\n";
+  msg += manualTiktokDetails.length ? manualTiktokDetails.join("\n") : "-";
+
   if (snapshotWindowLabel) {
     msg += `\n\n${snapshotWindowLabel}`;
   }
   msg += "\n\nSilahkan Melaksanakan Likes, Komentar dan Share.";
   return {
     text: msg.trim(),
-    igCount: shortcodes.length,
-    tiktokCount: tiktokPosts.length,
+    igCount: allIgCount,
+    tiktokCount: allTiktokCount,
     state: {
-      igShortcodes: [...shortcodes],
-      tiktokVideoIds: tiktokPosts.map((post) => post.video_id),
+      igShortcodes: instaShortcodes,
+      tiktokVideoIds: mergedTiktokPosts.map((post) => post.video_id),
     },
   };
 }

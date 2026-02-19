@@ -71,14 +71,19 @@ export async function deletePostByVideoId(video_id) {
 export async function upsertTiktokPosts(client_id, posts) {
   if (!Array.isArray(posts)) return;
   for (const post of posts) {
+    const source =
+      typeof post?.source === "string" && post.source.trim().toLowerCase() === "manual"
+        ? "manual"
+        : "official";
     await query(
-      `INSERT INTO tiktok_post (client_id, video_id, caption, like_count, comment_count, created_at)
-       VALUES ($1, $2, $3, $4, $5, (COALESCE($6::timestamptz, NOW()) AT TIME ZONE 'UTC'))
+      `INSERT INTO tiktok_post (client_id, video_id, caption, like_count, comment_count, source, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, (COALESCE($7::timestamptz, NOW()) AT TIME ZONE 'UTC'))
        ON CONFLICT (video_id) DO UPDATE
          SET client_id = EXCLUDED.client_id,
              caption = EXCLUDED.caption,
              like_count = EXCLUDED.like_count,
              comment_count = EXCLUDED.comment_count,
+             source = EXCLUDED.source,
              created_at = EXCLUDED.created_at`,
       [
         client_id,
@@ -86,6 +91,7 @@ export async function upsertTiktokPosts(client_id, posts) {
         post.desc || post.caption || "",
         post.digg_count ?? post.like_count ?? 0,
         post.comment_count ?? 0,
+        source,
         normalizeUtcCreatedAt(
           post.created_at || post.create_time || post.createTime || null
         ),
@@ -112,19 +118,26 @@ export async function upsertTiktokPostWithStatus({
   caption,
   like_count,
   comment_count,
+  source,
   created_at,
 }) {
   const normalizedVideoId = (video_id || "").trim();
   if (!normalizedVideoId) return { inserted: false, updated: false };
 
+  const normalizedSource =
+    typeof source === "string" && source.trim().toLowerCase() === "manual"
+      ? "manual"
+      : "official";
+
   const res = await query(
-    `INSERT INTO tiktok_post (client_id, video_id, caption, like_count, comment_count, created_at)
-     VALUES ($1, $2, $3, $4, $5, (COALESCE($6::timestamptz, NOW()) AT TIME ZONE 'UTC'))
+    `INSERT INTO tiktok_post (client_id, video_id, caption, like_count, comment_count, source, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, (COALESCE($7::timestamptz, NOW()) AT TIME ZONE 'UTC'))
      ON CONFLICT (video_id) DO UPDATE
        SET client_id = EXCLUDED.client_id,
            caption = EXCLUDED.caption,
            like_count = EXCLUDED.like_count,
            comment_count = EXCLUDED.comment_count,
+           source = EXCLUDED.source,
            created_at = EXCLUDED.created_at
      RETURNING xmax = '0'::xid AS inserted`,
     [
@@ -133,6 +146,7 @@ export async function upsertTiktokPostWithStatus({
       caption || "",
       toInteger(like_count) ?? 0,
       toInteger(comment_count) ?? 0,
+      normalizedSource,
       normalizeUtcCreatedAt(created_at || null),
     ]
   );
@@ -170,6 +184,34 @@ export async function getPostsTodayByClient(client_id, referenceDate) {
     `SELECT * FROM tiktok_post WHERE LOWER(TRIM(client_id)) = $1 AND ${jakartaDateCast(
       "created_at"
     )}::date = $2::date ORDER BY created_at ASC, video_id ASC`,
+    [normalizedId, targetDate]
+  );
+  return res.rows;
+}
+
+export async function getOfficialPostsTodayByClient(client_id, referenceDate) {
+  const normalizedId = normalizeClientId(client_id);
+  const targetDate = resolveJakartaDate(referenceDate);
+  const res = await query(
+    `SELECT * FROM tiktok_post
+     WHERE LOWER(TRIM(client_id)) = $1
+       AND COALESCE(LOWER(TRIM(source)), 'official') <> 'manual'
+       AND ${jakartaDateCast("created_at")}::date = $2::date
+     ORDER BY created_at ASC, video_id ASC`,
+    [normalizedId, targetDate]
+  );
+  return res.rows;
+}
+
+export async function getManualPostsTodayByClient(client_id, referenceDate) {
+  const normalizedId = normalizeClientId(client_id);
+  const targetDate = resolveJakartaDate(referenceDate);
+  const res = await query(
+    `SELECT * FROM tiktok_post
+     WHERE LOWER(TRIM(client_id)) = $1
+       AND COALESCE(LOWER(TRIM(source)), 'official') = 'manual'
+       AND ${jakartaDateCast("created_at")}::date = $2::date
+     ORDER BY created_at ASC, video_id ASC`,
     [normalizedId, targetDate]
   );
   return res.rows;
