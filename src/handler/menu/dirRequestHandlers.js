@@ -3084,6 +3084,8 @@ export const dirRequestHandlers = {
           "45",
           "46",
           "47",
+          "48",
+          "49",
         ].includes(choice)
     ) {
       await waClient.sendMessage(chatId, "Pilihan tidak valid. Ketik angka menu.");
