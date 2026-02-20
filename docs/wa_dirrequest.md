@@ -1,5 +1,5 @@
 # Menu DirRequest untuk Operator WA
-*Last updated: 2026-02-18*
+*Last updated: 2026-12-15*
 
 Menu **dirrequest** digunakan tim Ditbinmas untuk memicu pengambilan data,
 rekap, dan laporan langsung dari WhatsApp. Menu utama menampilkan beberapa
@@ -142,8 +142,8 @@ dirrequest tanpa langkah tambahan.
   (`shortcode` Instagram atau `video_id` TikTok), perhitungan tugas hanya
   menghitung satu kali (prioritas data resmi) agar tidak terjadi double count.
 - Untuk menu **4️⃣6️⃣** dan **4️⃣7️⃣**, timestamp `created_at` konten manual
-  kini diset menggunakan datetime **Asia/Jakarta** (`+07:00`) saat operator
-  mengirim input, agar konsisten dengan filter rekap/absensi harian WIB.
+  kini ditulis dalam format ISO-8601 UTC (canonical storage), lalu dibaca
+  dengan basis timezone **Asia/Jakarta (WIB)** saat filtering/rekap harian.
 - Sinkronisasi source tipe fetch kini mengikuti repository cronjob: `insta_post.source_type`/`tiktok_post.source_type` memakai nilai `manual_input` untuk input manual menu **4️⃣6️⃣**/**4️⃣7️⃣**, sedangkan proses terjadwal memakai `cron_fetch`.
 - Untuk konten lama (post lama yang diinput manual), bot tetap mengambil nilai
   engagement terbaru yang tersedia dari API single-post saat proses input
@@ -158,9 +158,10 @@ dirrequest tanpa langkah tambahan.
 ### Skema Data Input Manual (Kontrak Data)
 - `source_type=manual_input`: konten berasal dari input operator via menu
   **4️⃣6️⃣**/**4️⃣7️⃣**, bukan dari crawler berkala (`cron_fetch`).
-  Nilai ini adalah standar yang digunakan kode saat ini. Nilai legacy
-  `manual_fetch` tetap dianggap setara (dibaca sebagai manual) agar data
-  lama di database tetap tersaring di menu **5️⃣0️⃣**.
+  Nilai ini adalah standar canonical yang digunakan kode saat ini. Untuk
+  kompatibilitas, input legacy `manual_fetch` dinormalisasi saat write menjadi
+  `manual_input`, dan pembacaan filter manual tetap menganggap keduanya setara
+  agar data lama di database tetap tersaring di menu **5️⃣0️⃣**.
 - `created_at`: waktu konten **masuk ke sistem** saat operator mengirim input
   manual (timestamp input operator, WIB/+07:00).
 - **Kontrak timezone aktif (menu 4️⃣6️⃣/5️⃣0️⃣ - Opsi A):** kolom `insta_post.created_at` diperlakukan sebagai waktu lokal Jakarta. Karena itu, semua filter tanggal Instagram manual/harian harus memakai pola SQL `(created_at AT TIME ZONE 'Asia/Jakarta')::date` (tanpa konversi awal dari `UTC`) agar tidak terjadi pergeseran hari.

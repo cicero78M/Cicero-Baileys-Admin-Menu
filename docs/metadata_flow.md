@@ -1,5 +1,5 @@
 # Cicero Flow Metadata
-*Last updated: 2025-11-06*
+*Last updated: 2026-12-15*
 
 This document outlines the flow of data and the main database tables used by the Cicero_V2 system. It provides an overview from the initial onboarding steps through to reporting and notifications.
 
@@ -48,6 +48,34 @@ These tables are updated regularly by scheduled jobs and form the basis for anal
 ## 4. Final Output
 
 Administrators receive automated WhatsApp reports summarizing daily engagement. The dashboard retrieves analytics via REST endpoints, giving a complete view of social media activity per client.
+
+## 5. Kontrak Metadata Instagram Post (`insta_post`)
+
+Standar canonical yang dipakai backend untuk penulisan data Instagram:
+
+- `source_type`
+  - `cron_fetch` untuk fetch rutin/scheduler.
+  - `manual_input` untuk input manual operator (menu dirrequest 4️⃣6️⃣).
+  - Nilai legacy `manual_fetch` dinormalisasi ke `manual_input` saat write.
+- `created_at`
+  - Menyimpan timestamp event dalam format ISO-8601 UTC (`Date#toISOString`).
+  - Untuk `cron_fetch`, berasal dari `taken_at` post (epoch dari platform).
+  - Untuk `manual_input`, berasal dari waktu input operator (waktu ingest sistem).
+- `original_created_at`
+  - Menyimpan waktu publish asli dari platform jika tersedia (`taken_at`).
+
+Kontrak timezone harian:
+
+- Basis timezone operasional tetap **Asia/Jakarta (WIB)**.
+- Seluruh query tanggal harian harus membaca `created_at` dengan pola:
+  `((created_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Jakarta')::date`.
+  Pola ini dipakai agar data lama/baru tetap konsisten pada klasifikasi hari WIB.
+
+Backfill data lama tersedia di migrasi:
+
+- `sql/migrations/20261215_normalize_insta_post_source_and_timestamp.sql`
+  untuk normalisasi `source_type` dan koreksi kandidat `created_at` manual lama
+  yang berpotensi bergeser hari akibat penulisan timestamp offset ke kolom tanpa timezone.
 
 
 Refer to [docs/naming_conventions.md](naming_conventions.md) for code style guidelines.
