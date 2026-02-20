@@ -11,6 +11,7 @@ import {
   fetchTiktokPostDetail,
 } from "../../service/tiktokApi.js";
 import { extractVideoId } from "../../utils/tiktokHelper.js";
+import { getCurrentJakartaTimestamp } from "../../utils/jakartaDateTime.js";
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -105,7 +106,7 @@ export async function fetchAndStoreSingleTiktokPost(clientId, videoInput) {
 
   const detail = await fetchTiktokPostDetail(videoId);
   // Khusus input manual menu 47: created_at merekam waktu operator memproses input manual.
-  const manualUploadAt = new Date().toISOString();
+  const manualUploadAt = getCurrentJakartaTimestamp();
 
   const stats = detail?.stats || {};
   const statsV2 = detail?.statsV2 || {};

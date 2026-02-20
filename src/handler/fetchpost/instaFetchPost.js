@@ -11,6 +11,7 @@ import {
 } from "../../model/instaPostKhususModel.js";
 import { upsertInstaPost } from "../../model/instaPostModel.js";
 import { extractInstagramShortcode } from "../../utils/utilsHelper.js";
+import { getCurrentJakartaTimestamp } from "../../utils/jakartaDateTime.js";
 
 const ADMIN_WHATSAPP = (process.env.ADMIN_WHATSAPP || "")
   .split(",")
@@ -359,7 +360,7 @@ export async function fetchAndStoreInstaContent(
 export async function fetchSinglePostKhusus(linkOrCode, clientId) {
   const code = extractInstagramShortcode(linkOrCode);
   if (!code) throw new Error('invalid link');
-  const manualUploadAt = new Date().toISOString();
+  const manualUploadAt = getCurrentJakartaTimestamp();
 
   const existingKhususPost = await findKhususPostByShortcode(code);
   if (
