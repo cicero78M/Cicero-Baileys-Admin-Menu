@@ -4,6 +4,7 @@ process.env.TZ = 'Asia/Jakarta';
 
 const mockQuery = jest.fn();
 const mockFetchAllInstagramLikes = jest.fn();
+const mockFetchAllInstagramComments = jest.fn();
 const mockGetAllExceptionUsers = jest.fn();
 const mockSendDebug = jest.fn();
 const mockSaveLikeSnapshotAudit = jest.fn();
@@ -11,6 +12,7 @@ const mockSaveLikeSnapshotAudit = jest.fn();
 jest.unstable_mockModule('../src/db/index.js', () => ({ query: mockQuery }));
 jest.unstable_mockModule('../src/service/instagramApi.js', () => ({
   fetchAllInstagramLikes: mockFetchAllInstagramLikes,
+  fetchAllInstagramComments: mockFetchAllInstagramComments,
 }));
 jest.unstable_mockModule('../src/model/userModel.js', () => ({
   getAllExceptionUsers: mockGetAllExceptionUsers,
@@ -31,6 +33,12 @@ beforeAll(async () => {
 beforeEach(() => {
   jest.clearAllMocks();
   mockSaveLikeSnapshotAudit.mockResolvedValue(1);
+  mockFetchAllInstagramComments.mockResolvedValue([]);
+  mockGetAllExceptionUsers.mockResolvedValue([]);
+});
+
+afterEach(() => {
+  jest.useRealTimers();
 });
 
 test('adds missing exception usernames to likes result', async () => {
@@ -50,4 +58,17 @@ test('adds missing exception usernames to likes result', async () => {
   const likesJson = upsertCall[1][1];
   const likes = JSON.parse(likesJson);
   expect(likes).toEqual(expect.arrayContaining(['user1', 'user2']));
+});
+
+test('uses Jakarta date filter SQL and resolves UTC 23:30 as next Jakarta day', async () => {
+  jest.useFakeTimers();
+  jest.setSystemTime(new Date('2026-01-01T23:30:00.000Z'));
+
+  mockQuery.mockResolvedValueOnce({ rows: [] });
+
+  await handleFetchLikesInstagram(null, null, 'clientA');
+
+  const [sql, params] = mockQuery.mock.calls[0];
+  expect(sql).toContain("(((created_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Jakarta')::date) = $2::date");
+  expect(params[1]).toBe('2026-01-02');
 });

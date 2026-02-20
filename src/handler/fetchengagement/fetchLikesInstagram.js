@@ -8,6 +8,10 @@ import {
 } from "../../service/instagramApi.js";
 import { getAllExceptionUsers } from "../../model/userModel.js";
 import { saveLikeSnapshotAudit } from "../../model/instaLikeModel.js";
+import {
+  getInstagramCreatedAtJakartaDateSql,
+  getNormalizedInstagramSourceTypeSql,
+} from "../../utils/instagramCreatedAtSql.js";
 
 const SNAPSHOT_INTERVAL_MS = 30 * 60 * 1000;
 
@@ -76,11 +80,11 @@ async function getInstagramLikesFetchDiagnostics(clientId, filterDate, sourceTyp
   const normalizedSourceType = normalizeSourceType(sourceType);
   const sourceTypeCountsResult = await query(
     `SELECT
-       REPLACE(REPLACE(COALESCE(LOWER(TRIM(source_type)), 'cron_fetch'), ' ', '_'), '-', '_') AS normalized_source_type,
+       ${getNormalizedInstagramSourceTypeSql('source_type')} AS normalized_source_type,
        COUNT(*)::int AS total
      FROM insta_post
      WHERE client_id = $1
-       AND (created_at AT TIME ZONE 'Asia/Jakarta')::date = $2::date
+       AND ${getInstagramCreatedAtJakartaDateSql('created_at')} = $2::date
      GROUP BY 1
      ORDER BY 2 DESC, 1 ASC`,
     [clientId, filterDate]
@@ -93,18 +97,18 @@ async function getInstagramLikesFetchDiagnostics(clientId, filterDate, sourceTyp
        COUNT(*)::int AS total_today
      FROM insta_post
      WHERE client_id = $1
-       AND (created_at AT TIME ZONE 'Asia/Jakarta')::date = $2::date`,
+       AND ${getInstagramCreatedAtJakartaDateSql('created_at')} = $2::date`,
     [clientId, filterDate]
   );
 
   const recentDaysResult = await query(
     `SELECT
-       (created_at AT TIME ZONE 'Asia/Jakarta')::date AS jakarta_date,
+       ${getInstagramCreatedAtJakartaDateSql('created_at')} AS jakarta_date,
        COUNT(*)::int AS total
      FROM insta_post
      WHERE client_id = $1
-       AND (created_at AT TIME ZONE 'Asia/Jakarta')::date >= ($2::date - INTERVAL '6 days')
-       AND (created_at AT TIME ZONE 'Asia/Jakarta')::date <= $2::date
+       AND ${getInstagramCreatedAtJakartaDateSql('created_at')} >= ($2::date - INTERVAL '6 days')
+       AND ${getInstagramCreatedAtJakartaDateSql('created_at')} <= $2::date
      GROUP BY 1
      ORDER BY 1 DESC`,
     [clientId, filterDate]
@@ -312,10 +316,10 @@ export async function handleFetchLikesInstagram(waClient, chatId, client_id, opt
         `SELECT shortcode
          FROM insta_post
          WHERE client_id = $1
-           AND (created_at AT TIME ZONE 'Asia/Jakarta')::date = $2::date
+           AND ${getInstagramCreatedAtJakartaDateSql('created_at')} = $2::date
            AND (
              $3::boolean = false OR
-             REPLACE(REPLACE(COALESCE(LOWER(TRIM(source_type)), 'cron_fetch'), ' ', '_'), '-', '_') IN ('manual_input', 'manual_fetch')
+             ${getNormalizedInstagramSourceTypeSql('source_type')} IN ('manual_input', 'manual_fetch')
            )`,
         [client_id, todayJakarta, filterManualOnly]
       );

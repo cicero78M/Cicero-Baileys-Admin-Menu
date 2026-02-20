@@ -1,6 +1,10 @@
 // src/model/instaLikeModel.js
 import { query } from '../repository/db.js';
 import { buildPriorityOrderClause } from '../utils/sqlPriority.js';
+import {
+  getInstagramCreatedAtJakartaDateSql,
+  getInstagramNowJakartaDateSql,
+} from '../utils/instagramCreatedAtSql.js';
 
 const DEFAULT_ACTIVITY_START = '2025-09-01';
 
@@ -315,12 +319,12 @@ export async function getRekapLikesByClient(
 
   const buildTanggalFilter = addParamFn => {
     let filter =
-      "p.created_at::date = (NOW() AT TIME ZONE 'Asia/Jakarta')::date";
+      `${getInstagramCreatedAtJakartaDateSql('p.created_at')} = ${getInstagramNowJakartaDateSql()}`;
     if (start_date && end_date) {
       const startIdx = addParamFn(start_date);
       const endIdx = addParamFn(end_date);
       filter =
-        `(p.created_at AT TIME ZONE 'Asia/Jakarta')::date BETWEEN $${startIdx}::date AND $${endIdx}::date`;
+        `${getInstagramCreatedAtJakartaDateSql('p.created_at')} BETWEEN $${startIdx}::date AND $${endIdx}::date`;
     } else if (periode === 'bulanan') {
       if (tanggal) {
         const monthDate = tanggal.length === 7 ? `${tanggal}-01` : tanggal;
@@ -343,7 +347,7 @@ export async function getRekapLikesByClient(
       filter = '1=1';
     } else if (tanggal) {
       const idx = addParamFn(tanggal);
-      filter = `p.created_at::date = $${idx}::date`;
+      filter = `${getInstagramCreatedAtJakartaDateSql('p.created_at')} = $${idx}::date`;
     }
     return filter;
   };

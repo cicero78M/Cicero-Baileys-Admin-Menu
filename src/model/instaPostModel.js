@@ -1,7 +1,9 @@
 // src/model/instaPostModel.js
 import { query } from '../repository/db.js';
-
-const JAKARTA_TIMEZONE = 'Asia/Jakarta';
+import {
+  getInstagramCreatedAtJakartaDateSql,
+  getInstagramNowJakartaDateSql,
+} from '../utils/instagramCreatedAtSql.js';
 
 function normalizeSourceType(sourceType) {
   const normalized = (sourceType || '')
@@ -22,10 +24,6 @@ function normalizeCreatedAt(createdAt) {
   const parsed = createdAt instanceof Date ? createdAt : new Date(createdAt);
   if (Number.isNaN(parsed.getTime())) return null;
   return parsed.toISOString();
-}
-
-function getJakartaDateSql(columnName = 'created_at') {
-  return `(((${columnName} AT TIME ZONE 'UTC') AT TIME ZONE '${JAKARTA_TIMEZONE}')::date)`;
 }
 
 export async function upsertInstaPost(data) {
@@ -53,7 +51,7 @@ export async function upsertInstaPost(data) {
   // created_at bisa dihandle via taken_at di service (lihat service)
   await query(
     `INSERT INTO insta_post (client_id, shortcode, caption, comment_count, like_count, thumbnail_url, is_video, video_url, image_url, images_url, is_carousel, source_type, created_at, original_created_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,COALESCE($13::timestamp, NOW()), $14::timestamptz)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,COALESCE(($13::timestamptz AT TIME ZONE 'UTC'), (NOW() AT TIME ZONE 'UTC')), $14::timestamptz)
      ON CONFLICT (shortcode) DO UPDATE
       SET client_id = EXCLUDED.client_id,
           caption = EXCLUDED.caption,
@@ -119,21 +117,21 @@ export async function getShortcodesTodayByClient(identifier) {
       `  FROM insta_post p\n` +
       `  JOIN insta_post_roles pr ON pr.shortcode = p.shortcode\n` +
       `  WHERE LOWER(pr.role_name) = LOWER($1)\n` +
-      `    AND ${getJakartaDateSql('p.created_at')} = $2::date\n` +
+      `    AND ${getInstagramCreatedAtJakartaDateSql('p.created_at')} = $2::date\n` +
       `\n` +
       `  UNION\n` +
       `\n` +
       `  SELECT p.shortcode, p.created_at\n` +
       `  FROM insta_post p\n` +
       `  WHERE LOWER(p.client_id) = LOWER($1)\n` +
-      `    AND ${getJakartaDateSql('p.created_at')} = $2::date\n` +
+      `    AND ${getInstagramCreatedAtJakartaDateSql('p.created_at')} = $2::date\n` +
       `) merged\n` +
       `ORDER BY created_at ASC, shortcode ASC`;
     params = [identifier, today];
   } else {
     sql =
       `SELECT shortcode FROM insta_post\n` +
-      `WHERE LOWER(client_id) = LOWER($1) AND ${getJakartaDateSql()} = $2::date\n` +
+      `WHERE LOWER(client_id) = LOWER($1) AND ${getInstagramCreatedAtJakartaDateSql()} = $2::date\n` +
       `ORDER BY created_at ASC, shortcode ASC`;
     params = [identifier, today];
   }
@@ -143,7 +141,7 @@ export async function getShortcodesTodayByClient(identifier) {
   if (useRoleFilter && clientType === 'direktorat' && rows.length === 0) {
     const fallbackQuery =
       `SELECT shortcode FROM insta_post\n` +
-      `WHERE LOWER(client_id) = LOWER($1) AND ${getJakartaDateSql()} = $2::date\n` +
+      `WHERE LOWER(client_id) = LOWER($1) AND ${getInstagramCreatedAtJakartaDateSql()} = $2::date\n` +
       `ORDER BY created_at ASC, shortcode ASC`;
     rows = (await query(fallbackQuery, [identifier, today])).rows;
   }
@@ -177,12 +175,12 @@ export async function getShortcodesYesterdayByClient(identifier) {
       `SELECT p.shortcode FROM insta_post p\n` +
       `JOIN insta_post_roles pr ON pr.shortcode = p.shortcode\n` +
       `WHERE LOWER(pr.role_name) = LOWER($1)\n` +
-      `  AND ${getJakartaDateSql('p.created_at')} = $2::date`;
+      `  AND ${getInstagramCreatedAtJakartaDateSql('p.created_at')} = $2::date`;
     params = [identifier, yesterday];
   } else {
     sql =
       `SELECT shortcode FROM insta_post\n` +
-      `WHERE LOWER(client_id) = LOWER($1) AND ${getJakartaDateSql()} = $2::date`;
+      `WHERE LOWER(client_id) = LOWER($1) AND ${getInstagramCreatedAtJakartaDateSql()} = $2::date`;
     params = [identifier, yesterday];
   }
 
@@ -229,13 +227,13 @@ export async function getShortcodesByDateRange(identifier, startDate, endDate) {
       `SELECT p.shortcode FROM insta_post p\n` +
       `JOIN insta_post_roles pr ON pr.shortcode = p.shortcode\n` +
       `WHERE LOWER(pr.role_name) = LOWER($1)\n` +
-      `  AND ${getJakartaDateSql('p.created_at')} BETWEEN $2::date AND $3::date`;
+      `  AND ${getInstagramCreatedAtJakartaDateSql('p.created_at')} BETWEEN $2::date AND $3::date`;
     params = [identifier, startBound, endBound];
   } else {
     sql =
       `SELECT shortcode FROM insta_post\n` +
       `WHERE LOWER(client_id) = LOWER($1)\n` +
-      `  AND ${getJakartaDateSql()} BETWEEN $2::date AND $3::date`;
+      `  AND ${getInstagramCreatedAtJakartaDateSql()} BETWEEN $2::date AND $3::date`;
     params = [identifier, startBound, endBound];
   }
 
@@ -251,7 +249,7 @@ export async function getShortcodesTodayByUsername(username) {
   const dd = String(today.getDate()).padStart(2, '0');
   const res = await query(
     `SELECT p.shortcode FROM insta_post p JOIN clients c ON c.client_id = p.client_id
-     WHERE c.client_insta = $1 AND DATE(p.created_at) = $2`,
+     WHERE c.client_insta = $1 AND ${getInstagramCreatedAtJakartaDateSql('p.created_at')} = $2`,
     [username, `${yyyy}-${mm}-${dd}`]
   );
   return res.rows.map(r => r.shortcode);
@@ -263,7 +261,7 @@ export async function getPostsTodayByClient(client_id) {
     `SELECT *
      FROM insta_post
      WHERE LOWER(client_id) = LOWER($1)
-       AND ${getJakartaDateSql()} = ((NOW() AT TIME ZONE 'UTC') AT TIME ZONE '${JAKARTA_TIMEZONE}')::date
+       AND ${getInstagramCreatedAtJakartaDateSql()} = ${getInstagramNowJakartaDateSql()}
      ORDER BY created_at ASC`,
     [client_id]
   );
@@ -314,11 +312,11 @@ export async function getPostsByFilters(
   }
 
   const addDateFilter = (addParamFn) => {
-    let filter = "p.created_at::date = (NOW() AT TIME ZONE 'Asia/Jakarta')::date";
+    let filter = `${getInstagramCreatedAtJakartaDateSql('p.created_at')} = ${getInstagramNowJakartaDateSql()}`;
     if (startDate && endDate) {
       const startIdx = addParamFn(startDate);
       const endIdx = addParamFn(endDate);
-      filter = `p.created_at::date BETWEEN ${startIdx}::date AND ${endIdx}::date`;
+      filter = `${getInstagramCreatedAtJakartaDateSql('p.created_at')} BETWEEN ${startIdx}::date AND ${endIdx}::date`;
     } else if (periode === 'semua') {
       filter = '1=1';
     } else if (periode === 'mingguan') {
@@ -340,7 +338,7 @@ export async function getPostsByFilters(
       }
     } else if (tanggal) {
       const tanggalIdx = addParamFn(tanggal);
-      filter = `p.created_at::date = ${tanggalIdx}::date`;
+      filter = `${getInstagramCreatedAtJakartaDateSql('p.created_at')} = ${tanggalIdx}::date`;
     }
     return filter;
   };
@@ -445,11 +443,11 @@ export async function countPostsByClient(
       : normalizedClientId;
 
   const addDateFilter = (addParamFn) => {
-    let filter = "p.created_at::date = (NOW() AT TIME ZONE 'Asia/Jakarta')::date";
+    let filter = `${getInstagramCreatedAtJakartaDateSql('p.created_at')} = ${getInstagramNowJakartaDateSql()}`;
     if (start_date && end_date) {
       const startIdx = addParamFn(start_date);
       const endIdx = addParamFn(end_date);
-      filter = `p.created_at::date BETWEEN ${startIdx}::date AND ${endIdx}::date`;
+      filter = `${getInstagramCreatedAtJakartaDateSql('p.created_at')} BETWEEN ${startIdx}::date AND ${endIdx}::date`;
     } else if (periode === 'semua') {
       filter = '1=1';
     } else if (periode === 'mingguan') {
@@ -471,7 +469,7 @@ export async function countPostsByClient(
       }
     } else if (tanggal) {
       const tanggalIdx = addParamFn(tanggal);
-      filter = `p.created_at::date = ${tanggalIdx}::date`;
+      filter = `${getInstagramCreatedAtJakartaDateSql('p.created_at')} = ${tanggalIdx}::date`;
     }
     return filter;
   };
