@@ -1,6 +1,27 @@
 // src/model/instaPostKhususModel.js
 import { query } from '../repository/db.js';
 
+function normalizeSourceType(sourceType) {
+  const normalized = (sourceType || '')
+    .toString()
+    .trim()
+    .toLowerCase()
+    .replace(/[-\s]+/g, '_');
+
+  if (normalized === 'manual_fetch' || normalized === 'manual_input') {
+    return 'manual_input';
+  }
+
+  return normalized || 'cron_fetch';
+}
+
+function normalizeCreatedAt(createdAt) {
+  if (!createdAt) return null;
+  const parsed = createdAt instanceof Date ? createdAt : new Date(createdAt);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString();
+}
+
 export async function upsertInstaPost(data) {
   // Pastikan field yang dipakai sesuai dengan kolom di DB
   const {
@@ -15,13 +36,18 @@ export async function upsertInstaPost(data) {
     image_url = null,
     images_url = null,
     is_carousel = false,
+    source_type = 'cron_fetch',
     original_created_at = null,
   } = data;
 
+  const canonicalCreatedAt = normalizeCreatedAt(data.created_at);
+  const canonicalOriginalCreatedAt = normalizeCreatedAt(original_created_at);
+  const canonicalSourceType = normalizeSourceType(source_type);
+
   // created_at bisa dihandle via taken_at di service (lihat service)
   await query(
-    `INSERT INTO insta_post_khusus (client_id, shortcode, caption, comment_count, like_count, thumbnail_url, is_video, video_url, image_url, images_url, is_carousel, created_at, original_created_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,COALESCE($12, NOW()), $13)
+    `INSERT INTO insta_post_khusus (client_id, shortcode, caption, comment_count, like_count, thumbnail_url, is_video, video_url, image_url, images_url, is_carousel, source_type, created_at, original_created_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,COALESCE($13::timestamp, NOW()), $14::timestamptz)
      ON CONFLICT (shortcode) DO UPDATE
       SET client_id = EXCLUDED.client_id,
           caption = EXCLUDED.caption,
@@ -33,6 +59,7 @@ export async function upsertInstaPost(data) {
           image_url = EXCLUDED.image_url,
           images_url = EXCLUDED.images_url,
           is_carousel = EXCLUDED.is_carousel,
+          source_type = EXCLUDED.source_type,
           created_at = EXCLUDED.created_at,
           original_created_at = EXCLUDED.original_created_at`,
     [
@@ -47,8 +74,9 @@ export async function upsertInstaPost(data) {
       image_url,
       JSON.stringify(images_url),
       is_carousel,
-      data.created_at || null,
-      original_created_at,
+      canonicalSourceType,
+      canonicalCreatedAt,
+      canonicalOriginalCreatedAt,
     ]
   );
 }

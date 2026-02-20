@@ -237,6 +237,43 @@ export async function handleFetchLikesInstagram(waClient, chatId, client_id, opt
     }
 
     if (!rows.length) {
+      if (!normalizedShortcodes.length) {
+        try {
+          const todayJakarta = getJakartaDateString();
+          const diagnostics = await getInstagramLikesFetchDiagnostics(
+            client_id,
+            todayJakarta,
+            sourceType
+          );
+          sendDebug({
+            tag: "IG FETCH LIKES DIAGNOSTIC",
+            msg: `No rows untuk client ${client_id}. filter_date=${diagnostics.filterDate}, source_type=${diagnostics.sourceType}, diagnosis=${diagnostics.diagnosis}`,
+            client_id,
+          });
+          sendDebug({
+            tag: "IG FETCH LIKES DIAGNOSTIC",
+            msg: `Agregat source_type client ${client_id}: ${JSON.stringify(diagnostics.sourceTypeCounts)}`,
+            client_id,
+          });
+          sendDebug({
+            tag: "IG FETCH LIKES DIAGNOSTIC",
+            msg: `Rentang created_at hari berjalan: min=${diagnostics.todayRange.minCreatedAt || "null"}, max=${diagnostics.todayRange.maxCreatedAt || "null"}, total=${diagnostics.todayRange.totalToday}`,
+            client_id,
+          });
+          sendDebug({
+            tag: "IG FETCH LIKES DIAGNOSTIC",
+            msg: `Distribusi tanggal Jakarta 7 hari terakhir: ${JSON.stringify(diagnostics.recentJakartaDays)}`,
+            client_id,
+          });
+        } catch (diagnosticError) {
+          sendDebug({
+            tag: "IG FETCH LIKES DIAGNOSTIC ERROR",
+            msg: `Gagal mengambil diagnostik no-rows: ${(diagnosticError && diagnosticError.message) || String(diagnosticError)}`,
+            client_id,
+          });
+        }
+      }
+
       if (waClient && chatId) {
         const emptyLabel = sourceType === "manual_input" ? "manual hari ini" : "hari ini";
         await waClient.sendMessage(
