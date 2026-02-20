@@ -236,6 +236,21 @@ Note: This does NOT restore WhatsApp numbers that were set to NULL. You must res
    FROM pg_constraint WHERE conrelid = '"user"'::regclass;
    ```
 
+## Migration Change Checklist (Model ↔ DB Consistency)
+
+Setiap ada perubahan model yang menyentuh kolom DB (terutama query `INSERT`/`UPDATE`),
+cek daftar berikut sebelum merge:
+
+- [ ] Tambahkan/ubah **migration SQL** di `sql/migrations/` untuk kompatibilitas instance lama.
+- [ ] Sinkronkan baseline schema di `sql/schema.sql` agar environment baru langsung benar.
+- [ ] Update dokumentasi struktur DB di `docs/database_structure.md` (kolom baru, tipe, dan catatan perilaku bila perlu).
+
+Catatan audit sosial utama:
+- Model `insta_post`, `insta_post_khusus`, dan `tiktok_post` sudah menggunakan
+  kolom `original_created_at`.
+- Backfill untuk instance lama sudah tersedia di migration
+  `sql/migrations/20261210_add_original_created_at_to_social_posts.sql`.
+
 ## Additional Resources
 
 - [MIGRATION_TESTING_GUIDE.md](../MIGRATION_TESTING_GUIDE.md) - Testing procedures
