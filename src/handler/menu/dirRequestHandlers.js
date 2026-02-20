@@ -3273,7 +3273,7 @@ export const dirRequestHandlers = {
         `Sumber : manual`,
         `Client : ${targetClientId}`,
         `Shortcode : ${result.shortcode || "-"}`,
-        `Tanggal post : ${formatManualPostDate(result.created_at)}`,
+        `Waktu upload manual : ${formatManualPostDate(result.created_at)}`,
         `Likes : ${result.like_count ?? 0}`,
         `Komentar : ${result.comment_count ?? 0}`,
         `Caption : ${sanitizeManualCaption(result.caption)}`,

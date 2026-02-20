@@ -42,7 +42,7 @@ GET /api/insta/rapid-profile?username=polri
 
 Selain endpoint HTTP di atas, backend juga memakai helper RapidAPI yang dipicu dari menu WhatsApp `dirrequest`:
 
-- **4️⃣6️⃣ Input IG post manual** → memanggil helper `fetchSinglePostKhusus(link, clientId)` untuk mengambil detail post Instagram dari link, lalu menyimpan ke `insta_post_khusus` dan `insta_post`.
+- **4️⃣6️⃣ Input IG post manual** → memanggil helper `fetchSinglePostKhusus(link, clientId)` untuk mengambil detail post Instagram dari link, lalu menyimpan ke `insta_post_khusus` dan `insta_post`. Pada alur manual ini, `created_at` diset ke waktu upload manual bot (format ISO string), bukan `taken_at`/waktu post asli platform.
 - **4️⃣7️⃣ Input TikTok post manual** → memanggil helper `fetchAndStoreSingleTiktokPost(clientId, videoInput)` untuk mengambil detail video TikTok dari link/video ID, lalu upsert ke `tiktok_post` dengan `source = manual`.
 
 Catatan kompatibilitas:
