@@ -120,6 +120,9 @@ dirrequest tanpa langkah tambahan.
 - Saat ada overlap antara sumber resmi dan manual untuk post yang sama
   (`shortcode` Instagram atau `video_id` TikTok), perhitungan tugas hanya
   menghitung satu kali (prioritas data resmi) agar tidak terjadi double count.
+- Untuk menu **4️⃣6️⃣** dan **4️⃣7️⃣**, timestamp `created_at` konten manual
+  kini diset menggunakan datetime **Asia/Jakarta** (`+07:00`) saat operator
+  mengirim input, agar konsisten dengan filter rekap/absensi harian WIB.
 - Jika validasi gagal (format link/ID tidak sesuai) atau proses fetch gagal,
   bot mengirim pesan error yang jelas lalu tetap mengembalikan sesi ke menu
   utama agar alur UX stabil.

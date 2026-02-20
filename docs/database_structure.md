@@ -155,6 +155,8 @@ Stores Instagram posts fetched for a client.
 - `images_url` – JSON array of all image URLs when the post is a carousel
 - `is_carousel` – boolean indicating whether the post contains multiple images
 - `created_at` – timestamp of the post
+- Untuk input manual WA menu **4️⃣6️⃣** (dirrequest), `created_at` disimpan
+  dalam datetime Asia/Jakarta (`+07:00`) pada saat bot memproses input.
 
 ### `insta_post_khusus`
 Stores curated Instagram posts for khusus audiences.
@@ -201,6 +203,8 @@ Data for TikTok videos associated with a client.
 **Catatan sumber manual:**
 - Saat operator memakai menu WA **4️⃣7️⃣ Input TikTok post manual**, row disimpan
   melalui upsert dengan `source = 'manual'`.
+- Nilai `created_at` pada input manual menu **4️⃣7️⃣** direkam dengan datetime
+  Asia/Jakarta (`+07:00`) agar selaras dengan filter tanggal harian WIB.
 - Pipeline fetch rutin akun resmi tetap mengisi row `source = 'official'`.
 - Modul rekap/task melakukan deduplikasi berdasarkan kunci konten
   (`shortcode`/`video_id`) agar overlap official vs manual tidak dihitung ganda.
