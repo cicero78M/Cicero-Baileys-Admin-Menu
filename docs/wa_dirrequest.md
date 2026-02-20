@@ -154,6 +154,7 @@ dirrequest tanpa langkah tambahan.
   lama di database tetap tersaring di menu **5️⃣0️⃣**.
 - `created_at`: waktu konten **masuk ke sistem** saat operator mengirim input
   manual (timestamp input operator, WIB/+07:00).
+- **Kontrak timezone aktif (menu 4️⃣6️⃣/5️⃣0️⃣ - Opsi A):** kolom `insta_post.created_at` diperlakukan sebagai waktu lokal Jakarta. Karena itu, semua filter tanggal Instagram manual/harian harus memakai pola SQL `(created_at AT TIME ZONE 'Asia/Jakarta')::date` (tanpa konversi awal dari `UTC`) agar tidak terjadi pergeseran hari.
 - `original_created_at`: waktu publish asli konten di platform
   Instagram/TikTok (timestamp asli post).
 - Dengan pemisahan ini, tim admin menu dapat memfilter berdasarkan waktu input

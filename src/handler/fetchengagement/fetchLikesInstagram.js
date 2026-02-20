@@ -173,7 +173,7 @@ export async function handleFetchLikesInstagram(waClient, chatId, client_id, opt
         `SELECT shortcode
          FROM insta_post
          WHERE client_id = $1
-           AND DATE((created_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Jakarta') = $2
+           AND (created_at AT TIME ZONE 'Asia/Jakarta')::date = $2::date
            AND (
              $3::boolean = false OR
              REPLACE(REPLACE(COALESCE(LOWER(TRIM(source_type)), 'cron_fetch'), ' ', '_'), '-', '_') IN ('manual_input', 'manual_fetch')
