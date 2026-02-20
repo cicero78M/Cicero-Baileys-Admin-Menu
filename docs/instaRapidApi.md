@@ -42,8 +42,8 @@ GET /api/insta/rapid-profile?username=polri
 
 Selain endpoint HTTP di atas, backend juga memakai helper RapidAPI yang dipicu dari menu WhatsApp `dirrequest`:
 
-- **4️⃣6️⃣ Input IG post manual** → memanggil helper `fetchSinglePostKhusus(link, clientId)` untuk mengambil detail post Instagram dari link, lalu menyimpan ke `insta_post_khusus` dan `insta_post`. Pada alur manual ini, `created_at` diset ke waktu upload manual bot (format ISO string), bukan `taken_at`/waktu post asli platform, dan `insta_post.source_type` ditandai `manual_input`.
-- **4️⃣7️⃣ Input TikTok post manual** → memanggil helper `fetchAndStoreSingleTiktokPost(clientId, videoInput)` untuk mengambil detail video TikTok dari link/video ID, lalu upsert ke `tiktok_post` dengan `source_type = manual_input`.
+- **4️⃣6️⃣ Input IG post manual** → memanggil helper `fetchSinglePostKhusus(link, clientId)` untuk mengambil detail post Instagram dari link, lalu menyimpan ke `insta_post_khusus` dan `insta_post`. Pada alur manual ini, `created_at` diset ke waktu upload manual bot (format ISO string), sedangkan waktu publish asli platform disimpan di `original_created_at` (diambil dari `taken_at` jika tersedia). `insta_post.source_type` ditandai `manual_input`.
+- **4️⃣7️⃣ Input TikTok post manual** → memanggil helper `fetchAndStoreSingleTiktokPost(clientId, videoInput)` untuk mengambil detail video TikTok dari link/video ID, lalu upsert ke `tiktok_post` dengan `source_type = manual_input`. Pada alur ini, `created_at` tetap waktu input manual operator, sementara waktu publish asli platform disimpan di `original_created_at` dari `createTime/create_time/timestamp` jika ada.
 
 Catatan kompatibilitas:
 - Penambahan alur manual ini **tidak mengubah kontrak endpoint HTTP yang sudah ada**.

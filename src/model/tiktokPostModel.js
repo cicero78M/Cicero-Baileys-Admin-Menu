@@ -72,15 +72,16 @@ export async function upsertTiktokPosts(client_id, posts) {
   if (!Array.isArray(posts)) return;
   for (const post of posts) {
     await query(
-      `INSERT INTO tiktok_post (client_id, video_id, caption, like_count, comment_count, created_at, source_type)
-       VALUES ($1, $2, $3, $4, $5, (COALESCE($6::timestamptz, NOW()) AT TIME ZONE 'UTC'), $7)
+      `INSERT INTO tiktok_post (client_id, video_id, caption, like_count, comment_count, created_at, source_type, original_created_at)
+       VALUES ($1, $2, $3, $4, $5, (COALESCE($6::timestamptz, NOW()) AT TIME ZONE 'UTC'), $7, $8)
        ON CONFLICT (video_id) DO UPDATE
          SET client_id = EXCLUDED.client_id,
              caption = EXCLUDED.caption,
              like_count = EXCLUDED.like_count,
              comment_count = EXCLUDED.comment_count,
              created_at = EXCLUDED.created_at,
-             source_type = EXCLUDED.source_type`,
+             source_type = EXCLUDED.source_type,
+             original_created_at = EXCLUDED.original_created_at`,
       [
         client_id,
         post.video_id || post.id,
@@ -95,6 +96,7 @@ export async function upsertTiktokPosts(client_id, posts) {
           post.source.trim().toLowerCase() === "manual"
             ? "manual_input"
             : "cron_fetch"),
+        normalizeUtcCreatedAt(post.original_created_at || null),
       ]
     );
   }
@@ -120,20 +122,22 @@ export async function upsertTiktokPostWithStatus({
   comment_count,
   source_type,
   created_at,
+  original_created_at,
 }) {
   const normalizedVideoId = (video_id || "").trim();
   if (!normalizedVideoId) return { inserted: false, updated: false };
 
   const res = await query(
-    `INSERT INTO tiktok_post (client_id, video_id, caption, like_count, comment_count, created_at, source_type)
-     VALUES ($1, $2, $3, $4, $5, (COALESCE($6::timestamptz, NOW()) AT TIME ZONE 'UTC'), $7)
+    `INSERT INTO tiktok_post (client_id, video_id, caption, like_count, comment_count, created_at, source_type, original_created_at)
+     VALUES ($1, $2, $3, $4, $5, (COALESCE($6::timestamptz, NOW()) AT TIME ZONE 'UTC'), $7, $8)
      ON CONFLICT (video_id) DO UPDATE
        SET client_id = EXCLUDED.client_id,
            caption = EXCLUDED.caption,
            like_count = EXCLUDED.like_count,
            comment_count = EXCLUDED.comment_count,
            created_at = EXCLUDED.created_at,
-           source_type = EXCLUDED.source_type
+           source_type = EXCLUDED.source_type,
+           original_created_at = EXCLUDED.original_created_at
      RETURNING xmax = '0'::xid AS inserted`,
     [
       client_id,
@@ -143,6 +147,7 @@ export async function upsertTiktokPostWithStatus({
       toInteger(comment_count) ?? 0,
       normalizeUtcCreatedAt(created_at || null),
       source_type || 'cron_fetch',
+      normalizeUtcCreatedAt(original_created_at || null),
     ]
   );
 

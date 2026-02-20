@@ -385,6 +385,10 @@ export async function fetchSinglePostKhusus(linkOrCode, clientId) {
       : Number.isFinite(Number(info.likeCount))
       ? Number(info.likeCount)
       : 0;
+  const originalCreatedAt =
+    typeof info?.taken_at === "number" && Number.isFinite(info.taken_at)
+      ? new Date(info.taken_at * 1000).toISOString()
+      : null;
   const data = {
     client_id: clientId,
     shortcode: code,
@@ -404,6 +408,8 @@ export async function fetchSinglePostKhusus(linkOrCode, clientId) {
     is_carousel: Array.isArray(info.carousel_media) && info.carousel_media.length > 1,
     // Khusus menu 46 (input manual): created_at merekam waktu upload manual oleh bot.
     created_at: manualUploadAt,
+    // Waktu publish asli dari platform.
+    original_created_at: originalCreatedAt,
     source_type: "manual_input",
   }; 
   await upsertInstaPostKhusus(data);
