@@ -2,7 +2,10 @@
 
 import { query } from "../../db/index.js";
 import { sendDebug } from "../../middleware/debugHandler.js";
-import { fetchAllInstagramLikes } from "../../service/instagramApi.js";
+import {
+  fetchAllInstagramComments,
+  fetchAllInstagramLikes,
+} from "../../service/instagramApi.js";
 import { getAllExceptionUsers } from "../../model/userModel.js";
 import { saveLikeSnapshotAudit } from "../../model/instaLikeModel.js";
 
@@ -59,74 +62,13 @@ function normalizeSourceType(sourceType) {
   return normalized || "cron_fetch";
 }
 
-function normalizePostSourceTypeExpression() {
-  return "REPLACE(REPLACE(COALESCE(LOWER(TRIM(source_type)), 'cron_fetch'), ' ', '_'), '-', '_')";
-}
-
-async function getInstagramLikesFetchDiagnostics(clientId, filterDate, sourceType) {
-  const sourceTypeExpression = normalizePostSourceTypeExpression();
-
-  const [{ rows: sourceTypeRows }, { rows: todayRangeRows }, { rows: recentDateRows }] =
-    await Promise.all([
-      query(
-        `SELECT ${sourceTypeExpression} AS normalized_source_type,
-                COUNT(*)::int AS total
-         FROM insta_post
-         WHERE client_id = $1
-         GROUP BY 1
-         ORDER BY total DESC, normalized_source_type ASC`,
-        [clientId]
-      ),
-      query(
-        `SELECT MIN(created_at) AS min_created_at,
-                MAX(created_at) AS max_created_at,
-                COUNT(*)::int AS total_today
-         FROM insta_post
-         WHERE client_id = $1
-           AND (created_at AT TIME ZONE 'Asia/Jakarta')::date = $2::date`,
-        [clientId, filterDate]
-      ),
-      query(
-        `SELECT (created_at AT TIME ZONE 'Asia/Jakarta')::date AS jakarta_date,
-                COUNT(*)::int AS total
-         FROM insta_post
-         WHERE client_id = $1
-           AND created_at >= NOW() - INTERVAL '7 day'
-         GROUP BY 1
-         ORDER BY jakarta_date DESC`,
-        [clientId]
-      ),
-    ]);
-
-  const sourceTypeCounts = sourceTypeRows.reduce((acc, row) => {
-    acc[row.normalized_source_type || "cron_fetch"] = row.total;
-    return acc;
-  }, {});
-
-  const todayRange = todayRangeRows[0] || {};
-  const totalToday = Number(todayRange.total_today || 0);
-  const totalPosts = Object.values(sourceTypeCounts).reduce((sum, count) => sum + Number(count || 0), 0);
-  const expectedSourceTypeCount = Number(sourceTypeCounts[sourceType] || 0);
-
-  let diagnosis = "data memang belum masuk";
-  if (totalToday > 0 && sourceType === "manual_input" && expectedSourceTypeCount === 0) {
-    diagnosis = "data ada hari ini, tetapi source_type tidak cocok (manual_input/manual_fetch tidak ditemukan)";
-  } else if (totalToday === 0 && totalPosts > 0) {
-    diagnosis = "data ada, tetapi jatuh di hari lain (indikasi mismatch hari/timezone)";
-  }
-
-  return {
-    filterDate,
-    sourceType,
-    diagnosis,
-    sourceTypeCounts,
-    todayRange: {
-      totalToday,
-      minCreatedAt: todayRange.min_created_at || null,
-      maxCreatedAt: todayRange.max_created_at || null,
-    },
-    recentJakartaDays: recentDateRows,
-  };
+function extractCommentUsername(comment) {
+  return (
+    comment?.user?.username ||
+    comment?.username ||
+    comment?.owner?.username ||
+    null
+  );
 }
 
 // Ambil likes lama (existing) dari database dan kembalikan sebagai array string
@@ -156,49 +98,23 @@ async function getExistingLikes(shortcode) {
  * @param {string} shortcode
  * @param {string|null} client_id
  */
-async function fetchAndStoreLikes(shortcode, client_id = null, snapshotWindow = {}) {
-  const allLikes = await fetchAllInstagramLikes(shortcode);
-  const uniqueLikes = [...new Set(allLikes.map(normalizeUsername))];
-  const exceptionUsers = await getAllExceptionUsers();
-  const exceptionUsernames = exceptionUsers
-    .map((u) => normalizeUsername(u.insta))
-    .filter(Boolean);
-
-  for (const uname of exceptionUsernames) {
-    if (!uniqueLikes.includes(uname)) {
-      uniqueLikes.push(uname);
-    }
-  }
-  const existingLikes = await getExistingLikes(shortcode);
-  const mergedSet = new Set([...existingLikes, ...uniqueLikes]);
-  const mergedLikes = [...mergedSet];
-  sendDebug({
-    tag: "IG LIKES FINAL",
-    msg: `Shortcode ${shortcode} FINAL jumlah unique: ${mergedLikes.length}`,
-    client_id: client_id || shortcode,
-  });
-
-  // Simpan ke database (upsert), gabungkan dengan data lama
+async function upsertLikesByShortcode(shortcode, likes) {
   await query(
     `INSERT INTO insta_like (shortcode, likes, updated_at)
      VALUES ($1, $2, NOW())
      ON CONFLICT (shortcode) DO UPDATE
      SET likes = EXCLUDED.likes, updated_at = NOW()`,
-    [shortcode, JSON.stringify(mergedLikes)]
+    [shortcode, JSON.stringify(likes)]
   );
+}
 
-  sendDebug({
-    tag: "IG FETCH",
-    msg: `[DB] Sukses upsert likes IG: ${shortcode} | Total likes disimpan: ${mergedLikes.length}`,
-    client_id: client_id || shortcode,
-  });
-
+async function saveLikesAudit(shortcode, usernames, client_id, snapshotWindow) {
   const { snapshotWindowStart, snapshotWindowEnd, capturedAt } =
     resolveSnapshotWindow(snapshotWindow);
   try {
     await saveLikeSnapshotAudit({
       shortcode,
-      usernames: mergedLikes,
+      usernames,
       snapshotWindowStart,
       snapshotWindowEnd,
       capturedAt,
@@ -215,6 +131,73 @@ async function fetchAndStoreLikes(shortcode, client_id = null, snapshotWindow = 
       client_id: client_id || shortcode,
     });
   }
+}
+
+/**
+ * Ambil likes lalu lanjut fetch komentar setelah likes selesai,
+ * kemudian gabungkan username komentar ke daftar likes di DB.
+ * @param {string} shortcode
+ * @param {string|null} client_id
+ */
+async function fetchAndStoreLikes(shortcode, client_id = null, snapshotWindow = {}) {
+  const allLikes = await fetchAllInstagramLikes(shortcode);
+  const likesOnlyUsernames = [...new Set(allLikes.map(normalizeUsername))].filter(Boolean);
+
+  const exceptionUsers = await getAllExceptionUsers();
+  const exceptionUsernames = exceptionUsers
+    .map((u) => normalizeUsername(u.insta))
+    .filter(Boolean);
+
+  for (const uname of exceptionUsernames) {
+    if (!likesOnlyUsernames.includes(uname)) {
+      likesOnlyUsernames.push(uname);
+    }
+  }
+
+  const existingLikes = await getExistingLikes(shortcode);
+  const likesAfterFetch = [...new Set([...existingLikes, ...likesOnlyUsernames])];
+
+  await upsertLikesByShortcode(shortcode, likesAfterFetch);
+  sendDebug({
+    tag: "IG FETCH",
+    msg: `[DB] Sukses upsert likes IG awal: ${shortcode} | Total likes disimpan: ${likesAfterFetch.length}`,
+    client_id: client_id || shortcode,
+  });
+
+  sendDebug({
+    tag: "IG FETCH",
+    msg: `Mulai fetch komentar IG setelah likes selesai untuk shortcode ${shortcode}`,
+    client_id: client_id || shortcode,
+  });
+
+  let commentUsernames = [];
+  try {
+    const allComments = await fetchAllInstagramComments(shortcode, 0);
+    commentUsernames = allComments
+      .map(extractCommentUsername)
+      .map(normalizeUsername)
+      .filter(Boolean);
+
+    const mergedLikes = [...new Set([...likesAfterFetch, ...commentUsernames])];
+    await upsertLikesByShortcode(shortcode, mergedLikes);
+
+    sendDebug({
+      tag: "IG LIKES FINAL",
+      msg: `Shortcode ${shortcode} FINAL jumlah unique: ${mergedLikes.length} (likes: ${allLikes.length}, komentar_username: ${commentUsernames.length})`,
+      client_id: client_id || shortcode,
+    });
+
+    await saveLikesAudit(shortcode, mergedLikes, client_id, snapshotWindow);
+    return;
+  } catch (commentErr) {
+    sendDebug({
+      tag: "IG FETCH COMMENT ENRICH ERROR",
+      msg: `Gagal enrich komentar shortcode ${shortcode}: ${(commentErr && commentErr.message) || String(commentErr)}`,
+      client_id: client_id || shortcode,
+    });
+  }
+
+  await saveLikesAudit(shortcode, likesAfterFetch, client_id, snapshotWindow);
 }
 
 /**

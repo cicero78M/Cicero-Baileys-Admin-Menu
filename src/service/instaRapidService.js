@@ -475,8 +475,13 @@ async function fetchInstagramCommentsPage(shortcode, token = null) {
   return { comments: items, next_token, has_more };
 }
 
+function resolveCommentsMaxPages(maxPage = 0) {
+  return typeof maxPage === 'number' && maxPage > 0 ? maxPage : 0;
+}
+
 export async function fetchAllInstagramComments(shortcode, maxPage = 10) {
   const all = [];
+  const resolvedMaxPages = resolveCommentsMaxPages(maxPage);
   let token = null;
   let page = 0;
   do {
@@ -485,7 +490,8 @@ export async function fetchAllInstagramComments(shortcode, maxPage = 10) {
     all.push(...comments);
     token = next_token;
     page++;
-    if (!has_more || !token || page >= maxPage) break;
+    if (!has_more || !token) break;
+    if (resolvedMaxPages > 0 && page >= resolvedMaxPages) break;
     await new Promise(r => setTimeout(r, 1500));
   } while (true);
   return all;
