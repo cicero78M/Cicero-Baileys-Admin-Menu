@@ -8,30 +8,70 @@ import * as clientService from '../../service/clientService.js';
 
 const limit = pLimit(3);
 
-export async function handleFetchKomentarInstagram(waClient = null, chatId = null, client_id = null) {
+function getJakartaDateString(date = new Date()) {
+  return date.toLocaleDateString('en-CA', {
+    timeZone: 'Asia/Jakarta',
+  });
+}
+
+function normalizeSourceType(sourceType) {
+  const normalized = (sourceType || '')
+    .toString()
+    .trim()
+    .toLowerCase()
+    .replace(/[-\s]+/g, '_');
+
+  if (normalized === 'manual_input' || normalized === 'manual_fetch') {
+    return 'manual_input';
+  }
+
+  return normalized || 'cron_fetch';
+}
+
+export async function handleFetchKomentarInstagram(
+  waClient = null,
+  chatId = null,
+  client_id = null,
+  options = {}
+) {
   try {
     const clientName = client_id ? (await clientService.findClientById(client_id))?.nama || '' : '';
-    const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, '0');
-    const dd = String(today.getDate()).padStart(2, '0');
+    const todayJakarta = getJakartaDateString();
+    const sourceType = normalizeSourceType(options.sourceType);
+    const filterManualOnly = sourceType === 'manual_input';
+
     const { rows } = await query(
-      `SELECT shortcode FROM insta_post WHERE client_id = $1 AND DATE(created_at) = $2`,
-      [client_id, `${yyyy}-${mm}-${dd}`]
+      `SELECT shortcode
+       FROM insta_post
+       WHERE client_id = $1
+         AND (created_at AT TIME ZONE 'Asia/Jakarta')::date = $2::date
+         AND (
+           $3::boolean = false OR
+           REPLACE(REPLACE(COALESCE(LOWER(TRIM(source_type)), 'cron_fetch'), ' ', '_'), '-', '_') IN ('manual_input', 'manual_fetch')
+         )`,
+      [client_id, todayJakarta, filterManualOnly]
     );
+
     const shortcodes = rows.map((r) => r.shortcode);
     if (!shortcodes.length) {
-      if (waClient && chatId)
-        await waClient.sendMessage(chatId, `Tidak ada konten IG hari ini untuk client ${clientName || client_id}.`);
-      sendDebug({ tag: 'IG COMMENT', msg: `Tidak ada post IG client ${client_id} hari ini.`, client_id, clientName });
+      if (waClient && chatId) {
+        const emptyLabel = filterManualOnly ? 'manual hari ini' : 'hari ini';
+        await waClient.sendMessage(
+          chatId,
+          `Tidak ada konten IG ${emptyLabel} untuk client ${clientName || client_id}.`
+        );
+      }
+      sendDebug({ tag: 'IG COMMENT', msg: `Tidak ada post IG client ${client_id} pada filter aktif.`, client_id, clientName });
       return;
     }
-    let sukses = 0,
-      gagal = 0;
+
+    let sukses = 0;
+    let gagal = 0;
     for (const sc of shortcodes) {
       await limit(async () => {
         try {
-          const comments = await fetchAllInstagramComments(sc, 10, {
+          const comments = await fetchAllInstagramComments(sc, options.maxPage || 10, {
+            pageDelayMs: options.commentsPageDelayMs,
             onPageLog: (info) => {
               sendDebug({
                 tag: 'IG COMMENT PAGE',
@@ -63,6 +103,7 @@ export async function handleFetchKomentarInstagram(waClient = null, chatId = nul
         }
       });
     }
+
     if (waClient && chatId) {
       await waClient.sendMessage(
         chatId,
