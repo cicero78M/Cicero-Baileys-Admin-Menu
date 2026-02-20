@@ -52,10 +52,12 @@ valid"*, sehingga operator dapat memicu rekap TikTok all data dari menu utama
 dirrequest tanpa langkah tambahan.
 
 ## Input Manual Post Instagram/TikTok (Menu 4️⃣6️⃣ & 4️⃣7️⃣)
-- Menu utama dirrequest kini menambahkan dua opsi baru pada blok **Pengambilan
-  Data**:
+- Menu utama dirrequest kini menambahkan empat opsi terkait konten manual pada
+  blok **Pengambilan Data**:
   - **4️⃣6️⃣ Input IG post manual**
   - **4️⃣7️⃣ Input TikTok post manual**
+  - **5️⃣0️⃣ Fetch likes IG manual (hari ini)**
+  - **5️⃣1️⃣ Fetch komentar TikTok manual (hari ini)**
 - Kedua menu ini dipakai saat operator perlu menambah konten tugas di luar hasil
   crawl akun resmi (misalnya ada konten baru yang belum terambil scheduler).
   Sumber data tugas sekarang dapat berasal dari:
@@ -64,13 +66,23 @@ dirrequest tanpa langkah tambahan.
 - Opsi **4️⃣6️⃣** memindahkan sesi ke step
   `dirrequest_input_ig_manual_prompt`, meminta operator mengirim link
   Instagram post/reel, mendukung input `batal`, lalu menjalankan
-  `fetchSinglePostKhusus(link, clientId)` untuk menyimpan post ke tabel tugas
-  khusus dan tabel utama Instagram.
+  `fetchSinglePostKhusus(link, clientId)` untuk mengambil **detail post
+  tunggal** (likes, komentar, caption, dan metadata lain), menyimpan post ke
+  tabel tugas khusus dan tabel utama Instagram, kemudian **langsung melanjutkan
+  fetch likes Instagram untuk shortcode post manual tersebut**.
 - Opsi **4️⃣7️⃣** memindahkan sesi ke step
   `dirrequest_input_tiktok_manual_prompt`, menerima link atau video ID TikTok,
   mendukung input `batal`, lalu memanggil
-  `fetchAndStoreSingleTiktokPost(clientId, videoInput)` untuk menyimpan post
-  TikTok.
+  `fetchAndStoreSingleTiktokPost(clientId, videoInput)` untuk mengambil
+  **detail post tunggal** (likes, komentar, caption, dan metadata lain),
+  menyimpan post TikTok, kemudian **langsung melanjutkan fetch komentar TikTok
+  untuk video post manual tersebut**.
+- Opsi **5️⃣0️⃣** memanggil handler fetch likes Instagram dengan filter
+  `source_type=manual_input` sehingga hanya konten manual pada tanggal berjalan
+  (WIB) untuk `client_id` yang sedang dipilih di sesi dirrequest yang diambil.
+- Opsi **5️⃣1️⃣** memanggil handler fetch komentar TikTok dengan filter
+  `source_type=manual_input` sehingga hanya konten manual pada tanggal berjalan
+  (WIB) untuk `client_id` yang sedang dipilih di sesi dirrequest yang diambil.
 
 ### Format Input, Validasi, dan Konfirmasi Output
 
@@ -87,7 +99,7 @@ dirrequest tanpa langkah tambahan.
     proses ditolak dengan pesan konflik agar tidak terjadi bentrok konten lintas
     Polres.
 - **Output konfirmasi sukses** memuat:
-  - status berhasil,
+  - status berhasil (termasuk status fetch likes lanjutan),
   - `Sumber : manual`,
   - `Client`, `Shortcode`, `Waktu upload manual`, `Likes`, `Komentar`, dan ringkasan
     `Caption`.
@@ -104,7 +116,7 @@ dirrequest tanpa langkah tambahan.
   - Saat format lolos, service akan ekstrak `/video/<ID>`; jika tetap tidak
     terbaca, proses fetch dihentikan dengan error format link.
 - **Output konfirmasi sukses** memuat:
-  - status berhasil,
+  - status berhasil (termasuk status fetch komentar lanjutan),
   - `Sumber : manual`,
   - `Client`, `Video ID`, `Waktu upload manual`, `Likes`, `Komentar`, dan ringkasan
     `Caption`.
@@ -124,10 +136,26 @@ dirrequest tanpa langkah tambahan.
   kini diset menggunakan datetime **Asia/Jakarta** (`+07:00`) saat operator
   mengirim input, agar konsisten dengan filter rekap/absensi harian WIB.
 - Sinkronisasi source tipe fetch kini mengikuti repository cronjob: `insta_post.source_type`/`tiktok_post.source_type` memakai nilai `manual_input` untuk input manual menu **4️⃣6️⃣**/**4️⃣7️⃣**, sedangkan proses terjadwal memakai `cron_fetch`.
+- Untuk konten lama (post lama yang diinput manual), bot tetap mengambil nilai
+  engagement terbaru yang tersedia dari API single-post saat proses input
+  berjalan. Artinya likes, komentar, dan caption tetap terisi selama data masih
+  disediakan platform, lalu langsung ikut pipeline rekap/fetch yang sama dengan
+  konten lain.
 - Untuk input manual Instagram, pemetaan likes kini membaca beberapa kemungkinan field respons RapidAPI (`like_count` dan `likeCount`) agar nilai likes tidak hilang saat disimpan ke `insta_post_khusus` maupun `insta_post`, lalu ringkasan WA menampilkan nilai likes yang sudah tersimpan tersebut.
 - Jika validasi gagal (format link/ID tidak sesuai) atau proses fetch gagal,
   bot mengirim pesan error yang jelas lalu tetap mengembalikan sesi ke menu
   utama agar alur UX stabil.
+
+### Skema Data Input Manual (Kontrak Data)
+- `source_type=manual_input`: konten berasal dari input operator via menu
+  **4️⃣6️⃣**/**4️⃣7️⃣**, bukan dari crawler berkala (`cron_fetch`).
+- `created_at`: waktu konten **masuk ke sistem** saat operator mengirim input
+  manual (timestamp input operator, WIB/+07:00).
+- `original_created_at`: waktu publish asli konten di platform
+  Instagram/TikTok (timestamp asli post).
+- Dengan pemisahan ini, tim admin menu dapat memfilter berdasarkan waktu input
+  operasional (`created_at`), sementara tim analisis/cron tetap bisa membaca
+  umur konten asli berdasarkan `original_created_at`.
 
 ### Backward Compatibility
 - Menu lama (rekap, absensi, fetch rutin, dan opsi numerik yang sudah ada)
@@ -137,18 +165,17 @@ dirrequest tanpa langkah tambahan.
 - Rekap dan task message tetap kompatibel terhadap data lama yang belum memiliki
   penanda manual eksplisit, karena sumber resmi tetap menjadi default.
 
-### Contoh Skenario End-to-End
-1. Operator membuka menu `dirrequest` lalu memilih **4️⃣6️⃣**.
-2. Bot meminta link IG; operator kirim URL reel.
-3. Bot validasi format, fetch detail via RapidAPI helper, simpan ke
-   `insta_post_khusus` + `insta_post`, lalu kirim konfirmasi sukses dengan
-   `Sumber : manual`.
-4. Operator menjalankan menu rekap/absensi pada periode yang sama.
-5. Generator tugas membaca gabungan konten resmi + manual, menampilkan subtotal
-   masing-masing segmen, dan menghindari double count jika ada shortcode/video
-   yang sama.
-6. Jika operator salah kirim format link pada langkah 2, bot kirim pesan
-   validasi dan meminta input ulang tanpa memutus sesi menu.
+### Contoh Alur Operasional Singkat
+1. Operator membuka menu `dirrequest` lalu memilih **4️⃣6️⃣**/**4️⃣7️⃣**.
+2. Operator menginput link konten lama (atau `video_id` TikTok) secara manual.
+3. Bot memproses fetch single-post dan tetap mengisi likes/komentar/caption
+   dari data API yang tersedia saat itu.
+4. Konten tersimpan sebagai `source_type=manual_input` dengan `created_at`
+   (waktu input operator) dan `original_created_at` (waktu publish asli).
+5. Konten langsung masuk ke proses rekap/fetch sesuai workflow yang berjalan
+   (segmen tugas khusus, rekap harian, dan absensi yang relevan).
+6. Jika format input tidak valid, bot mengirim validasi dan meminta input ulang
+   tanpa memutus sesi menu.
 
 ## Rekaman Snapshot Engagement per 30 Menit
 - Setiap pengambilan likes Instagram dan komentar TikTok yang berjalan lewat

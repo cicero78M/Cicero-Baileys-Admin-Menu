@@ -269,6 +269,12 @@ const DIRREQUEST_INPUT_TIKTOK_MANUAL_PROMPT = appendSubmenuBackInstruction(
     "Ketik *batal* untuk kembali ke menu utama."
 );
 
+const DIRREQUEST_FETCH_IG_MANUAL_LIKES_TEXT =
+  "⏳ Memulai fetch likes Instagram untuk konten manual hari ini...";
+
+const DIRREQUEST_FETCH_TIKTOK_MANUAL_COMMENTS_TEXT =
+  "⏳ Memulai fetch komentar TikTok untuk konten manual hari ini...";
+
 const formatManualPostDate = (value) => {
   if (!value) return "-";
   const parsed = value instanceof Date ? value : new Date(value);
@@ -2890,7 +2896,9 @@ export const dirRequestHandlers = {
         "1️⃣5️⃣ Ambil komentar TikTok saja\n" +
         "1️⃣6️⃣ Ambil semua sosmed & buat tugas\n\n" +
         "4️⃣6️⃣ Input IG post manual\n" +
-        "4️⃣7️⃣ Input TikTok post manual\n\n" +
+        "4️⃣7️⃣ Input TikTok post manual\n" +
+        "5️⃣0️⃣ Fetch likes IG manual (hari ini)\n" +
+        "5️⃣1️⃣ Fetch komentar TikTok manual (hari ini)\n\n" +
         "📝 *Laporan*\n" +
         "1️⃣7️⃣ Laporan harian Instagram Direktorat/Bidang\n" +
         "1️⃣8️⃣ Laporan harian TikTok Direktorat/Bidang\n" +
@@ -3086,6 +3094,8 @@ export const dirRequestHandlers = {
           "47",
           "48",
           "49",
+          "50",
+          "51",
         ].includes(choice)
     ) {
       await waClient.sendMessage(chatId, "Pilihan tidak valid. Ketik angka menu.");
@@ -3157,6 +3167,30 @@ export const dirRequestHandlers = {
     if (choice === "47") {
       session.step = "dirrequest_input_tiktok_manual_prompt";
       await waClient.sendMessage(chatId, DIRREQUEST_INPUT_TIKTOK_MANUAL_PROMPT);
+      return;
+    }
+
+    if (choice === "50") {
+      const { handleFetchLikesInstagram } = await import("../fetchengagement/fetchLikesInstagram.js");
+      const targetClientId = session.dir_client_id || session.selectedClientId || DITBINMAS_CLIENT_ID;
+      await waClient.sendMessage(chatId, DIRREQUEST_FETCH_IG_MANUAL_LIKES_TEXT);
+      await handleFetchLikesInstagram(waClient, chatId, targetClientId, {
+        sourceType: "manual_input",
+      });
+      session.step = "main";
+      await dirRequestHandlers.main(session, chatId, "", waClient);
+      return;
+    }
+
+    if (choice === "51") {
+      const { handleFetchKomentarTiktokBatch } = await import("../fetchengagement/fetchCommentTiktok.js");
+      const targetClientId = session.dir_client_id || session.selectedClientId || DITBINMAS_CLIENT_ID;
+      await waClient.sendMessage(chatId, DIRREQUEST_FETCH_TIKTOK_MANUAL_COMMENTS_TEXT);
+      await handleFetchKomentarTiktokBatch(waClient, chatId, targetClientId, {
+        sourceType: "manual_input",
+      });
+      session.step = "main";
+      await dirRequestHandlers.main(session, chatId, "", waClient);
       return;
     }
 
@@ -3267,9 +3301,17 @@ export const dirRequestHandlers = {
     }
 
     try {
+      const { handleFetchLikesInstagram } = await import("../fetchengagement/fetchLikesInstagram.js");
       const result = await fetchSinglePostKhusus(input, targetClientId);
+      if (result?.shortcode) {
+        await handleFetchLikesInstagram(null, null, targetClientId, {
+          shortcodes: [result.shortcode],
+          sourceType: "manual_input",
+        });
+      }
       const summaryLines = [
         "✅ Post Instagram berhasil ditambahkan (manual).",
+        "✅ Likes Instagram untuk post manual juga berhasil di-fetch.",
         `Sumber : manual`,
         `Client : ${targetClientId}`,
         `Shortcode : ${result.shortcode || "-"}`,
@@ -3315,9 +3357,17 @@ export const dirRequestHandlers = {
     }
 
     try {
+      const { handleFetchKomentarTiktokBatch } = await import("../fetchengagement/fetchCommentTiktok.js");
       const result = await fetchAndStoreSingleTiktokPost(targetClientId, input);
+      if (result?.videoId) {
+        await handleFetchKomentarTiktokBatch(null, null, targetClientId, {
+          videoIds: [result.videoId],
+          sourceType: "manual_input",
+        });
+      }
       const summaryLines = [
         "✅ Post TikTok berhasil ditambahkan (manual).",
+        "✅ Komentar TikTok untuk post manual juga berhasil di-fetch.",
         `Sumber : manual`,
         `Client : ${result.clientId || targetClientId}`,
         `Video ID : ${result.videoId || "-"}`,
