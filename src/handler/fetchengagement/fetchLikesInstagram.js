@@ -59,6 +59,76 @@ function normalizeSourceType(sourceType) {
   return normalized || "cron_fetch";
 }
 
+function normalizePostSourceTypeExpression() {
+  return "REPLACE(REPLACE(COALESCE(LOWER(TRIM(source_type)), 'cron_fetch'), ' ', '_'), '-', '_')";
+}
+
+async function getInstagramLikesFetchDiagnostics(clientId, filterDate, sourceType) {
+  const sourceTypeExpression = normalizePostSourceTypeExpression();
+
+  const [{ rows: sourceTypeRows }, { rows: todayRangeRows }, { rows: recentDateRows }] =
+    await Promise.all([
+      query(
+        `SELECT ${sourceTypeExpression} AS normalized_source_type,
+                COUNT(*)::int AS total
+         FROM insta_post
+         WHERE client_id = $1
+         GROUP BY 1
+         ORDER BY total DESC, normalized_source_type ASC`,
+        [clientId]
+      ),
+      query(
+        `SELECT MIN(created_at) AS min_created_at,
+                MAX(created_at) AS max_created_at,
+                COUNT(*)::int AS total_today
+         FROM insta_post
+         WHERE client_id = $1
+           AND (created_at AT TIME ZONE 'Asia/Jakarta')::date = $2::date`,
+        [clientId, filterDate]
+      ),
+      query(
+        `SELECT (created_at AT TIME ZONE 'Asia/Jakarta')::date AS jakarta_date,
+                COUNT(*)::int AS total
+         FROM insta_post
+         WHERE client_id = $1
+           AND created_at >= NOW() - INTERVAL '7 day'
+         GROUP BY 1
+         ORDER BY jakarta_date DESC`,
+        [clientId]
+      ),
+    ]);
+
+  const sourceTypeCounts = sourceTypeRows.reduce((acc, row) => {
+    acc[row.normalized_source_type || "cron_fetch"] = row.total;
+    return acc;
+  }, {});
+
+  const todayRange = todayRangeRows[0] || {};
+  const totalToday = Number(todayRange.total_today || 0);
+  const totalPosts = Object.values(sourceTypeCounts).reduce((sum, count) => sum + Number(count || 0), 0);
+  const expectedSourceTypeCount = Number(sourceTypeCounts[sourceType] || 0);
+
+  let diagnosis = "data memang belum masuk";
+  if (totalToday > 0 && sourceType === "manual_input" && expectedSourceTypeCount === 0) {
+    diagnosis = "data ada hari ini, tetapi source_type tidak cocok (manual_input/manual_fetch tidak ditemukan)";
+  } else if (totalToday === 0 && totalPosts > 0) {
+    diagnosis = "data ada, tetapi jatuh di hari lain (indikasi mismatch hari/timezone)";
+  }
+
+  return {
+    filterDate,
+    sourceType,
+    diagnosis,
+    sourceTypeCounts,
+    todayRange: {
+      totalToday,
+      minCreatedAt: todayRange.min_created_at || null,
+      maxCreatedAt: todayRange.max_created_at || null,
+    },
+    recentJakartaDays: recentDateRows,
+  };
+}
+
 // Ambil likes lama (existing) dari database dan kembalikan sebagai array string
 async function getExistingLikes(shortcode) {
   const res = await query(
@@ -184,6 +254,43 @@ export async function handleFetchLikesInstagram(waClient, chatId, client_id, opt
     }
 
     if (!rows.length) {
+      if (!normalizedShortcodes.length) {
+        try {
+          const todayJakarta = getJakartaDateString();
+          const diagnostics = await getInstagramLikesFetchDiagnostics(
+            client_id,
+            todayJakarta,
+            sourceType
+          );
+          sendDebug({
+            tag: "IG FETCH LIKES DIAGNOSTIC",
+            msg: `No rows untuk client ${client_id}. filter_date=${diagnostics.filterDate}, source_type=${diagnostics.sourceType}, diagnosis=${diagnostics.diagnosis}`,
+            client_id,
+          });
+          sendDebug({
+            tag: "IG FETCH LIKES DIAGNOSTIC",
+            msg: `Agregat source_type client ${client_id}: ${JSON.stringify(diagnostics.sourceTypeCounts)}`,
+            client_id,
+          });
+          sendDebug({
+            tag: "IG FETCH LIKES DIAGNOSTIC",
+            msg: `Rentang created_at hari berjalan: min=${diagnostics.todayRange.minCreatedAt || "null"}, max=${diagnostics.todayRange.maxCreatedAt || "null"}, total=${diagnostics.todayRange.totalToday}`,
+            client_id,
+          });
+          sendDebug({
+            tag: "IG FETCH LIKES DIAGNOSTIC",
+            msg: `Distribusi tanggal Jakarta 7 hari terakhir: ${JSON.stringify(diagnostics.recentJakartaDays)}`,
+            client_id,
+          });
+        } catch (diagnosticError) {
+          sendDebug({
+            tag: "IG FETCH LIKES DIAGNOSTIC ERROR",
+            msg: `Gagal mengambil diagnostik no-rows: ${(diagnosticError && diagnosticError.message) || String(diagnosticError)}`,
+            client_id,
+          });
+        }
+      }
+
       if (waClient && chatId) {
         const emptyLabel = sourceType === "manual_input" ? "manual hari ini" : "hari ini";
         await waClient.sendMessage(
