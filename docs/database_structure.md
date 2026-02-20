@@ -176,6 +176,7 @@ Stores curated Instagram posts for khusus audiences.
 - `is_carousel` – boolean indicating whether the post contains multiple images
 - `source_type` – marker asal data: `cron_fetch` atau `manual_input`
 - `created_at` – timestamp input data (acuan filter harian)
+- `original_created_at` – timestamp publish asli konten dari platform (opsional)
 - Independent primary key (`shortcode`) to allow separate scheduling
 - Dipakai juga oleh menu WA **4️⃣6️⃣ Input IG post manual** untuk menyimpan
   konten manual per-client sebelum/bersamaan dengan sinkronisasi ke

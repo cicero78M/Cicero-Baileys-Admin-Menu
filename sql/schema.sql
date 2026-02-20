@@ -222,7 +222,8 @@ CREATE TABLE insta_post (
   images_url JSONB,
   is_carousel BOOLEAN DEFAULT FALSE,
   source_type VARCHAR(20) NOT NULL DEFAULT 'cron_fetch',
-  created_at TIMESTAMP
+  created_at TIMESTAMP,
+  original_created_at TIMESTAMPTZ
 );
 
 CREATE TABLE insta_post_roles (
@@ -268,7 +269,8 @@ CREATE TABLE insta_post_khusus (
   images_url JSONB,
   is_carousel BOOLEAN DEFAULT FALSE,
   source_type VARCHAR(20) NOT NULL DEFAULT 'cron_fetch',
-  created_at TIMESTAMP
+  created_at TIMESTAMP,
+  original_created_at TIMESTAMPTZ
 );
 
 CREATE TABLE insta_profile (
@@ -289,7 +291,8 @@ CREATE TABLE tiktok_post (
   like_count INT,
   comment_count INT,
   source_type TEXT NOT NULL DEFAULT 'cron_fetch',
-  created_at TIMESTAMP
+  created_at TIMESTAMP,
+  original_created_at TIMESTAMPTZ
 );
 
 CREATE TABLE tiktok_comment (
