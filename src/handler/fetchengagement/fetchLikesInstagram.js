@@ -71,6 +71,73 @@ function extractCommentUsername(comment) {
   );
 }
 
+
+async function getInstagramLikesFetchDiagnostics(clientId, filterDate, sourceType) {
+  const normalizedSourceType = normalizeSourceType(sourceType);
+  const sourceTypeCountsResult = await query(
+    `SELECT
+       REPLACE(REPLACE(COALESCE(LOWER(TRIM(source_type)), 'cron_fetch'), ' ', '_'), '-', '_') AS normalized_source_type,
+       COUNT(*)::int AS total
+     FROM insta_post
+     WHERE client_id = $1
+       AND (created_at AT TIME ZONE 'Asia/Jakarta')::date = $2::date
+     GROUP BY 1
+     ORDER BY 2 DESC, 1 ASC`,
+    [clientId, filterDate]
+  );
+
+  const todayRangeResult = await query(
+    `SELECT
+       MIN(created_at) AS min_created_at,
+       MAX(created_at) AS max_created_at,
+       COUNT(*)::int AS total_today
+     FROM insta_post
+     WHERE client_id = $1
+       AND (created_at AT TIME ZONE 'Asia/Jakarta')::date = $2::date`,
+    [clientId, filterDate]
+  );
+
+  const recentDaysResult = await query(
+    `SELECT
+       (created_at AT TIME ZONE 'Asia/Jakarta')::date AS jakarta_date,
+       COUNT(*)::int AS total
+     FROM insta_post
+     WHERE client_id = $1
+       AND (created_at AT TIME ZONE 'Asia/Jakarta')::date >= ($2::date - INTERVAL '6 days')
+       AND (created_at AT TIME ZONE 'Asia/Jakarta')::date <= $2::date
+     GROUP BY 1
+     ORDER BY 1 DESC`,
+    [clientId, filterDate]
+  );
+
+  const sourceTypeCounts = sourceTypeCountsResult.rows.map((row) => ({
+    sourceType: row.normalized_source_type,
+    total: row.total,
+  }));
+
+  const todayRange = todayRangeResult.rows[0] || {};
+  const hasManualToday = sourceTypeCounts.some((row) => row.sourceType === 'manual_input' || row.sourceType === 'manual_fetch');
+  const diagnosis = normalizedSourceType === 'manual_input' && !hasManualToday
+    ? 'Tidak ada konten source_type manual_input/manual_fetch pada tanggal filter Jakarta.'
+    : 'Tidak ada baris insta_post yang memenuhi filter tanggal/sumber saat ini.';
+
+  return {
+    filterDate,
+    sourceType: normalizedSourceType,
+    diagnosis,
+    sourceTypeCounts,
+    todayRange: {
+      minCreatedAt: todayRange.min_created_at,
+      maxCreatedAt: todayRange.max_created_at,
+      totalToday: todayRange.total_today || 0,
+    },
+    recentJakartaDays: recentDaysResult.rows.map((row) => ({
+      date: row.jakarta_date,
+      total: row.total,
+    })),
+  };
+}
+
 // Ambil likes lama (existing) dari database dan kembalikan sebagai array string
 async function getExistingLikes(shortcode) {
   const res = await query(
@@ -172,7 +239,15 @@ async function fetchAndStoreLikes(shortcode, client_id = null, snapshotWindow = 
 
   let commentUsernames = [];
   try {
-    const allComments = await fetchAllInstagramComments(shortcode, 0);
+    const allComments = await fetchAllInstagramComments(shortcode, 0, {
+      onPageLog: (info) => {
+        sendDebug({
+          tag: "IG FETCH COMMENT PAGE",
+          msg: `shortcode ${shortcode} | stage ${info.stage} | page ${info.page || '-'} | fetched ${info.fetched || 0} | total ${info.totalAfterMerge || info.total || 0}`,
+          client_id: client_id || shortcode,
+        });
+      },
+    });
     commentUsernames = allComments
       .map(extractCommentUsername)
       .map(normalizeUsername)

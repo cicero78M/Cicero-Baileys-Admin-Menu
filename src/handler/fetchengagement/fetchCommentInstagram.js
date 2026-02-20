@@ -31,7 +31,16 @@ export async function handleFetchKomentarInstagram(waClient = null, chatId = nul
     for (const sc of shortcodes) {
       await limit(async () => {
         try {
-          const comments = await fetchAllInstagramComments(sc);
+          const comments = await fetchAllInstagramComments(sc, 10, {
+            onPageLog: (info) => {
+              sendDebug({
+                tag: 'IG COMMENT PAGE',
+                msg: `shortcode ${sc} | stage ${info.stage} | page ${info.page || '-'} | fetched ${info.fetched || 0} | total ${info.totalAfterMerge || info.total || 0}`,
+                client_id,
+                clientName,
+              });
+            },
+          });
           for (const c of comments) {
             if (c.user) await upsertIgUser(c.user);
           }

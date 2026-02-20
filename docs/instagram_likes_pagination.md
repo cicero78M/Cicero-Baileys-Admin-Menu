@@ -34,7 +34,9 @@ Perubahan pada module `src/service/instaRapidService.js`:
 3. `fetchAllInstagramLikes` dan `fetchAllInstagramLikesItems` sekarang default `maxPage = 0` (tanpa batas internal), sehingga paginasi berjalan sampai `has_more=false` atau `cursor` habis.
 4. Menambahkan delay antar halaman (`1200ms`) untuk mengurangi risiko rate-limit.
 5. Menambahkan debug log per halaman saat `DEBUG_FETCH_INSTAGRAM=true`.
-6. `fetchAllInstagramComments` mempertahankan perilaku limit eksplisit via parameter `maxPage`; pada workflow fetch likes, modul memanggil `fetchAllInstagramComments(shortcode, 0)` untuk mode tanpa batas internal khusus enrichment username.
+6. `fetchAllInstagramComments` sekarang memakai fallback konfigurasi env ketika `maxPage=0` agar jumlah halaman bisa dikontrol tanpa ubah kode.
+7. Menambahkan log progres fetch komentar per halaman (stage `start/fetched/processed/delay/done`) pada flow likes (`IG FETCH COMMENT PAGE`) dan flow komentar manual (`IG COMMENT PAGE`).
+8. Menambahkan delay antar halaman komentar default `3000ms` (≈20 request/menit) agar tetap di bawah batas kecepatan RapidAPI 22 request/menit.
 
 Perubahan pada module `src/handler/fetchengagement/fetchLikesInstagram.js`:
 
@@ -48,9 +50,15 @@ Perubahan pada module `src/handler/fetchengagement/fetchLikesInstagram.js`:
 
 Perubahan konfigurasi environment:
 
-- Variabel baru: `INSTAGRAM_LIKES_MAX_PAGES`
+- Variabel: `INSTAGRAM_LIKES_MAX_PAGES`
   - `0` = tanpa batas halaman (default)
   - `>0` = batasi jumlah halaman secara eksplisit
+- Variabel baru: `INSTAGRAM_COMMENTS_MAX_PAGES`
+  - default `10`
+  - dipakai saat pemanggil komentar mengirim `maxPage=0`
+- Variabel baru: `INSTAGRAM_COMMENTS_PAGE_DELAY_MS`
+  - default `3000` ms
+  - disarankan jangan kurang dari `2727` ms untuk menjaga laju <= 22 request/menit
 
 Perubahan pada module datamining `src/handler/datamining/fetchDmLikes.js`:
 

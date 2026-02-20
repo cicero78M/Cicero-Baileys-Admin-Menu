@@ -8,6 +8,8 @@ const RAPIDAPI_FALLBACK_KEY = env.RAPIDAPI_FALLBACK_KEY;
 const RAPIDAPI_FALLBACK_HOST = env.RAPIDAPI_FALLBACK_HOST;
 const DEBUG_FETCH_IG = env.DEBUG_FETCH_INSTAGRAM;
 const INSTAGRAM_LIKES_MAX_PAGES = env.INSTAGRAM_LIKES_MAX_PAGES;
+const INSTAGRAM_COMMENTS_MAX_PAGES = env.INSTAGRAM_COMMENTS_MAX_PAGES;
+const INSTAGRAM_COMMENTS_PAGE_DELAY_MS = env.INSTAGRAM_COMMENTS_PAGE_DELAY_MS;
 
 function sendConsoleDebug(...args) {
   if (DEBUG_FETCH_IG) console.log('[DEBUG IG]', ...args);
@@ -110,6 +112,7 @@ export async function fetchInstagramPosts(username, limit = 10) {
   sendConsoleDebug('fetchInstagramPosts start', { username, limit });
 
   const all = [];
+  const onPageLog = typeof options?.onPageLog === 'function' ? options.onPageLog : null;
   let token = null;
 
   do {
@@ -476,24 +479,84 @@ async function fetchInstagramCommentsPage(shortcode, token = null) {
 }
 
 function resolveCommentsMaxPages(maxPage = 0) {
-  return typeof maxPage === 'number' && maxPage > 0 ? maxPage : 0;
+  if (typeof maxPage === 'number' && maxPage > 0) return maxPage;
+  return INSTAGRAM_COMMENTS_MAX_PAGES > 0 ? INSTAGRAM_COMMENTS_MAX_PAGES : 0;
 }
 
-export async function fetchAllInstagramComments(shortcode, maxPage = 10) {
+function resolveCommentsPageDelayMs() {
+  return INSTAGRAM_COMMENTS_PAGE_DELAY_MS > 0 ? INSTAGRAM_COMMENTS_PAGE_DELAY_MS : 3000;
+}
+
+export async function fetchAllInstagramComments(shortcode, maxPage = 10, options = {}) {
   const all = [];
+  const onPageLog = typeof options?.onPageLog === 'function' ? options.onPageLog : null;
   const resolvedMaxPages = resolveCommentsMaxPages(maxPage);
+  const pageDelayMs = resolveCommentsPageDelayMs();
   let token = null;
   let page = 0;
   do {
+    const pageNumber = page + 1;
+    const fetchStartLog = {
+      shortcode,
+      page: pageNumber,
+      token,
+      resolvedMaxPages,
+      pageDelayMs,
+    };
+    sendConsoleDebug('fetchAllInstagramComments page fetch start', fetchStartLog);
+    onPageLog?.({ stage: 'start', ...fetchStartLog });
+
     const { comments, next_token, has_more } = await fetchInstagramCommentsPage(shortcode, token);
+
+    const fetchedLog = {
+      shortcode,
+      page: pageNumber,
+      fetched: comments.length,
+      totalBeforeMerge: all.length,
+      has_more,
+      next_token,
+    };
+    sendConsoleDebug('fetchAllInstagramComments page fetched', fetchedLog);
+    onPageLog?.({ stage: 'fetched', ...fetchedLog });
+
     if (!comments.length) break;
     all.push(...comments);
     token = next_token;
     page++;
-    if (!has_more || !token) break;
-    if (resolvedMaxPages > 0 && page >= resolvedMaxPages) break;
-    await new Promise(r => setTimeout(r, 1500));
+
+    const shouldStop = !has_more || !token || (resolvedMaxPages > 0 && page >= resolvedMaxPages);
+    const processedLog = {
+      shortcode,
+      page,
+      totalAfterMerge: all.length,
+      has_more,
+      next_token,
+      shouldStop,
+    };
+    sendConsoleDebug('fetchAllInstagramComments page processed', processedLog);
+    onPageLog?.({ stage: 'processed', ...processedLog });
+
+    if (shouldStop) break;
+
+    const delayLog = {
+      shortcode,
+      page,
+      delayMs: pageDelayMs,
+    };
+    sendConsoleDebug('fetchAllInstagramComments rate-limit delay', delayLog);
+    onPageLog?.({ stage: 'delay', ...delayLog });
+    await new Promise(r => setTimeout(r, pageDelayMs));
   } while (true);
+
+  const doneLog = {
+    shortcode,
+    total: all.length,
+    pagesFetched: page,
+    resolvedMaxPages,
+  };
+  sendConsoleDebug('fetchAllInstagramComments done', doneLog);
+  onPageLog?.({ stage: 'done', ...doneLog });
+
   return all;
 }
 
