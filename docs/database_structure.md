@@ -147,6 +147,7 @@ Stores Instagram posts fetched for a client.
 - `shortcode` – primary key of the post
 - `client_id` – foreign key to `clients`
 - `caption` – post text
+- `like_count` – number of likes
 - `comment_count` – number of comments
 - `thumbnail_url` – image preview
 - `is_video` – boolean whether post is a video
@@ -162,7 +163,19 @@ Stores Instagram posts fetched for a client.
 
 ### `insta_post_khusus`
 Stores curated Instagram posts for khusus audiences.
-- Same columns as `insta_post`
+- `shortcode` – primary key of the post
+- `client_id` – foreign key to `clients`
+- `caption` – post text
+- `like_count` – number of likes
+- `comment_count` – number of comments
+- `thumbnail_url` – image preview
+- `is_video` – boolean whether post is a video
+- `video_url` – link to video file if any
+- `image_url` – link to image file
+- `images_url` – JSON array of all image URLs when the post is a carousel
+- `is_carousel` – boolean indicating whether the post contains multiple images
+- `source_type` – marker asal data: `cron_fetch` atau `manual_input`
+- `created_at` – timestamp input data (acuan filter harian)
 - Independent primary key (`shortcode`) to allow separate scheduling
 - Dipakai juga oleh menu WA **4️⃣6️⃣ Input IG post manual** untuk menyimpan
   konten manual per-client sebelum/bersamaan dengan sinkronisasi ke

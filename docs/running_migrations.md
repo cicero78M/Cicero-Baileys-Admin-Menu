@@ -15,6 +15,20 @@ node scripts/run_migration.js sql/migrations/<migration-file>.sql
 node scripts/run_migration.js sql/migrations/20260209_add_unique_constraint_user_whatsapp.sql
 ```
 
+
+## Operational Note: Instagram `like_count` Column
+
+Untuk rilis yang menambahkan dukungan likes pada input manual Instagram
+(dirrequest), jalankan migration berikut:
+
+```bash
+node scripts/run_migration.js sql/migrations/20260220_add_like_count_to_insta_posts.sql
+```
+
+Migration ini menambahkan `like_count` pada tabel `insta_post` dan
+`insta_post_khusus` (dengan default `0`) serta melakukan hardening nilai `NULL`
+menjadi `0` agar query lama tidak memicu error kolom/NULL handling.
+
 ## Why Use the Migration Runner?
 
 The migration runner script (`scripts/run_migration.js`) provides:
