@@ -325,3 +325,34 @@ pm2 logs cicero_V2 --lines 300 | rg '\[WA\]|ready|authenticated|auth_failure|dis
 ```
 
 Jika setelah checklist di atas masih timeout konsisten, lakukan **reinit client bertahap** (bukan restart total semua proses dulu), lalu eskalasi ke reset session pada client terdampak.
+
+### 4. Baileys `timed out waiting for message` saat kirim pesan
+
+**Symptom**:
+- Log berulang seperti:
+  - `WARN: timed out waiting for message`
+  - `msgId: "..."`
+- Bot terlihat online tetapi pesan outbound kadang gagal terkirim, sehingga alur menu tidak jalan.
+
+**Cause**:
+- Koneksi socket WhatsApp sedang tidak stabil saat `sendMessage`, sehingga ack pesan terlambat melewati query timeout.
+
+**Perbaikan yang sudah diterapkan di adapter** (`src/service/baileysAdapter.js`):
+- Retry otomatis khusus untuk error `timed out waiting for message`.
+- Retry tidak dijalankan untuk error non-timeout agar kegagalan valid tetap cepat terlihat.
+- Logging retry ditandai event `send_message_retry`.
+
+**Konfigurasi environment baru**:
+```bash
+# jumlah retry tambahan (default: 2 -> total percobaan 3x)
+WA_BAILEYS_SEND_RETRY_COUNT=2
+
+# jeda antar retry dalam milidetik (default: 1500)
+WA_BAILEYS_SEND_RETRY_DELAY_MS=1500
+```
+
+**Langkah operasional**:
+1. Set variabel di atas pada environment produksi.
+2. Restart service.
+3. Pantau log, pastikan ada penurunan warn timeout dan tidak ada lonjakan `send_message_error`.
+4. Jika masih sering timeout, cek kualitas jaringan host dan status koneksi WhatsApp account (reauth bila perlu).
