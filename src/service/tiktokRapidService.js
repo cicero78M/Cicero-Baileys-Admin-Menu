@@ -4,6 +4,7 @@ import { env } from '../config/env.js';
 
 const COMMENT_PAGE_MAX_RETRIES = 3;
 const COMMENT_PAGE_BASE_DELAY_MS = 500;
+const MAX_EMPTY_USERNAME_PAGES = 4;
 const RETRYABLE_ERROR_CODES = new Set([
   'ECONNRESET',
   'ETIMEDOUT',
@@ -93,6 +94,68 @@ function parsePostDetail(resData) {
   if (payload?.itemStruct) return payload.itemStruct;
   if (payload?.itemInfo?.item) return payload.itemInfo.item;
   return null;
+}
+
+function extractCommentUsername(comment) {
+  if (!comment || typeof comment !== 'object') return '';
+  return (
+    comment.user?.unique_id ||
+    comment.user?.uniqueId ||
+    comment.username ||
+    ''
+  )
+    .toString()
+    .trim();
+}
+
+function resolveCommentPagination(payload = {}, cursor, count, commentsLength) {
+  const dataPayload = payload?.data && typeof payload.data === 'object' ? payload.data : null;
+  const source = dataPayload || payload;
+
+  const hasMoreRaw =
+    source?.has_more ??
+    source?.hasMore ??
+    source?.more ??
+    source?.hasNextPage;
+  const parsedHasMore =
+    typeof hasMoreRaw === 'boolean'
+      ? hasMoreRaw
+      : typeof hasMoreRaw === 'number'
+      ? hasMoreRaw > 0
+      : null;
+
+  const totalRaw = source?.total;
+  const total = Number.isFinite(Number(totalRaw)) ? Number(totalRaw) : null;
+
+  const cursorCandidate =
+    source?.cursor ??
+    source?.next_cursor ??
+    source?.nextCursor ??
+    source?.max_cursor ??
+    source?.maxCursor;
+
+  const numericCursor = Number(cursorCandidate);
+  const normalizedCursor =
+    cursorCandidate === null || cursorCandidate === undefined || cursorCandidate === ''
+      ? null
+      : Number.isFinite(numericCursor)
+      ? numericCursor
+      : String(cursorCandidate);
+
+  const offsetCursor = cursor + count;
+  const fallbackHasMoreByTotal = total !== null ? offsetCursor < total : commentsLength > 0;
+  const hasMore = parsedHasMore ?? fallbackHasMoreByTotal;
+
+  let nextCursor = null;
+  if (hasMore) {
+    if (normalizedCursor !== null && normalizedCursor !== cursor) {
+      nextCursor = normalizedCursor;
+    } else if (commentsLength > 0) {
+      nextCursor = offsetCursor;
+    }
+  }
+
+  return { total, hasMore, nextCursor };
 }
 
 async function requestRapidApiPosts({ host, key, endpoint, params }) {
@@ -299,9 +362,14 @@ export async function fetchTiktokCommentsPage(videoId, cursor = 0, count = 50) {
         comments = data.comments;
         if (typeof data.total === 'number') total = data.total;
       }
-      const next_cursor = cursor + count;
-      const has_more = comments.length > 0 && (total === null || next_cursor <= total);
-      return { comments, next_cursor: has_more ? next_cursor : null, total };
+      const pagination = resolveCommentPagination(data, Number(cursor), count, comments.length);
+      if (pagination.total !== null) total = pagination.total;
+      return {
+        comments,
+        next_cursor: pagination.nextCursor,
+        has_more: pagination.hasMore,
+        total
+      };
     } catch (err) {
       const shouldRetry = attempt < COMMENT_PAGE_MAX_RETRIES && isRetryableError(err);
       if (shouldRetry) {
@@ -352,14 +420,43 @@ export async function fetchAllTiktokComments(videoId) {
   const all = [];
   let cursor = 0;
   let total = null;
+  let emptyUsernamePages = 0;
+  const seenCursors = new Set([String(cursor)]);
+
   while (true) {
-    const { comments, next_cursor, total: tot } = await fetchTiktokCommentsPage(videoId, cursor);
+    const {
+      comments,
+      next_cursor,
+      has_more,
+      total: tot
+    } = await fetchTiktokCommentsPage(videoId, cursor);
     if (tot !== null) total = tot;
     if (!comments.length) break;
+
+    const hasUsername = comments.some(comment => extractCommentUsername(comment));
+    if (hasUsername) {
+      emptyUsernamePages = 0;
+    } else {
+      emptyUsernamePages += 1;
+      if (emptyUsernamePages >= MAX_EMPTY_USERNAME_PAGES) {
+        break;
+      }
+    }
+
     all.push(...comments);
-    if (!next_cursor) break;
+    if (!has_more || next_cursor === null || next_cursor === undefined || next_cursor === '') {
+      break;
+    }
+
+    const nextCursorKey = String(next_cursor);
+    if (seenCursors.has(nextCursorKey)) {
+      break;
+    }
+
+    seenCursors.add(nextCursorKey);
     cursor = next_cursor;
     await new Promise(r => setTimeout(r, 2000));
   }
+
   return all;
 }

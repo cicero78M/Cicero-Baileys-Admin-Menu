@@ -47,6 +47,8 @@ Selain endpoint HTTP di atas, backend juga memakai helper RapidAPI yang dipicu d
 - **5️⃣0️⃣ Fetch likes IG manual (hari ini)** → menjalankan fetch likes Instagram khusus konten manual di hari berjalan (WIB) berdasarkan `client_id` yang dipilih pada sesi dirrequest. Secara canonical pipeline memakai `source_type=manual_input`; untuk kompatibilitas data lama, nilai legacy `manual_fetch` juga diperlakukan sebagai konten manual.
 - **Kontrak timezone terbaru untuk menu 4️⃣6️⃣/5️⃣0️⃣ (dipilih: Opsi A)** → `insta_post.created_at` diperlakukan sebagai timestamp lokal Asia/Jakarta. Query tanggal harian/manual untuk Instagram menggunakan `(created_at AT TIME ZONE 'Asia/Jakarta')::date`; pola campuran lama `DATE((created_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Jakarta')` tidak lagi dipakai pada query IG agar perilaku tanggal konsisten dengan cara simpan `created_at` saat ini.
 - **5️⃣1️⃣ Fetch komentar TikTok manual (hari ini)** → menjalankan fetch komentar TikTok khusus konten `manual_input` di hari berjalan (WIB) berdasarkan `client_id` yang dipilih pada sesi dirrequest.
+  - Mekanisme pagination komentar kini **tanpa batas halaman statis**: fetch berlanjut sampai API menandakan halaman habis (`has_more=false`/`next_cursor` tidak tersedia).
+  - Untuk ketahanan data anomali, proses juga berhenti jika cursor pagination berulang (indikasi loop) atau ditemukan **4 halaman berturut-turut tanpa username valid** pada payload komentar.
 
 Catatan kompatibilitas:
 - Penambahan alur manual ini **tidak mengubah kontrak endpoint HTTP yang sudah ada**.
