@@ -52,10 +52,12 @@ valid"*, sehingga operator dapat memicu rekap TikTok all data dari menu utama
 dirrequest tanpa langkah tambahan.
 
 ## Input Manual Post Instagram/TikTok (Menu 4️⃣6️⃣ & 4️⃣7️⃣)
-- Menu utama dirrequest kini menambahkan dua opsi baru pada blok **Pengambilan
-  Data**:
+- Menu utama dirrequest kini menambahkan empat opsi terkait konten manual pada
+  blok **Pengambilan Data**:
   - **4️⃣6️⃣ Input IG post manual**
   - **4️⃣7️⃣ Input TikTok post manual**
+  - **5️⃣0️⃣ Fetch likes IG manual (hari ini)**
+  - **5️⃣1️⃣ Fetch komentar TikTok manual (hari ini)**
 - Kedua menu ini dipakai saat operator perlu menambah konten tugas di luar hasil
   crawl akun resmi (misalnya ada konten baru yang belum terambil scheduler).
   Sumber data tugas sekarang dapat berasal dari:
@@ -65,14 +67,22 @@ dirrequest tanpa langkah tambahan.
   `dirrequest_input_ig_manual_prompt`, meminta operator mengirim link
   Instagram post/reel, mendukung input `batal`, lalu menjalankan
   `fetchSinglePostKhusus(link, clientId)` untuk mengambil **detail post
-  tunggal** (likes, komentar, caption, dan metadata lain), lalu menyimpan post
-  ke tabel tugas khusus dan tabel utama Instagram.
+  tunggal** (likes, komentar, caption, dan metadata lain), menyimpan post ke
+  tabel tugas khusus dan tabel utama Instagram, kemudian **langsung melanjutkan
+  fetch likes Instagram untuk shortcode post manual tersebut**.
 - Opsi **4️⃣7️⃣** memindahkan sesi ke step
   `dirrequest_input_tiktok_manual_prompt`, menerima link atau video ID TikTok,
   mendukung input `batal`, lalu memanggil
   `fetchAndStoreSingleTiktokPost(clientId, videoInput)` untuk mengambil
-  **detail post tunggal** (likes, komentar, caption, dan metadata lain), lalu
-  menyimpan post TikTok.
+  **detail post tunggal** (likes, komentar, caption, dan metadata lain),
+  menyimpan post TikTok, kemudian **langsung melanjutkan fetch komentar TikTok
+  untuk video post manual tersebut**.
+- Opsi **5️⃣0️⃣** memanggil handler fetch likes Instagram dengan filter
+  `source_type=manual_input` sehingga hanya konten manual pada tanggal berjalan
+  (WIB) untuk `client_id` yang sedang dipilih di sesi dirrequest yang diambil.
+- Opsi **5️⃣1️⃣** memanggil handler fetch komentar TikTok dengan filter
+  `source_type=manual_input` sehingga hanya konten manual pada tanggal berjalan
+  (WIB) untuk `client_id` yang sedang dipilih di sesi dirrequest yang diambil.
 
 ### Format Input, Validasi, dan Konfirmasi Output
 
@@ -89,7 +99,7 @@ dirrequest tanpa langkah tambahan.
     proses ditolak dengan pesan konflik agar tidak terjadi bentrok konten lintas
     Polres.
 - **Output konfirmasi sukses** memuat:
-  - status berhasil,
+  - status berhasil (termasuk status fetch likes lanjutan),
   - `Sumber : manual`,
   - `Client`, `Shortcode`, `Waktu upload manual`, `Likes`, `Komentar`, dan ringkasan
     `Caption`.
@@ -106,7 +116,7 @@ dirrequest tanpa langkah tambahan.
   - Saat format lolos, service akan ekstrak `/video/<ID>`; jika tetap tidak
     terbaca, proses fetch dihentikan dengan error format link.
 - **Output konfirmasi sukses** memuat:
-  - status berhasil,
+  - status berhasil (termasuk status fetch komentar lanjutan),
   - `Sumber : manual`,
   - `Client`, `Video ID`, `Waktu upload manual`, `Likes`, `Komentar`, dan ringkasan
     `Caption`.

@@ -143,18 +143,35 @@ async function fetchAndStoreLikes(shortcode, client_id = null, snapshotWindow = 
  */
 export async function handleFetchLikesInstagram(waClient, chatId, client_id, options = {}) {
   try {
-    // Ambil semua post IG milik client hari ini
-    const todayJakarta = getJakartaDateString();
-    const { rows } = await query(
-      `SELECT shortcode FROM insta_post WHERE client_id = $1 AND DATE((created_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Jakarta') = $2`,
-      [client_id, todayJakarta]
-    );
+    const normalizedShortcodes = Array.isArray(options.shortcodes)
+      ? [...new Set(options.shortcodes.map((item) => String(item || "").trim()).filter(Boolean))]
+      : [];
+
+    let rows = [];
+    if (normalizedShortcodes.length) {
+      rows = normalizedShortcodes.map((shortcode) => ({ shortcode }));
+    } else {
+      // Ambil semua post IG milik client hari ini
+      const todayJakarta = getJakartaDateString();
+      const sourceType = (options.sourceType || "").toString().trim().toLowerCase();
+      const filterManualOnly = sourceType === "manual_input";
+      const { rows: fetchedRows } = await query(
+        `SELECT shortcode
+         FROM insta_post
+         WHERE client_id = $1
+           AND DATE((created_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Jakarta') = $2
+           AND ($3::boolean = false OR COALESCE(LOWER(TRIM(source_type)), 'cron_fetch') = 'manual_input')`,
+        [client_id, todayJakarta, filterManualOnly]
+      );
+      rows = fetchedRows;
+    }
 
     if (!rows.length) {
       if (waClient && chatId) {
+        const emptyLabel = options.sourceType === "manual_input" ? "manual hari ini" : "hari ini";
         await waClient.sendMessage(
           chatId,
-          `Tidak ada konten IG hari ini untuk client ${client_id}.`
+          `Tidak ada konten IG ${emptyLabel} untuk client ${client_id}.`
         );
       }
       return;
