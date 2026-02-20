@@ -34,7 +34,7 @@ Perubahan pada module `src/service/instaRapidService.js`:
 3. `fetchAllInstagramLikes` dan `fetchAllInstagramLikesItems` sekarang default `maxPage = 0` (tanpa batas internal), sehingga paginasi berjalan sampai `has_more=false` atau `cursor` habis.
 4. Menambahkan delay antar halaman (`1200ms`) untuk mengurangi risiko rate-limit.
 5. Menambahkan debug log per halaman saat `DEBUG_FETCH_INSTAGRAM=true`.
-6. `fetchAllInstagramComments` sekarang default `maxPage = 0` (tanpa batas internal) dengan pola stop yang sama seperti likes (`has_more=false`, token habis, atau limit eksplisit), sehingga data komentar bisa dipakai sebagai sumber pelengkap username.
+6. `fetchAllInstagramComments` mempertahankan perilaku limit eksplisit via parameter `maxPage`; pada workflow fetch likes, modul memanggil `fetchAllInstagramComments(shortcode, 0)` untuk mode tanpa batas internal khusus enrichment username.
 
 Perubahan pada module `src/handler/fetchengagement/fetchLikesInstagram.js`:
 
@@ -68,11 +68,20 @@ Perubahan pada module datamining `src/handler/datamining/fetchDmLikes.js`:
 
 ## Mekanisme gabung likes + komentar (ringkas)
 
-1. Untuk setiap shortcode, sistem fetch halaman likes hingga tuntas.
-2. Untuk shortcode yang sama, sistem fetch halaman komentar hingga tuntas.
-3. Sistem ekstrak username komentar, normalisasi, lalu union dengan daftar username likes.
-4. Sistem union lagi dengan data likes existing (agar tidak kehilangan histori fetch sebelumnya).
-5. Hasil union di-upsert ke `insta_like.likes` sebagai satu daftar username final.
+1. Untuk setiap shortcode, sistem fetch likes terlebih dulu hingga selesai, lalu simpan hasil likes awal ke `insta_like`.
+2. Setelah langkah likes selesai, sistem baru fetch komentar untuk shortcode yang sama (enrichment tahap kedua).
+3. Sistem ekstrak username komentar, normalisasi, lalu union dengan hasil likes yang sudah tersimpan.
+4. Hasil union final di-upsert kembali ke `insta_like.likes` dan dicatat ke audit snapshot.
+
+
+## Mekanisme eksekusi berurutan (likes → komentar)
+
+Pada handler `fetchAndStoreLikes` (`src/handler/fetchengagement/fetchLikesInstagram.js`), urutan proses per-shortcode adalah:
+
+1. Fetch likes dan simpan ke DB terlebih dulu.
+2. Setelah upsert likes berhasil, lanjut fetch komentar.
+3. Jika fetch komentar berhasil, username komentator digabung ke daftar likes lalu di-upsert ulang sebagai hasil final.
+4. Jika fetch komentar gagal, data likes awal tetap aman tersimpan; proses hanya mencatat error enrichment komentar.
 
 ## Validasi jika hasil masih parsial
 

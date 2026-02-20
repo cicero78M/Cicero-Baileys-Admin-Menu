@@ -479,7 +479,7 @@ function resolveCommentsMaxPages(maxPage = 0) {
   return typeof maxPage === 'number' && maxPage > 0 ? maxPage : 0;
 }
 
-export async function fetchAllInstagramComments(shortcode, maxPage = 0) {
+export async function fetchAllInstagramComments(shortcode, maxPage = 10) {
   const all = [];
   const resolvedMaxPages = resolveCommentsMaxPages(maxPage);
   let token = null;
