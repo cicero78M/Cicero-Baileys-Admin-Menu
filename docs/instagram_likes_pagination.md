@@ -34,9 +34,13 @@ Perubahan pada module `src/service/instaRapidService.js`:
 3. `fetchAllInstagramLikes` dan `fetchAllInstagramLikesItems` sekarang default `maxPage = 0` (tanpa batas internal), sehingga paginasi berjalan sampai `has_more=false` atau `cursor` habis.
 4. Menambahkan delay antar halaman (`1200ms`) untuk mengurangi risiko rate-limit.
 5. Menambahkan debug log per halaman saat `DEBUG_FETCH_INSTAGRAM=true`.
-6. `fetchAllInstagramComments` sekarang memakai fallback konfigurasi env ketika `maxPage=0` agar jumlah halaman bisa dikontrol tanpa ubah kode.
+6. `fetchAllInstagramComments` sekarang memperlakukan `maxPage=0` sebagai mode tanpa batas halaman (fetch sampai pagination benar-benar habis).
 7. Menambahkan log progres fetch komentar per halaman (stage `start/fetched/processed/delay/done`) pada flow likes (`IG FETCH COMMENT PAGE`) dan flow komentar manual (`IG COMMENT PAGE`).
 8. Menambahkan delay antar halaman komentar default `3000ms` (≈20 request/menit) agar tetap di bawah batas kecepatan RapidAPI 22 request/menit.
+9. Menambahkan mekanisme stop best-practice untuk komentar agar menghindari loop pagination tidak sehat:
+   - berhenti jika `has_more=false` atau `next_token` kosong (pagination habis),
+   - berhenti jika token pagination berulang (`repeated_token`),
+   - berhenti jika 4 halaman berturut-turut tidak memiliki username komentar (`empty_username_threshold`).
 
 Perubahan pada module `src/handler/fetchengagement/fetchLikesInstagram.js`:
 
@@ -53,9 +57,10 @@ Perubahan konfigurasi environment:
 - Variabel: `INSTAGRAM_LIKES_MAX_PAGES`
   - `0` = tanpa batas halaman (default)
   - `>0` = batasi jumlah halaman secara eksplisit
-- Variabel baru: `INSTAGRAM_COMMENTS_MAX_PAGES`
+- Variabel: `INSTAGRAM_COMMENTS_MAX_PAGES`
   - default `10`
-  - dipakai saat pemanggil komentar mengirim `maxPage=0`
+  - dipakai hanya saat pemanggil komentar **tidak** mengirim parameter `maxPage` (mode default).
+  - jika pemanggil mengirim `maxPage=0`, mode tanpa batas tetap diprioritaskan
 - Variabel baru: `INSTAGRAM_COMMENTS_PAGE_DELAY_MS`
   - default `3000` ms
   - disarankan jangan kurang dari `2727` ms untuk menjaga laju <= 22 request/menit

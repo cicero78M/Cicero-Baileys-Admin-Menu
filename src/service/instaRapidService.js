@@ -478,8 +478,10 @@ async function fetchInstagramCommentsPage(shortcode, token = null) {
   return { comments: items, next_token, has_more };
 }
 
-function resolveCommentsMaxPages(maxPage = 0) {
-  if (typeof maxPage === 'number' && maxPage > 0) return maxPage;
+function resolveCommentsMaxPages(maxPage) {
+  if (typeof maxPage === 'number') {
+    return maxPage > 0 ? maxPage : 0;
+  }
   return INSTAGRAM_COMMENTS_MAX_PAGES > 0 ? INSTAGRAM_COMMENTS_MAX_PAGES : 0;
 }
 
@@ -487,13 +489,28 @@ function resolveCommentsPageDelayMs() {
   return INSTAGRAM_COMMENTS_PAGE_DELAY_MS > 0 ? INSTAGRAM_COMMENTS_PAGE_DELAY_MS : 3000;
 }
 
-export async function fetchAllInstagramComments(shortcode, maxPage = 10, options = {}) {
+function extractCommentUsername(comment) {
+  return (
+    comment?.user?.username ||
+    comment?.username ||
+    comment?.owner?.username ||
+    ''
+  );
+}
+
+export async function fetchAllInstagramComments(shortcode, maxPage, options = {}) {
   const all = [];
   const onPageLog = typeof options?.onPageLog === 'function' ? options.onPageLog : null;
+  const maxConsecutiveEmptyUsernamePages =
+    Number.isInteger(options?.maxConsecutiveEmptyUsernamePages) && options.maxConsecutiveEmptyUsernamePages > 0
+      ? options.maxConsecutiveEmptyUsernamePages
+      : 4;
   const resolvedMaxPages = resolveCommentsMaxPages(maxPage);
   const pageDelayMs = resolveCommentsPageDelayMs();
   let token = null;
   let page = 0;
+  let consecutiveEmptyUsernamePages = 0;
+  const seenTokens = new Set();
   do {
     const pageNumber = page + 1;
     const fetchStartLog = {
@@ -512,6 +529,7 @@ export async function fetchAllInstagramComments(shortcode, maxPage = 10, options
       shortcode,
       page: pageNumber,
       fetched: comments.length,
+      fetchedWithUsername: comments.filter((comment) => Boolean(extractCommentUsername(comment))).length,
       totalBeforeMerge: all.length,
       has_more,
       next_token,
@@ -519,24 +537,68 @@ export async function fetchAllInstagramComments(shortcode, maxPage = 10, options
     sendConsoleDebug('fetchAllInstagramComments page fetched', fetchedLog);
     onPageLog?.({ stage: 'fetched', ...fetchedLog });
 
-    if (!comments.length) break;
+    if (!comments.length) {
+      onPageLog?.({
+        stage: 'stop',
+        reason: 'empty_page',
+        shortcode,
+        page: pageNumber,
+        consecutiveEmptyUsernamePages,
+      });
+      break;
+    }
+
+    const fetchedWithUsername = fetchedLog.fetchedWithUsername;
+    if (fetchedWithUsername === 0) {
+      consecutiveEmptyUsernamePages += 1;
+    } else {
+      consecutiveEmptyUsernamePages = 0;
+    }
+
+    const repeatedTokenDetected = Boolean(next_token) && seenTokens.has(next_token);
+    if (next_token) {
+      seenTokens.add(next_token);
+    }
+
     all.push(...comments);
     token = next_token;
     page++;
 
-    const shouldStop = !has_more || !token || (resolvedMaxPages > 0 && page >= resolvedMaxPages);
+    const shouldStop =
+      !has_more ||
+      !token ||
+      repeatedTokenDetected ||
+      consecutiveEmptyUsernamePages >= maxConsecutiveEmptyUsernamePages ||
+      (resolvedMaxPages > 0 && page >= resolvedMaxPages);
     const processedLog = {
       shortcode,
       page,
       totalAfterMerge: all.length,
       has_more,
       next_token,
+      consecutiveEmptyUsernamePages,
+      repeatedTokenDetected,
       shouldStop,
     };
     sendConsoleDebug('fetchAllInstagramComments page processed', processedLog);
     onPageLog?.({ stage: 'processed', ...processedLog });
 
-    if (shouldStop) break;
+    if (shouldStop) {
+      let reason = 'pagination_exhausted';
+      if (repeatedTokenDetected) reason = 'repeated_token';
+      else if (consecutiveEmptyUsernamePages >= maxConsecutiveEmptyUsernamePages) reason = 'empty_username_threshold';
+      else if (resolvedMaxPages > 0 && page >= resolvedMaxPages) reason = 'max_page_reached';
+
+      onPageLog?.({
+        stage: 'stop',
+        shortcode,
+        page,
+        reason,
+        consecutiveEmptyUsernamePages,
+        repeatedTokenDetected,
+      });
+      break;
+    }
 
     const delayLog = {
       shortcode,
