@@ -58,6 +58,7 @@ dirrequest tanpa langkah tambahan.
   - **4️⃣7️⃣ Input TikTok post manual**
   - **5️⃣0️⃣ Fetch likes IG manual (hari ini)**
   - **5️⃣1️⃣ Fetch komentar TikTok manual (hari ini)**
+  - **5️⃣2️⃣ Fetch komentar IG manual (hari ini)**
 - Kedua menu ini dipakai saat operator perlu menambah konten tugas di luar hasil
   crawl akun resmi (misalnya ada konten baru yang belum terambil scheduler).
   Sumber data tugas sekarang dapat berasal dari:
@@ -80,11 +81,7 @@ dirrequest tanpa langkah tambahan.
 - Opsi **5️⃣0️⃣** memanggil handler fetch likes Instagram dengan filter
   `source_type=manual_input` sehingga hanya konten manual pada tanggal berjalan
   (WIB) untuk `client_id` yang sedang dipilih di sesi dirrequest yang diambil.
-- Pada pipeline opsi **5️⃣0️⃣**, setelah likes selesai, enrichment komentar
-  Instagram dijalankan tanpa batas halaman eksplisit (`maxPage=0`) agar semua
-  komentar post ikut terambil. Proses dihentikan saat pagination habis
-  (`has_more=false`/token kosong), token pagination berulang, atau 4 halaman
-  berturut-turut tidak menghasilkan username komentar (guard anti-loop).
+- Opsi **5️⃣0️⃣** kini hanya menjalankan fetch likes Instagram (tanpa enrichment komentar otomatis) untuk konten manual hari ini.
 - Saat menu **5️⃣0️⃣** tidak menemukan post (`rows.length === 0`), bot tetap mengirim
   pesan WA yang ringkas ke operator, sementara server mencatat log diagnostik
   internal dengan tag `IG FETCH LIKES DIAGNOSTIC` yang berisi:
@@ -97,6 +94,9 @@ dirrequest tanpa langkah tambahan.
 - Opsi **5️⃣1️⃣** memanggil handler fetch komentar TikTok dengan filter
   `source_type=manual_input` sehingga hanya konten manual pada tanggal berjalan
   (WIB) untuk `client_id` yang sedang dipilih di sesi dirrequest yang diambil.
+- Opsi **5️⃣2️⃣** memanggil handler fetch komentar Instagram dengan filter
+  `source_type=manual_input` untuk konten manual hari berjalan (WIB), dengan
+  `delay` pagination komentar per halaman disetel ke **1000ms**.
 
 ### Format Input, Validasi, dan Konfirmasi Output
 

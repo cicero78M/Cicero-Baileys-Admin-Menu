@@ -485,7 +485,10 @@ function resolveCommentsMaxPages(maxPage) {
   return INSTAGRAM_COMMENTS_MAX_PAGES > 0 ? INSTAGRAM_COMMENTS_MAX_PAGES : 0;
 }
 
-function resolveCommentsPageDelayMs() {
+function resolveCommentsPageDelayMs(overrideDelayMs) {
+  if (typeof overrideDelayMs === "number" && overrideDelayMs >= 0) {
+    return overrideDelayMs;
+  }
   return INSTAGRAM_COMMENTS_PAGE_DELAY_MS > 0 ? INSTAGRAM_COMMENTS_PAGE_DELAY_MS : 3000;
 }
 
@@ -506,7 +509,7 @@ export async function fetchAllInstagramComments(shortcode, maxPage, options = {}
       ? options.maxConsecutiveEmptyUsernamePages
       : 4;
   const resolvedMaxPages = resolveCommentsMaxPages(maxPage);
-  const pageDelayMs = resolveCommentsPageDelayMs();
+  const pageDelayMs = resolveCommentsPageDelayMs(options?.pageDelayMs);
   let token = null;
   let page = 0;
   let consecutiveEmptyUsernamePages = 0;

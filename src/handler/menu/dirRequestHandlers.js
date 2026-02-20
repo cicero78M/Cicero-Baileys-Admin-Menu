@@ -272,6 +272,9 @@ const DIRREQUEST_INPUT_TIKTOK_MANUAL_PROMPT = appendSubmenuBackInstruction(
 const DIRREQUEST_FETCH_IG_MANUAL_LIKES_TEXT =
   "⏳ Memulai fetch likes Instagram untuk konten manual hari ini...";
 
+const DIRREQUEST_FETCH_IG_MANUAL_COMMENTS_TEXT =
+  "⏳ Memulai fetch komentar Instagram untuk konten manual hari ini...";
+
 const DIRREQUEST_FETCH_TIKTOK_MANUAL_COMMENTS_TEXT =
   "⏳ Memulai fetch komentar TikTok untuk konten manual hari ini...";
 
@@ -2898,7 +2901,8 @@ export const dirRequestHandlers = {
         "4️⃣6️⃣ Input IG post manual\n" +
         "4️⃣7️⃣ Input TikTok post manual\n" +
         "5️⃣0️⃣ Fetch likes IG manual (hari ini)\n" +
-        "5️⃣1️⃣ Fetch komentar TikTok manual (hari ini)\n\n" +
+        "5️⃣1️⃣ Fetch komentar TikTok manual (hari ini)\n" +
+        "5️⃣2️⃣ Fetch komentar IG manual (hari ini)\n\n" +
         "📝 *Laporan*\n" +
         "1️⃣7️⃣ Laporan harian Instagram Direktorat/Bidang\n" +
         "1️⃣8️⃣ Laporan harian TikTok Direktorat/Bidang\n" +
@@ -3096,6 +3100,7 @@ export const dirRequestHandlers = {
           "49",
           "50",
           "51",
+          "52",
         ].includes(choice)
     ) {
       await waClient.sendMessage(chatId, "Pilihan tidak valid. Ketik angka menu.");
@@ -3176,6 +3181,7 @@ export const dirRequestHandlers = {
       await waClient.sendMessage(chatId, DIRREQUEST_FETCH_IG_MANUAL_LIKES_TEXT);
       await handleFetchLikesInstagram(waClient, chatId, targetClientId, {
         sourceType: "manual_input",
+        enrichComments: false,
       });
       session.step = "main";
       await dirRequestHandlers.main(session, chatId, "", waClient);
@@ -3188,6 +3194,19 @@ export const dirRequestHandlers = {
       await waClient.sendMessage(chatId, DIRREQUEST_FETCH_TIKTOK_MANUAL_COMMENTS_TEXT);
       await handleFetchKomentarTiktokBatch(waClient, chatId, targetClientId, {
         sourceType: "manual_input",
+      });
+      session.step = "main";
+      await dirRequestHandlers.main(session, chatId, "", waClient);
+      return;
+    }
+
+    if (choice === "52") {
+      const { handleFetchKomentarInstagram } = await import("../fetchengagement/fetchCommentInstagram.js");
+      const targetClientId = session.dir_client_id || session.selectedClientId || DITBINMAS_CLIENT_ID;
+      await waClient.sendMessage(chatId, DIRREQUEST_FETCH_IG_MANUAL_COMMENTS_TEXT);
+      await handleFetchKomentarInstagram(waClient, chatId, targetClientId, {
+        sourceType: "manual_input",
+        commentsPageDelayMs: 1000,
       });
       session.step = "main";
       await dirRequestHandlers.main(session, chatId, "", waClient);

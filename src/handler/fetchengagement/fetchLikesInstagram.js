@@ -206,7 +206,13 @@ async function saveLikesAudit(shortcode, usernames, client_id, snapshotWindow) {
  * @param {string} shortcode
  * @param {string|null} client_id
  */
-async function fetchAndStoreLikes(shortcode, client_id = null, snapshotWindow = {}) {
+async function fetchAndStoreLikes(
+  shortcode,
+  client_id = null,
+  snapshotWindow = {},
+  options = {}
+) {
+  const shouldEnrichComments = options.enrichComments !== false;
   const allLikes = await fetchAllInstagramLikes(shortcode);
   const likesOnlyUsernames = [...new Set(allLikes.map(normalizeUsername))].filter(Boolean);
 
@@ -230,6 +236,11 @@ async function fetchAndStoreLikes(shortcode, client_id = null, snapshotWindow = 
     msg: `[DB] Sukses upsert likes IG awal: ${shortcode} | Total likes disimpan: ${likesAfterFetch.length}`,
     client_id: client_id || shortcode,
   });
+
+  if (!shouldEnrichComments) {
+    await saveLikesAudit(shortcode, likesAfterFetch, client_id, snapshotWindow);
+    return;
+  }
 
   sendDebug({
     tag: "IG FETCH",
@@ -374,7 +385,9 @@ export async function handleFetchLikesInstagram(waClient, chatId, client_id, opt
     let sukses = 0, gagal = 0;
     for (const r of rows) {
       try {
-        await fetchAndStoreLikes(r.shortcode, client_id, snapshotWindow);
+        await fetchAndStoreLikes(r.shortcode, client_id, snapshotWindow, {
+          enrichComments: options.enrichComments,
+        });
         sukses++;
       } catch (err) {
         sendDebug({
