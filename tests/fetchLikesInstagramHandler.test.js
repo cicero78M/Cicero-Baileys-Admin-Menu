@@ -72,3 +72,20 @@ test('uses Jakarta date filter SQL and resolves UTC 23:30 as next Jakarta day', 
   expect(sql).toContain("(((created_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Jakarta')::date) = $2::date");
   expect(params[1]).toBe('2026-01-02');
 });
+
+
+test('manual daily menu query filters manual source types consistently', async () => {
+  mockQuery
+    .mockResolvedValueOnce({ rows: [{ shortcode: 'sc_manual' }] })
+    .mockResolvedValueOnce({ rows: [] })
+    .mockResolvedValue({});
+
+  mockFetchAllInstagramLikes.mockResolvedValueOnce([]);
+
+  await handleFetchLikesInstagram(null, null, 'clientA', { sourceType: 'manual_input' });
+
+  const [sql, params] = mockQuery.mock.calls[0];
+  expect(sql).toContain("$3::boolean = false OR");
+  expect(sql).toContain("IN ('manual_input', 'manual_fetch')");
+  expect(params[2]).toBe(true);
+});

@@ -149,7 +149,7 @@ dirrequest tanpa langkah tambahan.
 - Untuk menu **4️⃣6️⃣** dan **4️⃣7️⃣**, timestamp `created_at` konten manual
   kini ditulis dalam format ISO-8601 UTC (canonical storage), lalu dibaca
   dengan basis timezone **Asia/Jakarta (WIB)** saat filtering/rekap harian.
-- Sinkronisasi source tipe fetch kini mengikuti repository cronjob: `insta_post.source_type`/`tiktok_post.source_type` memakai nilai `manual_input` untuk input manual menu **4️⃣6️⃣**/**4️⃣7️⃣**, sedangkan proses terjadwal memakai `cron_fetch`.
+- Sinkronisasi source tipe fetch kini mengikuti repository cronjob: `insta_post.source_type`/`tiktok_post.source_type` memakai nilai `manual_input` untuk input manual menu **4️⃣6️⃣**/**4️⃣7️⃣**, sedangkan proses terjadwal memakai `cron_fetch`. Untuk Instagram (`insta_post`), conflict upsert pada `shortcode` sekarang memakai merge terkontrol: flag manual bersifat idempoten (sekali `manual_input`, tidak diturunkan lagi ke `cron_fetch` oleh fetch rutin).
 - Untuk konten lama (post lama yang diinput manual), bot tetap mengambil nilai
   engagement terbaru yang tersedia dari API single-post saat proses input
   berjalan. Artinya likes, komentar, dan caption tetap terisi selama data masih
@@ -168,7 +168,7 @@ dirrequest tanpa langkah tambahan.
   `manual_input`, dan pembacaan filter manual tetap menganggap keduanya setara
   agar data lama di database tetap tersaring di menu **5️⃣0️⃣**.
 - `created_at`: waktu konten **masuk ke sistem** saat operator mengirim input
-  manual (timestamp input operator, WIB/+07:00).
+  manual (timestamp input operator). Pada konflik data Instagram dengan shortcode sama, nilai ini dipertahankan stabil untuk row yang sudah bertanda manual agar urutan menu manual harian tidak berubah karena refresh cron.
 - **Kontrak timezone aktif (menu 4️⃣6️⃣/5️⃣0️⃣ - Opsi A):** kolom `insta_post.created_at` diperlakukan sebagai waktu lokal Jakarta. Karena itu, semua filter tanggal Instagram manual/harian harus memakai pola SQL `(created_at AT TIME ZONE 'Asia/Jakarta')::date` (tanpa konversi awal dari `UTC`) agar tidak terjadi pergeseran hari.
 - **Troubleshooting cepat menu 5️⃣0️⃣ (ops/internal):**
   1. Jalankan menu **5️⃣0️⃣** dan cek log dengan tag `IG FETCH LIKES DIAGNOSTIC`.
@@ -183,7 +183,7 @@ dirrequest tanpa langkah tambahan.
   5. Tindak lanjut tetap dilakukan di server/log; pesan WA ke operator cukup
      memakai teks ringkas agar tidak membanjiri chat operasional.
 - `original_created_at`: waktu publish asli konten di platform
-  Instagram/TikTok (timestamp asli post).
+  Instagram/TikTok (timestamp asli post) dan menjadi sumber publish time utama. Saat upsert konflik, nilai ini di-merge non-destruktif (`COALESCE`): gunakan timestamp publish baru jika tersedia, jika tidak pertahankan nilai yang sudah tersimpan.
 - Dengan pemisahan ini, tim admin menu dapat memfilter berdasarkan waktu input
   operasional (`created_at`), sementara tim analisis/cron tetap bisa membaca
   umur konten asli berdasarkan `original_created_at`.
