@@ -7,7 +7,7 @@ import { getPostIdShortcodePairsTodayByUsername } from '../../model/instaPostExt
 import { sendDebug } from '../../middleware/debugHandler.js';
 
 const limit = pLimit(3);
-const MAX_LIKE_PAGES = 100;
+const MAX_LIKE_PAGES = 0;
 
 export async function handleFetchLikesInstagramDM(username) {
   try {
