@@ -34,6 +34,17 @@ Perubahan pada module `src/service/instaRapidService.js`:
 3. `fetchAllInstagramLikes` dan `fetchAllInstagramLikesItems` sekarang default `maxPage = 0` (tanpa batas internal), sehingga paginasi berjalan sampai `has_more=false` atau `cursor` habis.
 4. Menambahkan delay antar halaman (`1200ms`) untuk mengurangi risiko rate-limit.
 5. Menambahkan debug log per halaman saat `DEBUG_FETCH_INSTAGRAM=true`.
+6. `fetchAllInstagramComments` sekarang default `maxPage = 0` (tanpa batas internal) dengan pola stop yang sama seperti likes (`has_more=false`, token habis, atau limit eksplisit), sehingga data komentar bisa dipakai sebagai sumber pelengkap username.
+
+Perubahan pada module `src/handler/fetchengagement/fetchLikesInstagram.js`:
+
+1. Pipeline `fetchAndStoreLikes(shortcode)` sekarang mengambil dua sumber data dari RapidAPI yang sama:
+   - likes via `fetchAllInstagramLikes(shortcode)`
+   - komentar via `fetchAllInstagramComments(shortcode, 0)`
+2. Username dari komentar diekstrak dari `comment.user.username` (dengan fallback ke `comment.username`/`comment.owner.username`), lalu dinormalisasi (`trim`, hapus `@`, lowercase).
+3. Username likes + username komentar digabung, dideduplikasi, lalu tetap digabung dengan data likes existing di tabel `insta_like` sebelum upsert.
+4. Hasil akhirnya tetap disimpan di kolom `insta_like.likes` agar modul rekap likes existing tetap kompatibel.
+5. Log debug akhir sekarang menampilkan ringkasan volume likes dan komentar per shortcode.
 
 Perubahan konfigurasi environment:
 
@@ -54,6 +65,14 @@ Perubahan pada module datamining `src/handler/datamining/fetchDmLikes.js`:
 3. (Opsional) set `DEBUG_FETCH_INSTAGRAM=true` untuk memantau progres tiap halaman.
 4. Jalankan flow fetch likes seperti biasa (cron/manual/DM handler).
 5. Verifikasi jumlah likes tersimpan di tabel `insta_like` dan/atau audit `insta_like_audit`.
+
+## Mekanisme gabung likes + komentar (ringkas)
+
+1. Untuk setiap shortcode, sistem fetch halaman likes hingga tuntas.
+2. Untuk shortcode yang sama, sistem fetch halaman komentar hingga tuntas.
+3. Sistem ekstrak username komentar, normalisasi, lalu union dengan daftar username likes.
+4. Sistem union lagi dengan data likes existing (agar tidak kehilangan histori fetch sebelumnya).
+5. Hasil union di-upsert ke `insta_like.likes` sebagai satu daftar username final.
 
 ## Validasi jika hasil masih parsial
 

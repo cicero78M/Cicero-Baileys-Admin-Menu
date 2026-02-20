@@ -2,7 +2,10 @@
 
 import { query } from "../../db/index.js";
 import { sendDebug } from "../../middleware/debugHandler.js";
-import { fetchAllInstagramLikes } from "../../service/instagramApi.js";
+import {
+  fetchAllInstagramComments,
+  fetchAllInstagramLikes,
+} from "../../service/instagramApi.js";
 import { getAllExceptionUsers } from "../../model/userModel.js";
 import { saveLikeSnapshotAudit } from "../../model/instaLikeModel.js";
 
@@ -59,6 +62,15 @@ function normalizeSourceType(sourceType) {
   return normalized || "cron_fetch";
 }
 
+function extractCommentUsername(comment) {
+  return (
+    comment?.user?.username ||
+    comment?.username ||
+    comment?.owner?.username ||
+    null
+  );
+}
+
 // Ambil likes lama (existing) dari database dan kembalikan sebagai array string
 async function getExistingLikes(shortcode) {
   const res = await query(
@@ -88,7 +100,13 @@ async function getExistingLikes(shortcode) {
  */
 async function fetchAndStoreLikes(shortcode, client_id = null, snapshotWindow = {}) {
   const allLikes = await fetchAllInstagramLikes(shortcode);
-  const uniqueLikes = [...new Set(allLikes.map(normalizeUsername))];
+  const allComments = await fetchAllInstagramComments(shortcode, 0);
+  const uniqueLikes = [
+    ...new Set([
+      ...allLikes.map(normalizeUsername),
+      ...allComments.map(extractCommentUsername).map(normalizeUsername),
+    ]),
+  ].filter(Boolean);
   const exceptionUsers = await getAllExceptionUsers();
   const exceptionUsernames = exceptionUsers
     .map((u) => normalizeUsername(u.insta))
@@ -104,7 +122,7 @@ async function fetchAndStoreLikes(shortcode, client_id = null, snapshotWindow = 
   const mergedLikes = [...mergedSet];
   sendDebug({
     tag: "IG LIKES FINAL",
-    msg: `Shortcode ${shortcode} FINAL jumlah unique: ${mergedLikes.length}`,
+    msg: `Shortcode ${shortcode} FINAL jumlah unique: ${mergedLikes.length} (likes: ${allLikes.length}, komentar: ${allComments.length})`,
     client_id: client_id || shortcode,
   });
 
