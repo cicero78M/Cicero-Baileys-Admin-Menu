@@ -25,8 +25,9 @@ export async function collectInstagramJajaranAttendance(clientId, roleFlag = nul
     minute: "2-digit",
   });
 
-  const roleName = (roleFlag || clientId || "").toLowerCase();
   const normalizedClientId = String(clientId || "").toUpperCase();
+  const expectedDirektoratRole = normalizedClientId.toLowerCase();
+  const normalizedRoleFlag = String(roleFlag || "").toLowerCase();
 
   // Get client info
   const client = await findClientById(normalizedClientId);
@@ -40,10 +41,26 @@ export async function collectInstagramJajaranAttendance(clientId, roleFlag = nul
     );
   }
 
+  let personilScopeRole = expectedDirektoratRole;
+  if (normalizedRoleFlag) {
+    if (normalizedRoleFlag === expectedDirektoratRole) {
+      personilScopeRole = normalizedRoleFlag;
+    } else {
+      console.warn("[JAJARAN_ATTENDANCE] roleFlag mismatch for direktorat scope", {
+        event: "jajaran_attendance_roleflag_mismatch",
+        selectedClientId: normalizedClientId,
+        expectedRole: expectedDirektoratRole,
+        providedRoleFlag: normalizedRoleFlag,
+        fallbackRole: expectedDirektoratRole,
+        source: "collectInstagramJajaranAttendance",
+      });
+    }
+  }
+
   // Get Instagram posts for today
   let shortcodes;
   try {
-    shortcodes = await getShortcodesTodayByClient(roleName);
+    shortcodes = await getShortcodesTodayByClient(normalizedClientId);
   } catch (error) {
     console.error("Error fetching Instagram posts:", error);
     throw new Error("Gagal mengambil data konten Instagram.");
@@ -68,7 +85,7 @@ export async function collectInstagramJajaranAttendance(clientId, roleFlag = nul
   }
 
   // Get all polres IDs under this direktorat
-  const polresIds = await getClientsByRole(roleName);
+  const polresIds = await getClientsByRole(personilScopeRole);
   
   // Get all ORG clients for completeness
   const allOrgClients = (await findAllClientsByType("org")) || [];
@@ -100,7 +117,7 @@ export async function collectInstagramJajaranAttendance(clientId, roleFlag = nul
   });
 
   // Get all users
-  const allUsers = await getUsersByDirektorat(roleName, allClientIds);
+  const allUsers = await getUsersByDirektorat(personilScopeRole, allClientIds);
   
   // Group users by client
   const usersByClient = {};
