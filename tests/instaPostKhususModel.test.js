@@ -7,10 +7,12 @@ jest.unstable_mockModule('../src/repository/db.js', () => ({
 
 let findByClientId;
 let getPostsByClientAndDateRange;
+let upsertInstaPost;
 beforeAll(async () => {
   ({
     findByClientId,
     getPostsByClientAndDateRange,
+    upsertInstaPost,
   } = await import('../src/model/instaPostKhususModel.js'));
 });
 
@@ -49,4 +51,23 @@ test('getPostsByClientAndDateRange supports start and end dates', async () => {
     '2024-01-01',
     '2024-01-31',
   ]);
+});
+
+
+test('upsertInstaPost khusus persists like_count in insert and update payload', async () => {
+  mockQuery.mockResolvedValueOnce({ rows: [] });
+
+  await upsertInstaPost({
+    client_id: 'C1',
+    shortcode: 'abc123',
+    caption: 'tes',
+    comment_count: 1,
+    like_count: 15,
+    created_at: '2026-01-01T10:00:00+07:00',
+  });
+
+  const [sql, params] = mockQuery.mock.calls[0];
+  expect(sql).toContain('INSERT INTO insta_post_khusus (client_id, shortcode, caption, comment_count, like_count');
+  expect(sql).toContain('like_count = EXCLUDED.like_count');
+  expect(params[4]).toBe(15);
 });

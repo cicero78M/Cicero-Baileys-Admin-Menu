@@ -9,7 +9,10 @@ import {
   findPostByShortcode as findKhususPostByShortcode,
   upsertInstaPost as upsertInstaPostKhusus,
 } from "../../model/instaPostKhususModel.js";
-import { upsertInstaPost } from "../../model/instaPostModel.js";
+import {
+  upsertInstaPost,
+  findPostByShortcode as findMainPostByShortcode,
+} from "../../model/instaPostModel.js";
 import { extractInstagramShortcode } from "../../utils/utilsHelper.js";
 import { getCurrentJakartaTimestamp } from "../../utils/jakartaDateTime.js";
 
@@ -376,11 +379,18 @@ export async function fetchSinglePostKhusus(linkOrCode, clientId) {
 
   const info = await fetchInstagramPostInfo(code);
   if (!info) throw new Error('post not found');
+  const mappedLikeCount =
+    Number.isFinite(Number(info.like_count))
+      ? Number(info.like_count)
+      : Number.isFinite(Number(info.likeCount))
+      ? Number(info.likeCount)
+      : 0;
   const data = {
     client_id: clientId,
     shortcode: code,
     caption: info.caption?.text || info.caption || null,
     comment_count: info.comment_count || 0,
+    like_count: mappedLikeCount,
     thumbnail_url:
       info.thumbnail_url ||
       info.display_url ||
@@ -398,10 +408,21 @@ export async function fetchSinglePostKhusus(linkOrCode, clientId) {
   }; 
   await upsertInstaPostKhusus(data);
   await upsertInstaPost(data);
+
+  const storedPost = await findMainPostByShortcode(code);
+  const persistedLikeCount =
+    Number.isFinite(Number(storedPost?.like_count))
+      ? Number(storedPost.like_count)
+      : mappedLikeCount;
+
   try {
     await savePostWithMedia(info);
   } catch (e) {
     sendDebug({ tag: 'IG FETCH', msg: `ext save error ${e.message}` });
   }
-  return data;
+
+  return {
+    ...data,
+    like_count: persistedLikeCount,
+  };
 }
