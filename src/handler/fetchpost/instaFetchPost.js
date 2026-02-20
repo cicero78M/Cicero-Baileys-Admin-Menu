@@ -392,6 +392,8 @@ export async function fetchSinglePostKhusus(linkOrCode, clientId) {
     source_type: "manual_input",
   }; 
   await upsertInstaPostKhusus(data);
+  // Main insta_post memakai merge terkontrol di layer model:
+  // marker manual tetap idempoten dan original_created_at tidak hilang saat overlap cron/manual.
   await upsertInstaPost(data);
 
   const storedPost = await findMainPostByShortcode(code);

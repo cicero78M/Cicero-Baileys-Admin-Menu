@@ -155,11 +155,11 @@ Stores Instagram posts fetched for a client.
 - `image_url` – link to image file
 - `images_url` – JSON array of all image URLs when the post is a carousel
 - `is_carousel` – boolean indicating whether the post contains multiple images
-- `source_type` – marker asal data: `cron_fetch` atau `manual_input`
-- `created_at` – timestamp input data (acuan filter harian)
-- `original_created_at` – timestamp publish asli konten dari platform (opsional)
+- `source_type` – marker asal data: `cron_fetch` atau `manual_input` (merge konflik per `shortcode` bersifat idempoten untuk manual: jika salah satu jalur sudah `manual_input`, hasil akhir tetap `manual_input`)
+- `created_at` – timestamp input data (acuan filter harian). Untuk konflik data `manual_input` vs `cron_fetch`, row manual mempertahankan `created_at` agar urutan menu manual harian stabil.
+- `original_created_at` – timestamp publish asli konten dari platform (opsional, menjadi sumber publish time utama saat analisis usia konten). Konflik upsert memakai merge non-destruktif `COALESCE(new, existing)` supaya nilai lama tidak hilang saat payload baru kosong.
 - Untuk input manual WA menu **4️⃣6️⃣** (dirrequest), `created_at` disimpan
-  dalam datetime Asia/Jakarta (`+07:00`) pada saat bot memproses input.
+  pada saat bot memproses input dan tetap menjadi acuan query harian.
 
 ### `insta_post_khusus`
 Stores curated Instagram posts for khusus audiences.

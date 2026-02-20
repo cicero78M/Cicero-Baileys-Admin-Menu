@@ -63,9 +63,20 @@ export async function upsertInstaPost(data) {
           image_url = EXCLUDED.image_url,
           images_url = EXCLUDED.images_url,
           is_carousel = EXCLUDED.is_carousel,
-          source_type = EXCLUDED.source_type,
-          created_at = EXCLUDED.created_at,
-          original_created_at = EXCLUDED.original_created_at`,
+          source_type = CASE
+            WHEN COALESCE(insta_post.source_type, 'cron_fetch') = 'manual_input'
+              OR EXCLUDED.source_type = 'manual_input'
+            THEN 'manual_input'
+            ELSE EXCLUDED.source_type
+          END,
+          created_at = CASE
+            WHEN COALESCE(insta_post.source_type, 'cron_fetch') = 'manual_input'
+              THEN insta_post.created_at
+            WHEN EXCLUDED.source_type = 'manual_input'
+              THEN EXCLUDED.created_at
+            ELSE EXCLUDED.created_at
+          END,
+          original_created_at = COALESCE(EXCLUDED.original_created_at, insta_post.original_created_at)`,
     [
       client_id,
       shortcode,
