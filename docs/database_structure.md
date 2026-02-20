@@ -155,7 +155,8 @@ Stores Instagram posts fetched for a client.
 - `images_url` – JSON array of all image URLs when the post is a carousel
 - `is_carousel` – boolean indicating whether the post contains multiple images
 - `source_type` – marker asal data: `cron_fetch` atau `manual_input`
-- `created_at` – timestamp of the post
+- `created_at` – timestamp input data (acuan filter harian)
+- `original_created_at` – timestamp publish asli konten dari platform (opsional)
 - Untuk input manual WA menu **4️⃣6️⃣** (dirrequest), `created_at` disimpan
   dalam datetime Asia/Jakarta (`+07:00`) pada saat bot memproses input.
 
@@ -199,13 +200,14 @@ Data for TikTok videos associated with a client.
 - `client_id` – foreign key to `clients`
 - `caption`, `like_count`, `comment_count`
 - `source_type` – data origin marker: `cron_fetch` (hasil fetch akun resmi) atau `manual_input` (input link/video ID operator)
-- `created_at`
+- `created_at` – timestamp input data (acuan filter harian)
+- `original_created_at` – timestamp publish asli konten dari platform (opsional)
 
 **Catatan sumber manual:**
 - Saat operator memakai menu WA **4️⃣7️⃣ Input TikTok post manual**, row disimpan
   melalui upsert dengan `source_type = 'manual_input'`.
 - Nilai `created_at` pada input manual menu **4️⃣7️⃣** direkam dengan datetime
-  Asia/Jakarta (`+07:00`) agar selaras dengan filter tanggal harian WIB.
+  Asia/Jakarta (`+07:00`) agar selaras dengan filter tanggal harian WIB (tetap menjadi acuan query “hari ini”, bukan `original_created_at`).
 - Pipeline fetch rutin akun resmi tetap mengisi row `source_type = 'cron_fetch'`.
 - Modul rekap/task melakukan deduplikasi berdasarkan kunci konten
   (`shortcode`/`video_id`) agar overlap official vs manual tidak dihitung ganda.

@@ -15,12 +15,13 @@ export async function upsertInstaPost(data) {
     image_url = null,
     images_url = null,
     is_carousel = false,
+    original_created_at = null,
   } = data;
 
   // created_at bisa dihandle via taken_at di service (lihat service)
   await query(
-    `INSERT INTO insta_post_khusus (client_id, shortcode, caption, comment_count, like_count, thumbnail_url, is_video, video_url, image_url, images_url, is_carousel, created_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,COALESCE($12, NOW()))
+    `INSERT INTO insta_post_khusus (client_id, shortcode, caption, comment_count, like_count, thumbnail_url, is_video, video_url, image_url, images_url, is_carousel, created_at, original_created_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,COALESCE($12, NOW()), $13)
      ON CONFLICT (shortcode) DO UPDATE
       SET client_id = EXCLUDED.client_id,
           caption = EXCLUDED.caption,
@@ -32,8 +33,23 @@ export async function upsertInstaPost(data) {
           image_url = EXCLUDED.image_url,
           images_url = EXCLUDED.images_url,
           is_carousel = EXCLUDED.is_carousel,
-          created_at = EXCLUDED.created_at`,
-    [client_id, shortcode, caption, comment_count, like_count, thumbnail_url, is_video, video_url, image_url, JSON.stringify(images_url), is_carousel, data.created_at || null]
+          created_at = EXCLUDED.created_at,
+          original_created_at = EXCLUDED.original_created_at`,
+    [
+      client_id,
+      shortcode,
+      caption,
+      comment_count,
+      like_count,
+      thumbnail_url,
+      is_video,
+      video_url,
+      image_url,
+      JSON.stringify(images_url),
+      is_carousel,
+      data.created_at || null,
+      original_created_at,
+    ]
   );
 }
 

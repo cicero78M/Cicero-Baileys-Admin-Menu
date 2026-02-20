@@ -1,0 +1,8 @@
+ALTER TABLE IF EXISTS insta_post
+  ADD COLUMN IF NOT EXISTS original_created_at TIMESTAMPTZ NULL;
+
+ALTER TABLE IF EXISTS insta_post_khusus
+  ADD COLUMN IF NOT EXISTS original_created_at TIMESTAMPTZ NULL;
+
+ALTER TABLE IF EXISTS tiktok_post
+  ADD COLUMN IF NOT EXISTS original_created_at TIMESTAMPTZ NULL;

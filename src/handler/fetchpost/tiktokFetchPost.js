@@ -44,6 +44,32 @@ function isTodayJakarta(unixTimestamp) {
   return postDateJakarta === todayJakarta;
 }
 
+function resolveOriginalCreatedAtFromTiktok(post = {}) {
+  const rawValue = post?.createTime ?? post?.create_time ?? post?.timestamp ?? null;
+  if (rawValue === null || rawValue === undefined) return null;
+
+  if (typeof rawValue === "number" && Number.isFinite(rawValue)) {
+    return new Date(rawValue * 1000).toISOString();
+  }
+
+  if (typeof rawValue === "string") {
+    const trimmed = rawValue.trim();
+    if (!trimmed) return null;
+
+    const unixCandidate = Number(trimmed);
+    if (Number.isFinite(unixCandidate)) {
+      return new Date(unixCandidate * 1000).toISOString();
+    }
+
+    const parsed = new Date(trimmed);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed.toISOString();
+    }
+  }
+
+  return null;
+}
+
 function normalizeClientId(id) {
   return typeof id === "string" ? id.trim().toLowerCase() : id;
 }
@@ -128,6 +154,7 @@ export async function fetchAndStoreSingleTiktokPost(clientId, videoInput) {
     video_id: detail?.id || detail?.video_id || videoId,
     caption: detail?.desc || detail?.caption || "",
     created_at: manualUploadAt,
+    original_created_at: resolveOriginalCreatedAtFromTiktok(detail),
     like_count: likeCount,
     comment_count: commentCount,
     source_type: "manual_input",
@@ -401,6 +428,8 @@ export async function fetchAndStoreTiktokContent(
           typeof (post.createTime || post.create_time) === "number"
             ? new Date((post.createTime || post.create_time) * 1000)
             : null,
+        // Waktu publish asli dari platform TikTok.
+        original_created_at: resolveOriginalCreatedAtFromTiktok(post),
         like_count:
           post.stats?.diggCount ?? post.digg_count ?? post.like_count ?? 0,
         comment_count: post.stats?.commentCount ?? post.comment_count ?? 0,
