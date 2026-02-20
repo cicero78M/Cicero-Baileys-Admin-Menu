@@ -123,6 +123,7 @@ dirrequest tanpa langkah tambahan.
 - Untuk menu **4️⃣6️⃣** dan **4️⃣7️⃣**, timestamp `created_at` konten manual
   kini diset menggunakan datetime **Asia/Jakarta** (`+07:00`) saat operator
   mengirim input, agar konsisten dengan filter rekap/absensi harian WIB.
+- Sinkronisasi source tipe fetch kini mengikuti repository cronjob: `insta_post.source_type`/`tiktok_post.source_type` memakai nilai `manual_input` untuk input manual menu **4️⃣6️⃣**/**4️⃣7️⃣**, sedangkan proses terjadwal memakai `cron_fetch`.
 - Jika validasi gagal (format link/ID tidak sesuai) atau proses fetch gagal,
   bot mengirim pesan error yang jelas lalu tetap mengembalikan sesi ke menu
   utama agar alur UX stabil.
