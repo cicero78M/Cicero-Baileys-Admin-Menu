@@ -249,3 +249,40 @@ If you encounter issues:
 ✅ **All tests passing**
 
 To enable access for `6281235114745`, simply add it to `ADMIN_WHATSAPP` in your `.env` file and restart the application.
+
+---
+
+## Instagram `created_at` Timezone Contract (UTC Storage, Jakarta Read)
+
+Mulai perubahan ini, kontrak waktu untuk tabel `insta_post` distandarkan sebagai berikut:
+
+1. **Simpan `insta_post.created_at` sebagai UTC eksplisit**
+   - Input `created_at` dinormalisasi ke ISO UTC (`toISOString`) sebelum dikirim ke query.
+   - SQL insert menggunakan konversi eksplisit `($13::timestamptz AT TIME ZONE 'UTC')` sehingga nilai yang tersimpan konsisten terhadap kontrak UTC.
+
+2. **Baca/filter harian selalu lewat helper SQL yang sama**
+   - Gunakan helper di `src/utils/instagramCreatedAtSql.js` sebagai **single source of truth**.
+   - Pola baku untuk tanggal Jakarta:
+
+```sql
+((created_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Jakarta')::date
+```
+
+3. **Dilarang mencampur pola lama untuk query harian IG**
+   - Hindari campuran seperti:
+     - `created_at::date`
+     - `(created_at AT TIME ZONE 'Asia/Jakarta')::date`
+   - Untuk kebutuhan harian IG, wajib pakai helper UTC→Jakarta di atas.
+
+### Contoh Query Baku (Wajib Dipakai)
+
+```sql
+SELECT shortcode
+FROM insta_post
+WHERE client_id = $1
+  AND ((created_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Jakarta')::date = $2::date;
+```
+
+### Catatan Boundary Waktu
+
+Regresi yang pernah terjadi: post yang secara UTC berada dekat pergantian hari tidak terambil oleh filter "hari ini" Jakarta (contoh sekitar `23:30 UTC`, yang termasuk hari berikutnya di WIB). Test unit boundary ditambahkan agar kasus "No content today" bisa terdeteksi sejak dini.

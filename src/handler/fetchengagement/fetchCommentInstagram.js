@@ -5,6 +5,10 @@ import { fetchAllInstagramComments } from '../../service/instagramApi.js';
 import { insertIgPostComments } from '../../model/igPostCommentModel.js';
 import { upsertIgUser } from '../../model/instaPostExtendedModel.js';
 import * as clientService from '../../service/clientService.js';
+import {
+  getInstagramCreatedAtJakartaDateSql,
+  getNormalizedInstagramSourceTypeSql,
+} from '../../utils/instagramCreatedAtSql.js';
 
 const limit = pLimit(3);
 
@@ -44,10 +48,10 @@ export async function handleFetchKomentarInstagram(
       `SELECT shortcode
        FROM insta_post
        WHERE client_id = $1
-         AND (created_at AT TIME ZONE 'Asia/Jakarta')::date = $2::date
+         AND ${getInstagramCreatedAtJakartaDateSql('created_at')} = $2::date
          AND (
            $3::boolean = false OR
-           REPLACE(REPLACE(COALESCE(LOWER(TRIM(source_type)), 'cron_fetch'), ' ', '_'), '-', '_') IN ('manual_input', 'manual_fetch')
+           ${getNormalizedInstagramSourceTypeSql('source_type')} IN ('manual_input', 'manual_fetch')
          )`,
       [client_id, todayJakarta, filterManualOnly]
     );
