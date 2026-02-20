@@ -11,6 +11,7 @@ import {
 } from "../../model/instaPostKhususModel.js";
 import { upsertInstaPost } from "../../model/instaPostModel.js";
 import { extractInstagramShortcode } from "../../utils/utilsHelper.js";
+import { getCurrentJakartaTimestamp } from "../../utils/jakartaDateTime.js";
 
 const ADMIN_WHATSAPP = (process.env.ADMIN_WHATSAPP || "")
   .split(",")

@@ -3321,7 +3321,7 @@ export const dirRequestHandlers = {
         `Sumber : manual`,
         `Client : ${result.clientId || targetClientId}`,
         `Video ID : ${result.videoId || "-"}`,
-        `Tanggal post : ${formatManualPostDate(result.createdAt)}`,
+        `Waktu upload manual : ${formatManualPostDate(result.createdAt)}`,
         `Likes : ${result.likeCount ?? 0}`,
         `Komentar : ${result.commentCount ?? 0}`,
         `Caption : ${sanitizeManualCaption(result.caption)}`,
