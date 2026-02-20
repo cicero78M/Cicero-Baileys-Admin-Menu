@@ -127,7 +127,6 @@ export async function getShortcodesTodayByClient(identifier) {
       `  FROM insta_post p\n` +
       `  WHERE LOWER(p.client_id) = LOWER($1)\n` +
       `    AND ${getJakartaDateSql('p.created_at')} = $2::date\n` +
-      `    AND REPLACE(REPLACE(COALESCE(LOWER(TRIM(p.source_type)), 'cron_fetch'), ' ', '_'), '-', '_') IN ('manual_input', 'manual_fetch')\n` +
       `) merged\n` +
       `ORDER BY created_at ASC, shortcode ASC`;
     params = [identifier, today];

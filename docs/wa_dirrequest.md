@@ -229,7 +229,7 @@ dirrequest tanpa langkah tambahan.
   dilewati kecuali dipaksa manual sebelum 17.00 WIB.
 
 ## Absensi Likes Instagram (Format Dirrequest)
-- Sumber shortcode Instagram untuk absensi likes kini menyertakan gabungan post hasil relasi role (`insta_post_roles`) **dan** post manual (`source_type=manual_input/manual_fetch`) milik client direktorat terpilih pada hari berjalan (WIB). Dampaknya, menu **6️⃣** (Absensi like Direktorat/Bidang Simple) dan menu **4️⃣8️⃣** (Absensi Instagram Jajaran) menghitung post manual dengan mekanisme yang sama seperti input manual menu **4️⃣6️⃣**.
+- Sumber shortcode Instagram untuk absensi likes kini menyertakan gabungan post hasil relasi role (`insta_post_roles`) **dan** seluruh post milik `client_id` direktorat terpilih pada hari berjalan (WIB), termasuk hasil cronjob maupun input manual. Mekanisme ini disamakan dengan pengambilan post harian di cronjob report agar menu **6️⃣** (Absensi like Direktorat/Bidang Simple) dan menu **4️⃣8️⃣** (Absensi Instagram Jajaran) tidak kehilangan post yang tersimpan via jalur non-manual.
 - Khusus laporan menu **4️⃣8️⃣** dan **4️⃣9️⃣**, label ringkasan serta detail satker diubah dari **"Sudah Melaksanakan"** menjadi **"Melaksanakan Lengkap"** agar konsisten dengan kategori pelaksanaan lengkap vs kurang lengkap.
 
 - Submenu **6️⃣ (Simple)** kini memakai filtering personil yang sama dengan
