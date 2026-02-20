@@ -192,6 +192,33 @@ test('baileys adapter sends media message', async () => {
   );
 });
 
+test('baileys adapter retries send message on timed out waiting for message', async () => {
+  const client = await createBaileysClient();
+
+  mockSock.sendMessage
+    .mockRejectedValueOnce(new Error('timed out waiting for message'))
+    .mockResolvedValueOnce({
+      key: { id: 'retry-ok' },
+      messageTimestamp: 1234567890,
+    });
+
+  await client.sendMessage('1234567890@s.whatsapp.net', 'Retry message');
+
+  expect(mockSock.sendMessage).toHaveBeenCalledTimes(2);
+});
+
+test('baileys adapter does not retry non-timeout send message errors', async () => {
+  const client = await createBaileysClient();
+
+  mockSock.sendMessage.mockRejectedValueOnce(new Error('forbidden'));
+
+  await expect(
+    client.sendMessage('1234567890@s.whatsapp.net', 'Fail fast')
+  ).rejects.toThrow('forbidden');
+
+  expect(mockSock.sendMessage).toHaveBeenCalledTimes(1);
+});
+
 test('baileys adapter handles QR code generation', async () => {
   const client = await createBaileysClient();
   

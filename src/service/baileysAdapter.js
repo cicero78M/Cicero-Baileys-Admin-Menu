@@ -62,6 +62,31 @@ function writeStructuredLog(level, payload, options = {}) {
 
 const DEFAULT_AUTH_DATA_DIR = 'baileys_auth';
 const DEFAULT_AUTH_DATA_PARENT_DIR = '.cicero';
+const DEFAULT_SEND_MESSAGE_RETRY_COUNT = 2;
+const DEFAULT_SEND_MESSAGE_RETRY_DELAY_MS = 1500;
+
+function parsePositiveIntegerEnv(varName, fallback) {
+  const raw = process.env[varName];
+  if (!raw) return fallback;
+
+  const parsed = Number.parseInt(raw, 10);
+  if (Number.isNaN(parsed) || parsed < 0) {
+    writeStructuredLog('warn', buildStructuredLog({
+      clientId: 'global',
+      event: 'invalid_env_value',
+      envVar: varName,
+      value: raw,
+      fallback,
+    }));
+    return fallback;
+  }
+
+  return parsed;
+}
+
+function isTimedOutWaitingForMessageError(err) {
+  return typeof err?.message === 'string' && err.message.includes('timed out waiting for message');
+}
 
 function resolveDefaultAuthDataPath() {
   const homeDir = os.homedir?.();
@@ -167,6 +192,14 @@ export async function createBaileysClient(clientId = 'wa-admin') {
   let qrCode = null;
   let connectionRetries = 0;
   const maxConnectionRetries = 3;
+  const sendMessageRetryCount = parsePositiveIntegerEnv(
+    'WA_BAILEYS_SEND_RETRY_COUNT',
+    DEFAULT_SEND_MESSAGE_RETRY_COUNT
+  );
+  const sendMessageRetryDelayMs = parsePositiveIntegerEnv(
+    'WA_BAILEYS_SEND_RETRY_DELAY_MS',
+    DEFAULT_SEND_MESSAGE_RETRY_DELAY_MS
+  );
 
   // Internal event handlers
   let internalMessageHandler = null;
@@ -425,42 +458,54 @@ export async function createBaileysClient(clientId = 'wa-admin') {
         jid,
       }), { debugOnly: true });
 
-      try {
-        // Handle different content types
-        if (typeof content === 'string') {
-          // Text message
-          const result = await sock.sendMessage(jid, { text: content });
-          return normalizeOutgoingMessage(result);
-        } else if (content.mimetype) {
-          // Media message (MessageMedia-like object)
-          const mediaType = getMediaType(content.mimetype);
-          const mediaBuffer = Buffer.from(content.data, 'base64');
-          
-          const mediaMessage = {
-            [mediaType]: mediaBuffer,
-            mimetype: content.mimetype,
-          };
+      let payload;
+      if (typeof content === 'string') {
+        payload = { text: content };
+      } else if (content.mimetype) {
+        const mediaType = getMediaType(content.mimetype);
+        const mediaBuffer = Buffer.from(content.data, 'base64');
 
-          if (content.filename) {
-            mediaMessage.fileName = content.filename;
-          }
+        payload = {
+          [mediaType]: mediaBuffer,
+          mimetype: content.mimetype,
+        };
 
-          if (options.caption) {
-            mediaMessage.caption = options.caption;
-          }
-
-          const result = await sock.sendMessage(jid, mediaMessage);
-          return normalizeOutgoingMessage(result);
+        if (content.filename) {
+          payload.fileName = content.filename;
         }
-      } catch (err) {
-        writeStructuredLog('error', buildStructuredLog({
-          clientId,
-          event: 'send_message_error',
-          jid,
-          error: err.message,
-        }));
-        throw err;
+
+        if (options.caption) {
+          payload.caption = options.caption;
+        }
       }
+
+      for (let attempt = 0; attempt <= sendMessageRetryCount; attempt++) {
+        try {
+          const result = await sock.sendMessage(jid, payload);
+          return normalizeOutgoingMessage(result);
+        } catch (err) {
+          const isRetryable = isTimedOutWaitingForMessageError(err) && attempt < sendMessageRetryCount;
+
+          writeStructuredLog(isRetryable ? 'warn' : 'error', buildStructuredLog({
+            clientId,
+            event: isRetryable ? 'send_message_retry' : 'send_message_error',
+            jid,
+            error: err.message,
+            attempt: attempt + 1,
+            maxAttempts: sendMessageRetryCount + 1,
+          }));
+
+          if (!isRetryable) {
+            throw err;
+          }
+
+          if (sendMessageRetryDelayMs > 0) {
+            await delay(sendMessageRetryDelayMs);
+          }
+        }
+      }
+
+      throw new Error('sendMessage failed unexpectedly without error details');
     },
 
     async sendSeen(jid) {
