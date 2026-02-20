@@ -71,30 +71,30 @@ export async function deletePostByVideoId(video_id) {
 export async function upsertTiktokPosts(client_id, posts) {
   if (!Array.isArray(posts)) return;
   for (const post of posts) {
-    const source =
-      typeof post?.source === "string" && post.source.trim().toLowerCase() === "manual"
-        ? "manual"
-        : "official";
     await query(
-      `INSERT INTO tiktok_post (client_id, video_id, caption, like_count, comment_count, source, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, (COALESCE($7::timestamptz, NOW()) AT TIME ZONE 'UTC'))
+      `INSERT INTO tiktok_post (client_id, video_id, caption, like_count, comment_count, created_at, source_type)
+       VALUES ($1, $2, $3, $4, $5, (COALESCE($6::timestamptz, NOW()) AT TIME ZONE 'UTC'), $7)
        ON CONFLICT (video_id) DO UPDATE
          SET client_id = EXCLUDED.client_id,
              caption = EXCLUDED.caption,
              like_count = EXCLUDED.like_count,
              comment_count = EXCLUDED.comment_count,
-             source = EXCLUDED.source,
-             created_at = EXCLUDED.created_at`,
+             created_at = EXCLUDED.created_at,
+             source_type = EXCLUDED.source_type`,
       [
         client_id,
         post.video_id || post.id,
         post.desc || post.caption || "",
         post.digg_count ?? post.like_count ?? 0,
         post.comment_count ?? 0,
-        source,
         normalizeUtcCreatedAt(
           post.created_at || post.create_time || post.createTime || null
         ),
+        post.source_type ||
+          (typeof post?.source === "string" &&
+          post.source.trim().toLowerCase() === "manual"
+            ? "manual_input"
+            : "cron_fetch"),
       ]
     );
   }
@@ -118,27 +118,22 @@ export async function upsertTiktokPostWithStatus({
   caption,
   like_count,
   comment_count,
-  source,
+  source_type,
   created_at,
 }) {
   const normalizedVideoId = (video_id || "").trim();
   if (!normalizedVideoId) return { inserted: false, updated: false };
 
-  const normalizedSource =
-    typeof source === "string" && source.trim().toLowerCase() === "manual"
-      ? "manual"
-      : "official";
-
   const res = await query(
-    `INSERT INTO tiktok_post (client_id, video_id, caption, like_count, comment_count, source, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6, (COALESCE($7::timestamptz, NOW()) AT TIME ZONE 'UTC'))
+    `INSERT INTO tiktok_post (client_id, video_id, caption, like_count, comment_count, created_at, source_type)
+     VALUES ($1, $2, $3, $4, $5, (COALESCE($6::timestamptz, NOW()) AT TIME ZONE 'UTC'), $7)
      ON CONFLICT (video_id) DO UPDATE
        SET client_id = EXCLUDED.client_id,
            caption = EXCLUDED.caption,
            like_count = EXCLUDED.like_count,
            comment_count = EXCLUDED.comment_count,
-           source = EXCLUDED.source,
-           created_at = EXCLUDED.created_at
+           created_at = EXCLUDED.created_at,
+           source_type = EXCLUDED.source_type
      RETURNING xmax = '0'::xid AS inserted`,
     [
       client_id,
@@ -146,8 +141,8 @@ export async function upsertTiktokPostWithStatus({
       caption || "",
       toInteger(like_count) ?? 0,
       toInteger(comment_count) ?? 0,
-      normalizedSource,
       normalizeUtcCreatedAt(created_at || null),
+      source_type || 'cron_fetch',
     ]
   );
 
@@ -195,7 +190,7 @@ export async function getOfficialPostsTodayByClient(client_id, referenceDate) {
   const res = await query(
     `SELECT * FROM tiktok_post
      WHERE LOWER(TRIM(client_id)) = $1
-       AND COALESCE(LOWER(TRIM(source)), 'official') <> 'manual'
+       AND COALESCE(LOWER(TRIM(source_type)), 'cron_fetch') <> 'manual_input'
        AND ${jakartaDateCast("created_at")}::date = $2::date
      ORDER BY created_at ASC, video_id ASC`,
     [normalizedId, targetDate]
@@ -209,7 +204,7 @@ export async function getManualPostsTodayByClient(client_id, referenceDate) {
   const res = await query(
     `SELECT * FROM tiktok_post
      WHERE LOWER(TRIM(client_id)) = $1
-       AND COALESCE(LOWER(TRIM(source)), 'official') = 'manual'
+       AND COALESCE(LOWER(TRIM(source_type)), 'cron_fetch') = 'manual_input'
        AND ${jakartaDateCast("created_at")}::date = $2::date
      ORDER BY created_at ASC, video_id ASC`,
     [normalizedId, targetDate]

@@ -130,7 +130,7 @@ export async function fetchAndStoreSingleTiktokPost(clientId, videoInput) {
     created_at: manualUploadAt,
     like_count: likeCount,
     comment_count: commentCount,
-    source: "manual",
+    source_type: "manual_input",
   };
 
   await upsertTiktokPosts(dbClientId, [postPayload]);

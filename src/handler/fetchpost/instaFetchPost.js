@@ -360,7 +360,7 @@ export async function fetchAndStoreInstaContent(
 export async function fetchSinglePostKhusus(linkOrCode, clientId) {
   const code = extractInstagramShortcode(linkOrCode);
   if (!code) throw new Error('invalid link');
-  const manualUploadAt = new Date().toISOString();
+  const manualUploadAt = getCurrentJakartaTimestamp();
 
   const existingKhususPost = await findKhususPostByShortcode(code);
   if (
@@ -393,7 +393,8 @@ export async function fetchSinglePostKhusus(linkOrCode, clientId) {
       : null,
     is_carousel: Array.isArray(info.carousel_media) && info.carousel_media.length > 1,
     // Khusus menu 46 (input manual): created_at merekam waktu upload manual oleh bot.
-    created_at: manualUploadAt
+    created_at: manualUploadAt,
+    source_type: "manual_input",
   }; 
   await upsertInstaPostKhusus(data);
   await upsertInstaPost(data);
