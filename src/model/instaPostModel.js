@@ -114,11 +114,22 @@ export async function getShortcodesTodayByClient(identifier) {
 
   if (useRoleFilter) {
     sql =
-      `SELECT p.shortcode FROM insta_post p\n` +
-      `JOIN insta_post_roles pr ON pr.shortcode = p.shortcode\n` +
-      `WHERE LOWER(pr.role_name) = LOWER($1)\n` +
-      `  AND ${getJakartaDateSql('p.created_at')} = $2::date\n` +
-      `ORDER BY p.created_at ASC, p.shortcode ASC`;
+      `SELECT shortcode FROM (\n` +
+      `  SELECT p.shortcode, p.created_at\n` +
+      `  FROM insta_post p\n` +
+      `  JOIN insta_post_roles pr ON pr.shortcode = p.shortcode\n` +
+      `  WHERE LOWER(pr.role_name) = LOWER($1)\n` +
+      `    AND ${getJakartaDateSql('p.created_at')} = $2::date\n` +
+      `\n` +
+      `  UNION\n` +
+      `\n` +
+      `  SELECT p.shortcode, p.created_at\n` +
+      `  FROM insta_post p\n` +
+      `  WHERE LOWER(p.client_id) = LOWER($1)\n` +
+      `    AND ${getJakartaDateSql('p.created_at')} = $2::date\n` +
+      `    AND REPLACE(REPLACE(COALESCE(LOWER(TRIM(p.source_type)), 'cron_fetch'), ' ', '_'), '-', '_') IN ('manual_input', 'manual_fetch')\n` +
+      `) merged\n` +
+      `ORDER BY created_at ASC, shortcode ASC`;
     params = [identifier, today];
   } else {
     sql =
