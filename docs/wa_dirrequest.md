@@ -80,6 +80,11 @@ dirrequest tanpa langkah tambahan.
 - Opsi **5️⃣0️⃣** memanggil handler fetch likes Instagram dengan filter
   `source_type=manual_input` sehingga hanya konten manual pada tanggal berjalan
   (WIB) untuk `client_id` yang sedang dipilih di sesi dirrequest yang diambil.
+- Pada pipeline opsi **5️⃣0️⃣**, setelah likes selesai, enrichment komentar
+  Instagram dijalankan tanpa batas halaman eksplisit (`maxPage=0`) agar semua
+  komentar post ikut terambil. Proses dihentikan saat pagination habis
+  (`has_more=false`/token kosong), token pagination berulang, atau 4 halaman
+  berturut-turut tidak menghasilkan username komentar (guard anti-loop).
 - Saat menu **5️⃣0️⃣** tidak menemukan post (`rows.length === 0`), bot tetap mengirim
   pesan WA yang ringkas ke operator, sementara server mencatat log diagnostik
   internal dengan tag `IG FETCH LIKES DIAGNOSTIC` yang berisi:
