@@ -360,7 +360,7 @@ export async function fetchAndStoreInstaContent(
 export async function fetchSinglePostKhusus(linkOrCode, clientId) {
   const code = extractInstagramShortcode(linkOrCode);
   if (!code) throw new Error('invalid link');
-  const manualUploadAt = getCurrentJakartaTimestamp();
+  const manualUploadAt = new Date().toISOString();
 
   const existingKhususPost = await findKhususPostByShortcode(code);
   if (
