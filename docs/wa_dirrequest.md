@@ -80,6 +80,15 @@ dirrequest tanpa langkah tambahan.
 - Opsi **5️⃣0️⃣** memanggil handler fetch likes Instagram dengan filter
   `source_type=manual_input` sehingga hanya konten manual pada tanggal berjalan
   (WIB) untuk `client_id` yang sedang dipilih di sesi dirrequest yang diambil.
+- Saat menu **5️⃣0️⃣** tidak menemukan post (`rows.length === 0`), bot tetap mengirim
+  pesan WA yang ringkas ke operator, sementara server mencatat log diagnostik
+  internal dengan tag `IG FETCH LIKES DIAGNOSTIC` yang berisi:
+  - tanggal filter yang dipakai (`filter_date`, WIB),
+  - agregat jumlah post per `source_type` untuk `client_id`,
+  - rentang `created_at` min/max pada hari berjalan,
+  - distribusi jumlah post per tanggal Jakarta (7 hari terakhir), dan
+  - ringkasan diagnosis awal: beda hari/timezone, source type tidak cocok,
+    atau data memang belum masuk.
 - Opsi **5️⃣1️⃣** memanggil handler fetch komentar TikTok dengan filter
   `source_type=manual_input` sehingga hanya konten manual pada tanggal berjalan
   (WIB) untuk `client_id` yang sedang dipilih di sesi dirrequest yang diambil.
@@ -154,11 +163,20 @@ dirrequest tanpa langkah tambahan.
   `manual_input`, dan pembacaan filter manual tetap menganggap keduanya setara
   agar data lama di database tetap tersaring di menu **5️⃣0️⃣**.
 - `created_at`: waktu konten **masuk ke sistem** saat operator mengirim input
-  manual (timestamp input operator) dan disimpan dalam format UTC.
-- **Kontrak timezone aktif (menu 4️⃣6️⃣/5️⃣0️⃣):** basis hari operasional tetap
-  Asia/Jakarta. Semua filter tanggal Instagram manual/harian memakai pola SQL
-  `((created_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Jakarta')::date` agar
-  klasifikasi hari WIB konsisten.
+  manual (timestamp input operator, WIB/+07:00).
+- **Kontrak timezone aktif (menu 4️⃣6️⃣/5️⃣0️⃣ - Opsi A):** kolom `insta_post.created_at` diperlakukan sebagai waktu lokal Jakarta. Karena itu, semua filter tanggal Instagram manual/harian harus memakai pola SQL `(created_at AT TIME ZONE 'Asia/Jakarta')::date` (tanpa konversi awal dari `UTC`) agar tidak terjadi pergeseran hari.
+- **Troubleshooting cepat menu 5️⃣0️⃣ (ops/internal):**
+  1. Jalankan menu **5️⃣0️⃣** dan cek log dengan tag `IG FETCH LIKES DIAGNOSTIC`.
+  2. Jika `diagnosis` menyebut *beda hari/timezone*, periksa bagian
+     `Distribusi tanggal Jakarta 7 hari terakhir` untuk memastikan post masuk di
+     tanggal WIB yang berbeda dari hari filter.
+  3. Jika `diagnosis` menyebut *source_type tidak cocok*, cocokkan nilai agregat
+     pada `Agregat source_type` (contoh ada `cron_fetch` tapi tidak ada
+     `manual_input/manual_fetch`).
+  4. Jika agregat seluruh `source_type` kosong dan rentang hari berjalan `null`,
+     berarti data post untuk client tersebut memang belum masuk ke `insta_post`.
+  5. Tindak lanjut tetap dilakukan di server/log; pesan WA ke operator cukup
+     memakai teks ringkas agar tidak membanjiri chat operasional.
 - `original_created_at`: waktu publish asli konten di platform
   Instagram/TikTok (timestamp asli post).
 - Dengan pemisahan ini, tim admin menu dapat memfilter berdasarkan waktu input

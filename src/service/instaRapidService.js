@@ -7,6 +7,7 @@ const RAPIDAPI_HOST = 'social-api4.p.rapidapi.com';
 const RAPIDAPI_FALLBACK_KEY = env.RAPIDAPI_FALLBACK_KEY;
 const RAPIDAPI_FALLBACK_HOST = env.RAPIDAPI_FALLBACK_HOST;
 const DEBUG_FETCH_IG = env.DEBUG_FETCH_INSTAGRAM;
+const INSTAGRAM_LIKES_MAX_PAGES = env.INSTAGRAM_LIKES_MAX_PAGES;
 
 function sendConsoleDebug(...args) {
   if (DEBUG_FETCH_IG) console.log('[DEBUG IG]', ...args);
@@ -363,33 +364,79 @@ export async function fetchInstagramLikesPageRetry(
   return { usernames: [], next_cursor: null, has_more: false };
 }
 
-export async function fetchAllInstagramLikes(shortcode, maxPage = 20) {
+function resolveLikesMaxPages(maxPage = 0) {
+  if (typeof maxPage === 'number' && maxPage > 0) return maxPage;
+  return INSTAGRAM_LIKES_MAX_PAGES > 0 ? INSTAGRAM_LIKES_MAX_PAGES : 0;
+}
+
+function shouldStopLikesPagination({ hasMore, cursor, page, maxPage }) {
+  if (!hasMore || !cursor) return true;
+  return maxPage > 0 && page >= maxPage;
+}
+
+export async function fetchAllInstagramLikes(shortcode, maxPage = 0) {
   const all = [];
+  const resolvedMaxPages = resolveLikesMaxPages(maxPage);
   let cursor = null;
   let page = 0;
+
   do {
     const { usernames, next_cursor, has_more } = await fetchInstagramLikesPageRetry(shortcode, cursor);
     if (!usernames.length) break;
     all.push(...usernames);
     cursor = next_cursor;
     page++;
-    if (!has_more || !cursor || page >= maxPage) break;
+
+    sendConsoleDebug('fetchAllInstagramLikes page', {
+      shortcode,
+      page,
+      fetched: usernames.length,
+      total: all.length,
+      has_more,
+      next_cursor,
+      resolvedMaxPages,
+    });
+
+    if (shouldStopLikesPagination({ hasMore: has_more, cursor, page, maxPage: resolvedMaxPages })) {
+      break;
+    }
+
+    await new Promise(resolve => setTimeout(resolve, 1200));
   } while (true);
+
   return all;
 }
 
-export async function fetchAllInstagramLikesItems(shortcode, maxPage = 100) {
+export async function fetchAllInstagramLikesItems(shortcode, maxPage = 0) {
   const all = [];
+  const resolvedMaxPages = resolveLikesMaxPages(maxPage);
   let cursor = null;
   let page = 0;
+
   do {
     const { items, next_cursor, has_more } = await fetchInstagramLikesPageRetry(shortcode, cursor);
     if (!items.length) break;
     all.push(...items);
     cursor = next_cursor;
     page++;
-    if (!has_more || !cursor || (maxPage && page >= maxPage)) break;
+
+    sendConsoleDebug('fetchAllInstagramLikesItems page', {
+      shortcode,
+      page,
+      fetched: items.length,
+      total: all.length,
+      has_more,
+      next_cursor,
+      resolvedMaxPages,
+    });
+
+    if (shouldStopLikesPagination({ hasMore: has_more, cursor, page, maxPage: resolvedMaxPages })) {
+      break;
+    }
+
+    await new Promise(resolve => setTimeout(resolve, 1200));
   } while (true);
+
   return all;
 }
 
