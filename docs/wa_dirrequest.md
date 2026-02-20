@@ -89,7 +89,7 @@ dirrequest tanpa langkah tambahan.
 - **Output konfirmasi sukses** memuat:
   - status berhasil,
   - `Sumber : manual`,
-  - `Client`, `Shortcode`, `Tanggal post`, `Likes`, `Komentar`, dan ringkasan
+  - `Client`, `Shortcode`, `Waktu upload manual`, `Likes`, `Komentar`, dan ringkasan
     `Caption`.
 
 #### 4️⃣7️⃣ Input TikTok post manual
@@ -111,7 +111,7 @@ dirrequest tanpa langkah tambahan.
 
 - Setelah simpan berhasil, bot mengirim ringkasan post yang ditambahkan
   (client, shortcode/video ID, tanggal post, likes, komentar, caption ringkas)
-  dengan penanda sumber **manual**.
+  dengan penanda sumber **manual**. Untuk Instagram manual (menu 4️⃣6️⃣), nilai `created_at` diset ke waktu upload manual bot (ISO timestamp), bukan waktu post asli dari platform.
 - Data manual tersebut juga dipakai oleh generator `generateSosmedTaskMessage`
   (`src/handler/fetchabsensi/sosmedTask.js`) pada blok **Segmen Tugas Khusus**.
   Output kini dipisah antara **Segmen Konten Resmi** dan **Segmen Tugas Khusus**,
