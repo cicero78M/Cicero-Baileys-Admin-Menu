@@ -124,6 +124,7 @@ dirrequest tanpa langkah tambahan.
   kini diset menggunakan datetime **Asia/Jakarta** (`+07:00`) saat operator
   mengirim input, agar konsisten dengan filter rekap/absensi harian WIB.
 - Sinkronisasi source tipe fetch kini mengikuti repository cronjob: `insta_post.source_type`/`tiktok_post.source_type` memakai nilai `manual_input` untuk input manual menu **4️⃣6️⃣**/**4️⃣7️⃣**, sedangkan proses terjadwal memakai `cron_fetch`.
+- Untuk input manual Instagram, pemetaan likes kini membaca beberapa kemungkinan field respons RapidAPI (`like_count` dan `likeCount`) agar nilai likes tidak hilang saat disimpan ke `insta_post_khusus` maupun `insta_post`, lalu ringkasan WA menampilkan nilai likes yang sudah tersimpan tersebut.
 - Jika validasi gagal (format link/ID tidak sesuai) atau proses fetch gagal,
   bot mengirim pesan error yang jelas lalu tetap mengembalikan sesi ke menu
   utama agar alur UX stabil.

@@ -9,12 +9,14 @@ let findByClientId;
 let getShortcodesTodayByClient;
 let getShortcodesYesterdayByClient;
 let countPostsByClient;
+let upsertInstaPost;
 beforeAll(async () => {
   ({
     findByClientId,
     getShortcodesTodayByClient,
     getShortcodesYesterdayByClient,
-    countPostsByClient
+    countPostsByClient,
+    upsertInstaPost
   } = await import('../src/model/instaPostModel.js'));
 });
 
@@ -167,4 +169,23 @@ test('countPostsByClient filters by regional_id when provided', async () => {
   const sql = mockQuery.mock.calls[1][0];
   expect(sql).toContain('JOIN clients c ON c.client_id = p.client_id');
   expect(sql).toContain('UPPER(c.regional_id) = $2');
+});
+
+
+test('upsertInstaPost persists like_count in insert and update payload', async () => {
+  mockQuery.mockResolvedValueOnce({ rows: [] });
+
+  await upsertInstaPost({
+    client_id: 'C1',
+    shortcode: 'abc123',
+    caption: 'tes',
+    comment_count: 4,
+    like_count: 88,
+    created_at: '2026-01-01T10:00:00+07:00',
+  });
+
+  const [sql, params] = mockQuery.mock.calls[0];
+  expect(sql).toContain('INSERT INTO insta_post (client_id, shortcode, caption, comment_count, like_count');
+  expect(sql).toContain('like_count = EXCLUDED.like_count');
+  expect(params[4]).toBe(88);
 });
