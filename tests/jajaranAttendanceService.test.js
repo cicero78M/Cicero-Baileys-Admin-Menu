@@ -188,6 +188,54 @@ describe('Instagram Jajaran Attendance', () => {
     }
   });
 
+
+  test('uses selected client content source when roleFlag mismatches', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+    mockFindClientById
+      .mockResolvedValueOnce({
+        client_id: 'DITINTELKAM',
+        nama: 'Direktorat Intelkam',
+        client_type: 'direktorat',
+      })
+      .mockResolvedValueOnce({
+        client_id: 'DITINTELKAM',
+        nama: 'Direktorat Intelkam',
+        client_type: 'direktorat',
+      });
+
+    mockGetShortcodesTodayByClient.mockResolvedValueOnce(['intelSc1']);
+    mockGetLikesSets.mockResolvedValueOnce([new Set(['inteluser'])]);
+    mockGetClientsByRole.mockResolvedValueOnce([]);
+    mockFindAllClientsByType.mockResolvedValueOnce([]);
+    mockGetUsersByDirektorat.mockResolvedValueOnce([
+      {
+        user_id: 'u1',
+        client_id: 'DITINTELKAM',
+        nama: 'Intel User',
+        insta: '@inteluser',
+        status: true,
+        divisi: 'BAG',
+      },
+    ]);
+
+    const result = await collectInstagramJajaranAttendance('DITINTELKAM', 'superadmin');
+
+    expect(result.kontenLinks).toContain('https://www.instagram.com/p/intelSc1');
+    expect(mockGetShortcodesTodayByClient).toHaveBeenCalledWith('DITINTELKAM');
+    expect(mockGetUsersByDirektorat).toHaveBeenCalledWith('ditintelkam', ['DITINTELKAM']);
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[JAJARAN_ATTENDANCE] roleFlag mismatch for direktorat scope',
+      expect.objectContaining({
+        selectedClientId: 'DITINTELKAM',
+        expectedRole: 'ditintelkam',
+        providedRoleFlag: 'superadmin',
+        fallbackRole: 'ditintelkam',
+      })
+    );
+
+    warnSpy.mockRestore();
+  });
   test('calculates execution percentage correctly', async () => {
     mockFindClientById
       .mockResolvedValueOnce({
