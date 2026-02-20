@@ -149,6 +149,9 @@ dirrequest tanpa langkah tambahan.
 ### Skema Data Input Manual (Kontrak Data)
 - `source_type=manual_input`: konten berasal dari input operator via menu
   **4️⃣6️⃣**/**4️⃣7️⃣**, bukan dari crawler berkala (`cron_fetch`).
+  Nilai ini adalah standar yang digunakan kode saat ini. Nilai legacy
+  `manual_fetch` tetap dianggap setara (dibaca sebagai manual) agar data
+  lama di database tetap tersaring di menu **5️⃣0️⃣**.
 - `created_at`: waktu konten **masuk ke sistem** saat operator mengirim input
   manual (timestamp input operator, WIB/+07:00).
 - `original_created_at`: waktu publish asli konten di platform

@@ -45,6 +45,20 @@ function normalizeUsername(username) {
     .toLowerCase();
 }
 
+function normalizeSourceType(sourceType) {
+  const normalized = (sourceType || "")
+    .toString()
+    .trim()
+    .toLowerCase()
+    .replace(/[-\s]+/g, "_");
+
+  if (normalized === "manual_input" || normalized === "manual_fetch") {
+    return "manual_input";
+  }
+
+  return normalized || "cron_fetch";
+}
+
 // Ambil likes lama (existing) dari database dan kembalikan sebagai array string
 async function getExistingLikes(shortcode) {
   const res = await query(
@@ -147,20 +161,23 @@ export async function handleFetchLikesInstagram(waClient, chatId, client_id, opt
       ? [...new Set(options.shortcodes.map((item) => String(item || "").trim()).filter(Boolean))]
       : [];
 
+    const sourceType = normalizeSourceType(options.sourceType);
     let rows = [];
     if (normalizedShortcodes.length) {
       rows = normalizedShortcodes.map((shortcode) => ({ shortcode }));
     } else {
       // Ambil semua post IG milik client hari ini
       const todayJakarta = getJakartaDateString();
-      const sourceType = (options.sourceType || "").toString().trim().toLowerCase();
       const filterManualOnly = sourceType === "manual_input";
       const { rows: fetchedRows } = await query(
         `SELECT shortcode
          FROM insta_post
          WHERE client_id = $1
            AND DATE((created_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Jakarta') = $2
-           AND ($3::boolean = false OR COALESCE(LOWER(TRIM(source_type)), 'cron_fetch') = 'manual_input')`,
+           AND (
+             $3::boolean = false OR
+             REPLACE(REPLACE(COALESCE(LOWER(TRIM(source_type)), 'cron_fetch'), ' ', '_'), '-', '_') IN ('manual_input', 'manual_fetch')
+           )`,
         [client_id, todayJakarta, filterManualOnly]
       );
       rows = fetchedRows;
@@ -168,7 +185,7 @@ export async function handleFetchLikesInstagram(waClient, chatId, client_id, opt
 
     if (!rows.length) {
       if (waClient && chatId) {
-        const emptyLabel = options.sourceType === "manual_input" ? "manual hari ini" : "hari ini";
+        const emptyLabel = sourceType === "manual_input" ? "manual hari ini" : "hari ini";
         await waClient.sendMessage(
           chatId,
           `Tidak ada konten IG ${emptyLabel} untuk client ${client_id}.`
