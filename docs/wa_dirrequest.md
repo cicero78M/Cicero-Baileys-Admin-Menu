@@ -900,3 +900,8 @@ berpindah ke dashboard web atau menjalankan skrip manual.
 - Menu rekap (**4️⃣0️⃣**, **4️⃣1️⃣**) hanya membaca database sehingga tetap dapat
   dipakai ketika RapidAPI tidak tersedia, selama data konten sudah ada di
   tabel yang disebutkan di atas.
+
+## Catatan kompatibilitas database (insta_post)
+- Query absensi dirrequest yang membaca daftar konten Instagram harian (`getShortcodesTodayByClient`, `getShortcodesYesterdayByClient`, dan `getPostsTodayByClient` di `src/model/instaPostModel.js`) sekarang difilter menggunakan `created_at` (tanggal Jakarta/WIB).
+- Alasan perubahan: beberapa deployment database belum memiliki kolom `insta_post.fetched_at`, sehingga filter berbasis `fetched_at` dapat memunculkan error `column p.fetched_at does not exist` saat menu absensi dijalankan.
+- Dampak operasional: menu absensi IG (termasuk menu 6 dan 48 di dirrequest) kembali mengikuti mekanisme tanggal konten berdasarkan struktur tabel yang sudah ada tanpa memerlukan perubahan skema tambahan.
