@@ -1,5 +1,5 @@
 # Panduan Operator WA Bot
-*Last updated: 2026-02-21*
+*Last updated: 2026-02-22*
 
 > Perubahan terbaru: menu *userrequest*, *bulk deletion*, dan *Response Komplain* pada alur WA bot telah dinonaktifkan/hapus.
 
@@ -92,6 +92,7 @@ Menu ini hanya muncul jika client memiliki kanal engagement yang aktif. Aturan a
   3. Jika `shortcode` sudah dipakai oleh `client_id` lain, input ditolak dengan pesan agar satker mengunggah konten melalui akun khusus miliknya sendiri.
   4. Jika valid, sistem mengambil metadata post Instagram dan menyimpan data ke `insta_post_khusus` serta sinkron ke `insta_post` untuk kebutuhan rekap lintas menu.
   5. Data input khusus ditandai sebagai sumber *manual input* (`source_type=manual_input`), `created_at` mencatat waktu upload dari bot, dan `original_created_at` menyimpan waktu publish asli dari Instagram. Balasan sukses mengembalikan link post dalam format kanonik `https://www.instagram.com/p/<shortcode>/`.
+  6. Query data tugas khusus harian pada menu laporan/absensi sekarang memakai tanggal **Asia/Jakarta** agar tidak bergeser hari ketika timezone server berbeda.
 - **Absensi Likes Instagram**
   1. Bot menampilkan rekap absensi likes Instagram untuk user operator berdasarkan mode (semua/sudah/belum).
   2. Mode akumulasi menampilkan daftar per satfung dengan sub-list *lengkap/kurang/belum* (lengkap = seluruh konten terpenuhi).

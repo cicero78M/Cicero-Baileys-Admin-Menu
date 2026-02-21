@@ -679,7 +679,12 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
           chatId,
           `⏳ Memulai fetch post engagement untuk client *${clientId}*...`
         );
-        await fetchAndStoreInstaContent(null, waClient, chatId, clientId);
+        await fetchAndStoreInstaContent(
+          INSTAGRAM_TASK_FETCH_FIELDS,
+          waClient,
+          chatId,
+          clientId
+        );
         await handleFetchLikesInstagram(waClient, chatId, clientId);
         await fetchAndStoreTiktokContent(clientId, waClient, chatId);
         await handleFetchKomentarTiktokBatch(waClient, chatId, clientId);
