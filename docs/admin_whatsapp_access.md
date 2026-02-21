@@ -61,6 +61,18 @@ Users can access the `oprrequest` menu through **three mechanisms** (checked in 
 
 The `dirrequest` menu is now **accessible from all WhatsApp numbers** without any authorization restrictions.
 
+### chakranarayana Menu
+
+Menu `chakranarayana` adalah jalur khusus turunan `dirrequest` dengan akses **tetap ke `client_id = DITINTELKAM`**.
+
+- Location: `src/service/waService.js`
+- Check: Client `DITINTELKAM` harus aktif di database
+- Behavior: Menampilkan submenu:
+  - `1` Direktorat → mengambil menu dirrequest: `3, 6, 9, 46, 47, 50, 51, 53` (diurutkan ulang)
+  - `2` Jajaran → mengambil menu dirrequest: `1, 48, 49` (diurutkan ulang)
+- Implementation: Dialihkan ke handler `dirRequestHandlers` melalui step `chakranarayana_choose_submenu`.
+
+
 - Location: `src/service/waService.js` line ~2451
 - Check: None (open access)
 - Behavior: Shows client selection menu for all active directorate clients
@@ -95,6 +107,21 @@ User selects a client
     ↓
 Access dirrequest menu for selected client
 ```
+
+### chakranarayana Access Flow
+
+```
+User sends "chakranarayana"
+    ↓
+Validate client DITINTELKAM aktif
+    ↓
+Show submenu: Direktorat / Jajaran
+    ↓
+Map nomor submenu ke nomor menu dirrequest asli
+    ↓
+Run aksi dirrequest sesuai mapping
+```
+
 
 ## Implementation Details
 
