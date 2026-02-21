@@ -1753,6 +1753,7 @@ export function createHandleMessage(waClient, options = {}) {
       const menuLabels = {
         oprrequest: "Menu Operator",
         dirrequest: "Menu Direktorat",
+        chakranarayana: "Menu Chakranarayana",
         clientrequest: "Menu Client",
         wabotditbinmas: "Menu Wabot Ditbinmas",
       };
@@ -1855,6 +1856,23 @@ export function createHandleMessage(waClient, options = {}) {
         "⚠️ Sesi menu dirrequest tidak dikenali. Ketik *dirrequest* ulang atau *batal*.",
       failureMessage:
         "❌ Terjadi kesalahan pada menu dirrequest. Ketik *dirrequest* ulang untuk memulai kembali.",
+    });
+    return;
+  }
+
+  if (session && session.menu === "chakranarayana") {
+    await runMenuHandler({
+      handlers: dirRequestHandlers,
+      menuName: "chakranarayana",
+      session,
+      chatId,
+      text,
+      waClient,
+      clientLabel,
+      invalidStepMessage:
+        "⚠️ Sesi menu chakranarayana tidak dikenali. Ketik *chakranarayana* ulang atau *batal*.",
+      failureMessage:
+        "❌ Terjadi kesalahan pada menu chakranarayana. Ketik *chakranarayana* ulang untuk memulai kembali.",
     });
     return;
   }
@@ -1996,6 +2014,50 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
         "⚠️ Sesi menu operator tidak dikenali. Ketik *oprrequest* ulang atau *batal*.",
       failureMessage:
         "❌ Terjadi kesalahan pada menu operator. Ketik *oprrequest* ulang untuk memulai kembali.",
+    });
+    return;
+  }
+
+  if (text.toLowerCase() === "chakranarayana") {
+    const ditintelkamClientId = "DITINTELKAM";
+    const selectedDirektorat = await clientService.findClientById(ditintelkamClientId);
+
+    if (!selectedDirektorat || !selectedDirektorat.client_status) {
+      await waClient.sendMessage(
+        chatId,
+        "❌ Client DITINTELKAM tidak aktif atau tidak ditemukan untuk menu chakranarayana."
+      );
+      return;
+    }
+
+    setSession(chatId, {
+      menu: "chakranarayana",
+      step: "chakranarayana_choose_submenu",
+      dir_clients: [
+        {
+          client_id: ditintelkamClientId,
+          nama: selectedDirektorat.nama || ditintelkamClientId,
+        },
+      ],
+      selectedClientId: ditintelkamClientId,
+      dir_client_id: ditintelkamClientId,
+      client_ids: [ditintelkamClientId],
+      clientName: selectedDirektorat.nama || ditintelkamClientId,
+      clientNameId: ditintelkamClientId,
+    });
+
+    await runMenuHandler({
+      handlers: dirRequestHandlers,
+      menuName: "chakranarayana",
+      session: getSession(chatId),
+      chatId,
+      text: "",
+      waClient,
+      clientLabel,
+      invalidStepMessage:
+        "⚠️ Sesi menu chakranarayana tidak dikenali. Ketik *chakranarayana* ulang atau *batal*.",
+      failureMessage:
+        "❌ Terjadi kesalahan pada menu chakranarayana. Ketik *chakranarayana* ulang untuk memulai kembali.",
     });
     return;
   }

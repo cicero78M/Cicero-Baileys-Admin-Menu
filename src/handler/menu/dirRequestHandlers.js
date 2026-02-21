@@ -187,6 +187,46 @@ const DIGIT_EMOJI = {
   "9": "9️⃣",
 };
 
+const CHAKRANARAYANA_MENU_GROUPS = {
+  direktorat: ["3", "6", "9", "46", "47", "50", "51", "53"],
+  jajaran: ["1", "48", "49"],
+};
+
+const CHAKRANARAYANA_MENU_LABELS = {
+  "1": "Rekap Kelengkapan data Personil Satker",
+  "3": "Rekap data personil",
+  "6": "Absensi like Direktorat/Bidang Simple",
+  "9": "Absensi komentar Direktorat/Bidang Simple",
+  "46": "Input IG post manual",
+  "47": "Input TikTok post manual",
+  "48": "Absensi Instagram Jajaran",
+  "49": "Absensi TikTok Jajaran",
+  "50": "Fetch likes IG manual (hari ini)",
+  "51": "Fetch komentar TikTok manual (hari ini)",
+  "53": "Hapus post tugas (auto IG/TikTok)",
+};
+
+const getChakranarayanaMenuText = (groupKey, groupLabel) => {
+  const menuCodes = CHAKRANARAYANA_MENU_GROUPS[groupKey] || [];
+  const orderedMenuCodes = [...menuCodes].sort((a, b) => Number(a) - Number(b));
+
+  const list = orderedMenuCodes
+    .map((menuCode, idx) => {
+      const localNumber = String(idx + 1);
+      const localLabel = DIGIT_EMOJI[localNumber] || `${localNumber}.`;
+      const menuLabel = CHAKRANARAYANA_MENU_LABELS[menuCode] || `Menu ${menuCode}`;
+      return `${localLabel} ${menuLabel} *(dirrequest ${menuCode})*`;
+    })
+    .join("\n");
+
+  return (
+    `*Menu Chakranarayana - ${groupLabel}*\n` +
+    "Nomor menu sudah diurutkan ulang khusus menu ini:\n" +
+    `${list}\n\n` +
+    "Balas *angka urut* untuk menjalankan menu, atau ketik *batal* untuk kembali."
+  );
+};
+
 const ENGAGEMENT_RECAP_MENU_TEXT = appendSubmenuBackInstruction(
   "Silakan pilih periode rekap ranking engagement jajaran:\n" +
     Object.entries(ENGAGEMENT_RECAP_PERIOD_MAP)
@@ -2863,6 +2903,60 @@ export async function runDirRequestAction({
 }
 
 export const dirRequestHandlers = {
+  async chakranarayana_choose_submenu(session, chatId, text, waClient) {
+    const choice = String(text || "").trim().toLowerCase();
+    if (!choice) {
+      await waClient.sendMessage(
+        chatId,
+        "*Menu Chakranarayana*\n1️⃣ Direktorat\n2️⃣ Jajaran\n\nBalas *angka* submenu atau ketik *batal* untuk keluar."
+      );
+      return;
+    }
+
+    if (choice === "batal") {
+      session.menu = null;
+      session.step = null;
+      await waClient.sendMessage(chatId, "✅ Menu chakranarayana ditutup.");
+      return;
+    }
+
+    const selectedGroup = choice === "1" ? "direktorat" : choice === "2" ? "jajaran" : null;
+    if (!selectedGroup) {
+      await waClient.sendMessage(chatId, "❌ Pilihan submenu tidak valid.");
+      return;
+    }
+
+    const menuCodes = CHAKRANARAYANA_MENU_GROUPS[selectedGroup] || [];
+    const orderedMenuCodes = [...menuCodes].sort((a, b) => Number(a) - Number(b));
+    session.chakranarayanaMenuMap = orderedMenuCodes;
+    session.allowedDirrequestMenuChoices = orderedMenuCodes;
+    session.step = "chakranarayana_choose_menu";
+    const groupLabel = selectedGroup === "direktorat" ? "Direktorat" : "Jajaran";
+    await waClient.sendMessage(chatId, getChakranarayanaMenuText(selectedGroup, groupLabel));
+  },
+
+  async chakranarayana_choose_menu(session, chatId, text, waClient) {
+    const choice = String(text || "").trim().toLowerCase();
+    if (choice === "batal") {
+      session.step = "chakranarayana_choose_submenu";
+      await dirRequestHandlers.chakranarayana_choose_submenu(session, chatId, "", waClient);
+      return;
+    }
+
+    const menuMap = Array.isArray(session.chakranarayanaMenuMap)
+      ? session.chakranarayanaMenuMap
+      : [];
+    const selectedIndex = Number(choice);
+    if (!Number.isInteger(selectedIndex) || selectedIndex < 1 || selectedIndex > menuMap.length) {
+      await waClient.sendMessage(chatId, "❌ Pilihan menu tidak valid. Ketik angka sesuai daftar.");
+      return;
+    }
+
+    const mappedMenuChoice = menuMap[selectedIndex - 1];
+    session.step = "choose_menu";
+    await dirRequestHandlers.choose_menu(session, chatId, mappedMenuChoice, waClient);
+  },
+
   async choose_dash_user(session, chatId, _text, waClient) {
     const dashUsers = session.dash_users || [];
     const chosen = dashUsers[0];
@@ -3080,6 +3174,16 @@ export const dirRequestHandlers = {
 
   async choose_menu(session, chatId, text, waClient) {
     const choice = text.trim();
+
+    if (
+      Array.isArray(session.allowedDirrequestMenuChoices) &&
+      session.allowedDirrequestMenuChoices.length > 0 &&
+      !session.allowedDirrequestMenuChoices.includes(choice)
+    ) {
+      await waClient.sendMessage(chatId, "Pilihan tidak valid untuk akses menu ini.");
+      return;
+    }
+
     if (
         ![
           "1",

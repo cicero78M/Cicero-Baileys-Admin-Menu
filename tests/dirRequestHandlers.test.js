@@ -377,6 +377,61 @@ test('main always sets session to DITBINMAS client', async () => {
   expect(msg).toContain('3️⃣3️⃣ Absensi Kasatker');
 });
 
+
+test('chakranarayana submenu menampilkan pilihan direktorat dan jajaran', async () => {
+  const session = { menu: 'chakranarayana', step: 'chakranarayana_choose_submenu' };
+  const waClient = { sendMessage: jest.fn() };
+
+  await dirRequestHandlers.chakranarayana_choose_submenu(session, '123', '', waClient);
+
+  expect(waClient.sendMessage).toHaveBeenCalledWith(
+    '123',
+    expect.stringContaining('Menu Chakranarayana')
+  );
+  expect(waClient.sendMessage).toHaveBeenCalledWith('123', expect.stringContaining('1️⃣ Direktorat'));
+  expect(waClient.sendMessage).toHaveBeenCalledWith('123', expect.stringContaining('2️⃣ Jajaran'));
+});
+
+test('chakranarayana submenu direktorat memetakan menu terurut', async () => {
+  const session = { menu: 'chakranarayana', step: 'chakranarayana_choose_submenu' };
+  const waClient = { sendMessage: jest.fn() };
+
+  await dirRequestHandlers.chakranarayana_choose_submenu(session, '123', '1', waClient);
+
+  expect(session.chakranarayanaMenuMap).toEqual(['3', '6', '9', '46', '47', '50', '51', '53']);
+  expect(session.allowedDirrequestMenuChoices).toEqual(['3', '6', '9', '46', '47', '50', '51', '53']);
+  expect(session.step).toBe('chakranarayana_choose_menu');
+});
+
+test('chakranarayana choose menu meneruskan pilihan ke nomor dirrequest asli', async () => {
+  const session = {
+    menu: 'chakranarayana',
+    step: 'chakranarayana_choose_menu',
+    chakranarayanaMenuMap: ['3', '6', '9', '46', '47', '50', '51', '53'],
+    allowedDirrequestMenuChoices: ['3', '6', '9', '46', '47', '50', '51', '53'],
+  };
+  const waClient = { sendMessage: jest.fn() };
+  const chooseMenuSpy = jest.spyOn(dirRequestHandlers, 'choose_menu').mockResolvedValue();
+
+  await dirRequestHandlers.chakranarayana_choose_menu(session, '123', '4', waClient);
+
+  expect(chooseMenuSpy).toHaveBeenCalledWith(session, '123', '46', waClient);
+  chooseMenuSpy.mockRestore();
+});
+
+test('choose_menu menolak pilihan di luar whitelist chakranarayana', async () => {
+  const session = {
+    selectedClientId: 'DITINTELKAM',
+    dir_client_id: 'DITINTELKAM',
+    allowedDirrequestMenuChoices: ['3', '6'],
+  };
+  const waClient = { sendMessage: jest.fn() };
+
+  await dirRequestHandlers.choose_menu(session, '123', '1', waClient);
+
+  expect(waClient.sendMessage).toHaveBeenCalledWith('123', 'Pilihan tidak valid untuk akses menu ini.');
+});
+
 test('choose_menu aggregates directorate data by client_id', async () => {
   jest.useFakeTimers();
   jest.setSystemTime(new Date('2025-08-27T16:06:00Z'));
