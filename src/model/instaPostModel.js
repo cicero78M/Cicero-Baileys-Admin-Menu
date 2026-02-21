@@ -100,7 +100,6 @@ export async function getShortcodesTodayByClient(identifier) {
     [identifier]
   );
 
-  const isDitbinmas = identifier.toLowerCase() === 'ditbinmas';
   const clientType = typeRes.rows[0]?.client_type?.toLowerCase();
 
   let sql;
@@ -108,7 +107,7 @@ export async function getShortcodesTodayByClient(identifier) {
 
   const useRoleFilter =
     typeRes.rows.length === 0 ||
-    (clientType === 'direktorat' && !isDitbinmas);
+    clientType === 'direktorat';
 
   if (useRoleFilter) {
     sql =
@@ -161,16 +160,12 @@ export async function getShortcodesYesterdayByClient(identifier) {
     [identifier]
   );
 
-  const isDitbinmas = identifier.toLowerCase() === 'ditbinmas';
   const clientType = typeRes.rows[0]?.client_type?.toLowerCase();
 
   let sql;
   let params;
 
-  if (
-    typeRes.rows.length === 0 ||
-    (clientType === 'direktorat' && !isDitbinmas)
-  ) {
+  if (typeRes.rows.length === 0 || clientType === 'direktorat') {
     sql =
       `SELECT p.shortcode FROM insta_post p\n` +
       `JOIN insta_post_roles pr ON pr.shortcode = p.shortcode\n` +
@@ -213,7 +208,6 @@ export async function getShortcodesByDateRange(identifier, startDate, endDate) {
     [identifier]
   );
 
-  const isDitbinmas = identifier.toLowerCase() === 'ditbinmas';
   const clientType = typeRes.rows[0]?.client_type?.toLowerCase();
 
   let sql;
@@ -221,7 +215,7 @@ export async function getShortcodesByDateRange(identifier, startDate, endDate) {
 
   if (
     typeRes.rows.length === 0 ||
-    (clientType === 'direktorat' && !isDitbinmas)
+    clientType === 'direktorat'
   ) {
     sql =
       `SELECT p.shortcode FROM insta_post p\n` +
