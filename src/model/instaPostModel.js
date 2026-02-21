@@ -1,5 +1,5 @@
 // src/model/instaPostModel.js
-import { query } from '../repository/db.js';
+import { query, withTransaction } from '../repository/db.js';
 import {
   getInstagramCreatedAtJakartaDateSql,
   getInstagramNowJakartaDateSql,
@@ -172,23 +172,50 @@ export async function deletePostByShortcode(shortcode, clientId = null) {
     return 0;
   }
 
-  if (clientId) {
-    const normalizedClientId = String(clientId).trim();
-    if (!normalizedClientId) {
+  return withTransaction(async (client) => {
+    let targetRes;
+
+    if (clientId) {
+      const normalizedClientId = String(clientId).trim();
+      if (!normalizedClientId) {
+        return 0;
+      }
+
+      targetRes = await client.query(
+        `SELECT shortcode
+         FROM insta_post
+         WHERE shortcode = $1
+           AND LOWER(TRIM(client_id)) = LOWER(TRIM($2))
+         LIMIT 1`,
+        [normalizedShortcode, normalizedClientId]
+      );
+    } else {
+      targetRes = await client.query(
+        `SELECT shortcode
+         FROM insta_post
+         WHERE shortcode = $1
+         LIMIT 1`,
+        [normalizedShortcode]
+      );
+    }
+
+    if (!targetRes.rowCount) {
       return 0;
     }
 
-    const res = await query(
+    await client.query(
+      `DELETE FROM insta_like_audit
+       WHERE shortcode = $1`,
+      [normalizedShortcode]
+    );
+
+    const res = await client.query(
       `DELETE FROM insta_post
-       WHERE shortcode = $1
-         AND LOWER(TRIM(client_id)) = LOWER(TRIM($2))`,
-      [normalizedShortcode, normalizedClientId]
+       WHERE shortcode = $1`,
+      [normalizedShortcode]
     );
     return res.rowCount || 0;
-  }
-
-  const res = await query('DELETE FROM insta_post WHERE shortcode = $1', [normalizedShortcode]);
-  return res.rowCount || 0;
+  });
 }
 
 export async function getShortcodesTodayByClient(identifier) {
