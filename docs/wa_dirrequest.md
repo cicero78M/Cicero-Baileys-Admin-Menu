@@ -183,7 +183,7 @@ dirrequest tanpa langkah tambahan.
   5. Tindak lanjut tetap dilakukan di server/log; pesan WA ke operator cukup
      memakai teks ringkas agar tidak membanjiri chat operasional.
 - `original_created_at`: waktu publish asli konten di platform
-  Instagram/TikTok (timestamp asli post) dan menjadi sumber publish time utama. Saat upsert konflik, nilai ini di-merge non-destruktif (`COALESCE`): gunakan timestamp publish baru jika tersedia, jika tidak pertahankan nilai yang sudah tersimpan.
+  Instagram/TikTok (timestamp asli post) dan menjadi sumber publish time utama. Saat upsert konflik Instagram per `shortcode`, nilai ini di-merge non-destruktif dengan prioritas data existing (`COALESCE(existing, new)`), sehingga publish-time awal yang sudah tersimpan tidak tertimpa saat jalur manual dan cron overlap.
 - Dengan pemisahan ini, tim admin menu dapat memfilter berdasarkan waktu input
   operasional (`created_at`), sementara tim analisis/cron tetap bisa membaca
   umur konten asli berdasarkan `original_created_at`.

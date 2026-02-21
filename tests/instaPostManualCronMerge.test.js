@@ -42,7 +42,7 @@ test('manual then cron flow uses non-destructive conflict merge clauses', async 
   expect(sqlFirst).toContain("OR EXCLUDED.source_type = 'manual_input'");
   expect(sqlFirst).toContain("created_at = CASE");
   expect(sqlFirst).toContain('THEN insta_post.created_at');
-  expect(sqlFirst).toContain('original_created_at = COALESCE(EXCLUDED.original_created_at, insta_post.original_created_at)');
+  expect(sqlFirst).toContain('original_created_at = COALESCE(insta_post.original_created_at, EXCLUDED.original_created_at)');
   expect(sqlSecond).toContain("source_type = CASE");
 });
 
@@ -68,5 +68,26 @@ test('cron then manual flow keeps manual marker idempotent and keeps publish-tim
 
   expect(secondParams[11]).toBe('manual_input');
   expect(sql).toContain("THEN 'manual_input'");
-  expect(sql).toContain('original_created_at = COALESCE(EXCLUDED.original_created_at, insta_post.original_created_at)');
+  expect(sql).toContain('original_created_at = COALESCE(insta_post.original_created_at, EXCLUDED.original_created_at)');
+});
+
+test('upsert keeps first non-null original_created_at as canonical publish-time source', async () => {
+  await upsertInstaPost({
+    client_id: 'CLIENT_A',
+    shortcode: 'ghi789',
+    source_type: 'cron_fetch',
+    created_at: '2026-01-02T01:00:00+07:00',
+    original_created_at: '2026-01-01T20:00:00.000Z',
+  });
+
+  await upsertInstaPost({
+    client_id: 'CLIENT_A',
+    shortcode: 'ghi789',
+    source_type: 'manual_input',
+    created_at: '2026-01-02T08:00:00+07:00',
+    original_created_at: '2026-01-01T23:00:00.000Z',
+  });
+
+  const [sql] = mockQuery.mock.calls[1];
+  expect(sql).toContain('original_created_at = COALESCE(insta_post.original_created_at, EXCLUDED.original_created_at)');
 });
