@@ -59,9 +59,17 @@ export async function collectInstagramJajaranAttendance(clientId, roleFlag = nul
   }
 
   if (!shortcodes.length) {
-    throw new Error(
-      `Tidak ada konten untuk tanggal operasional ${tanggalOperasionalLabel} pada akun Official Instagram ${clientName}.`
-    );
+    return {
+      clientName,
+      hari,
+      tanggal,
+      jam,
+      totalKonten: 0,
+      kontenLinks: [],
+      reportEntries: [],
+      noContent: true,
+      infoMessage: `ℹ️ Tidak ada post Instagram untuk diabsensi pada tanggal operasional ${tanggalOperasionalLabel} di akun Official Instagram ${clientName}.`,
+    };
   }
 
   const kontenLinks = shortcodes.map((sc) => `https://www.instagram.com/p/${sc}`);
@@ -426,6 +434,10 @@ export async function collectTiktokJajaranAttendance(clientId, roleFlag = null) 
  * Catatan: narasi periode report dikunci ke "hari ini (WIB)".
  */
 export function formatInstagramJajaranReport(data) {
+  if (data?.noContent) {
+    return data.infoMessage;
+  }
+
   const { clientName, hari, tanggal, jam, totalKonten, kontenLinks, reportEntries } = data;
   
   // Calculate totals

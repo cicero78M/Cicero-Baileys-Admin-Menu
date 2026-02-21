@@ -241,6 +241,7 @@ dirrequest tanpa langkah tambahan.
 - Query harian helper `getShortcodesTodayByClient` dan `getShortcodesYesterdayByClient` memprioritaskan tanggal dari `fetched_at` (WIB), sehingga konten yang dipublikasikan lama tetapi baru difetch hari ini tetap masuk ke absensi hari operasional saat ini. Helper juga membaca metadata tipe kolom (`information_schema.columns`): jika `fetched_at` bertipe `timestamp without time zone`, nilai diperlakukan sebagai UTC sebelum dikonversi ke WIB; jika kolom belum ada, helper otomatis fallback ke filter `created_at` agar tetap kompatibel.
 - Menu **6️⃣** dan **4️⃣8️⃣** memakai helper tanggal operasional yang sama (`attendanceOperationalDate`) untuk label hari/tanggal/jam agar konsisten di pesan rekap.
 - Guardrail empty data diperjelas: saat konten kosong, sistem menampilkan pesan `Tidak ada konten untuk tanggal operasional <hari, tanggal>` agar operator tidak ambigu antara tanggal publikasi vs tanggal operasional.
+- Perilaku menu **4️⃣8️⃣** saat tidak ada konten kini dibuat *graceful*: alih-alih melempar error handler, service mengembalikan respons informatif `ℹ️ Tidak ada post Instagram untuk diabsensi ...` sehingga bot tetap merespons sesuai kondisi data kosong.
 - Submenu **6️⃣ (Simple)** kini memakai filtering personil yang sama dengan
   menu **9️⃣**: hanya **user aktif**, `client_id` harus **persis** sesuai
   **client direktorat terpilih** (normalisasi uppercase), lalu diterapkan
