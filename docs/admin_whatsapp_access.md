@@ -71,7 +71,7 @@ Menu `chakranarayana` adalah jalur khusus turunan `dirrequest` dengan akses **te
   - `1` Direktorat → mengambil menu dirrequest: `3, 6, 9, 46, 47, 50, 51, 53` (diurutkan ulang)
   - `2` Jajaran → mengambil menu dirrequest: `1, 48, 49` (diurutkan ulang)
 - Implementation: Dialihkan ke handler `dirRequestHandlers` melalui step `chakranarayana_choose_submenu`.
-
+- End-of-session behavior: Setelah aksi menu dijalankan, sistem menampilkan ulang **menu chakranarayana aktif** (Direktorat/Jajaran) agar tidak kembali ke teks menu `dirrequest` penuh.
 
 - Location: `src/service/waService.js` line ~2451
 - Check: None (open access)

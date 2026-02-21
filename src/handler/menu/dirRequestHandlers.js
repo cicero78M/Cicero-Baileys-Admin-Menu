@@ -227,6 +227,22 @@ const getChakranarayanaMenuText = (groupKey, groupLabel) => {
   );
 };
 
+const getChakranarayanaActiveMenuText = (session) => {
+  const selectedGroup = session.chakranarayanaSelectedGroup;
+  if (!selectedGroup) {
+    return null;
+  }
+
+  const groupLabel =
+    selectedGroup === "direktorat"
+      ? "Direktorat"
+      : selectedGroup === "jajaran"
+        ? "Jajaran"
+        : selectedGroup;
+
+  return getChakranarayanaMenuText(selectedGroup, groupLabel);
+};
+
 const ENGAGEMENT_RECAP_MENU_TEXT = appendSubmenuBackInstruction(
   "Silakan pilih periode rekap ranking engagement jajaran:\n" +
     Object.entries(ENGAGEMENT_RECAP_PERIOD_MAP)
@@ -2929,6 +2945,7 @@ export const dirRequestHandlers = {
     const menuCodes = CHAKRANARAYANA_MENU_GROUPS[selectedGroup] || [];
     const orderedMenuCodes = [...menuCodes].sort((a, b) => Number(a) - Number(b));
     session.chakranarayanaMenuMap = orderedMenuCodes;
+    session.chakranarayanaSelectedGroup = selectedGroup;
     session.allowedDirrequestMenuChoices = orderedMenuCodes;
     session.step = "chakranarayana_choose_menu";
     const groupLabel = selectedGroup === "direktorat" ? "Direktorat" : "Jajaran";
@@ -2975,6 +2992,18 @@ export const dirRequestHandlers = {
   },
 
   async main(session, chatId, _text, waClient) {
+    if (session.menu === "chakranarayana") {
+      const chakranarayanaMenuText = getChakranarayanaActiveMenuText(session);
+      if (chakranarayanaMenuText) {
+        await waClient.sendMessage(chatId, chakranarayanaMenuText);
+        session.step = "chakranarayana_choose_menu";
+      } else {
+        session.step = "chakranarayana_choose_submenu";
+        await dirRequestHandlers.chakranarayana_choose_submenu(session, chatId, "", waClient);
+      }
+      return;
+    }
+
     const availableClients = session.dir_clients || [];
     if (!session.selectedClientId && availableClients.length) {
       session.step = "choose_client";
