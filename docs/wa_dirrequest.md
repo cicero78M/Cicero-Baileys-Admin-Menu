@@ -104,9 +104,15 @@ dirrequest tanpa langkah tambahan.
   - Jika link Instagram valid → shortcode disimpan sebagai exclusion tugas.
   - Jika link TikTok valid → video ID disimpan sebagai exclusion tugas.
   - Jika format tidak dikenali → bot meminta input link valid/batal.
-- Penghapusan via **5️⃣3️⃣** hanya menghapus post dari **daftar link tugas harian**
-  (list yang ditampilkan pada laporan tugas), **tanpa menghapus** data likes
-  Instagram maupun komentar TikTok yang sudah terdata.
+- Penghapusan via **5️⃣3️⃣** tetap menghapus post dari **daftar link tugas harian**
+  (list yang ditampilkan pada laporan tugas), sekaligus mencoba menghapus konten
+  sumber pada tabel utama post:
+  - Instagram: menghapus baris post di `insta_post` berdasarkan `shortcode` dan
+    `client_id` aktif pada sesi.
+  - TikTok: menghapus baris post di `tiktok_post` berdasarkan `video_id` dan
+    `client_id` aktif pada sesi.
+- Data likes Instagram maupun komentar TikTok yang sudah terdata tetap **tidak
+  dihapus** oleh menu ini.
 
 ### Penyimpanan Exclusion Post Tugas (Menu 5️⃣3️⃣)
 - Data exclusion disimpan di tabel baru `task_post_exclusions` dengan kunci unik
@@ -118,8 +124,9 @@ dirrequest tanpa langkah tambahan.
 - Saat generator daftar link tugas harian membaca post hari berjalan dari
   `insta_post`/`tiktok_post`, bot terlebih dahulu memuat exclusion per client
   untuk memfilter shortcode/video_id yang sudah ditandai di menu **5️⃣3️⃣**.
-- Karena konten utama tidak dihapus dari tabel post, relasi engagement historis
-  (likes/comment) tetap aman dan tidak ikut terhapus.
+- Walau konten utama pada `insta_post`/`tiktok_post` kini ikut dihapus oleh menu
+  **5️⃣3️⃣**, data engagement historis (likes/comment) tetap aman karena menu ini
+  tidak menjalankan penghapusan pada tabel likes/comment.
 
 ### Format Input, Validasi, dan Konfirmasi Output
 
