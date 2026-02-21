@@ -111,8 +111,11 @@ dirrequest tanpa langkah tambahan.
     `client_id` aktif pada sesi.
   - TikTok: menghapus baris post di `tiktok_post` berdasarkan `video_id` dan
     `client_id` aktif pada sesi.
-- Data likes Instagram maupun komentar TikTok yang sudah terdata tetap **tidak
-  dihapus** oleh menu ini.
+- Data likes Instagram (`insta_like`) maupun komentar TikTok yang sudah terdata
+  tetap **tidak dihapus** oleh menu ini.
+- Khusus Instagram, snapshot audit likes di `insta_like_audit` yang terikat ke
+  `shortcode` target kini ikut dihapus lebih dulu agar penghapusan baris
+  `insta_post` tidak gagal oleh foreign key `insta_like_audit_shortcode_fkey`.
 
 ### Penyimpanan Exclusion Post Tugas (Menu 5️⃣3️⃣)
 - Data exclusion disimpan di tabel baru `task_post_exclusions` dengan kunci unik
