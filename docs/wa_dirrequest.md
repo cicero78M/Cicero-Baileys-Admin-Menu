@@ -114,6 +114,7 @@ dirrequest tanpa langkah tambahan.
     Polres.
 - **Output konfirmasi sukses** memuat:
   - status berhasil (termasuk status fetch likes lanjutan),
+  - fetch lanjutan dibatasi hanya sinkronisasi likes (tanpa fetch komentar Instagram),
   - `Sumber : manual`,
   - `Client`, `Shortcode`, `Waktu upload manual`, `Likes`, `Komentar`, dan ringkasan
     `Caption`.

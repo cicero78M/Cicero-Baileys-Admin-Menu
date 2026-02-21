@@ -3326,6 +3326,7 @@ export const dirRequestHandlers = {
         await handleFetchLikesInstagram(null, null, targetClientId, {
           shortcodes: [result.shortcode],
           sourceType: "manual_input",
+          enrichComments: false,
         });
       }
       const summaryLines = [
