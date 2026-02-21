@@ -188,7 +188,7 @@ const DIGIT_EMOJI = {
 };
 
 const CHAKRANARAYANA_MENU_GROUPS = {
-  direktorat: ["3", "6", "9", "46", "47", "50", "51", "53"],
+  direktorat: ["3", "6", "9", "46", "47", "53"],
   jajaran: ["1", "48", "49"],
 };
 
@@ -201,8 +201,6 @@ const CHAKRANARAYANA_MENU_LABELS = {
   "47": "Input TikTok post manual",
   "48": "Absensi Instagram Jajaran",
   "49": "Absensi TikTok Jajaran",
-  "50": "Fetch likes IG manual (hari ini)",
-  "51": "Fetch komentar TikTok manual (hari ini)",
   "53": "Hapus post tugas (auto IG/TikTok)",
 };
 
@@ -215,7 +213,7 @@ const getChakranarayanaMenuText = (groupKey, groupLabel) => {
       const localNumber = String(idx + 1);
       const localLabel = DIGIT_EMOJI[localNumber] || `${localNumber}.`;
       const menuLabel = CHAKRANARAYANA_MENU_LABELS[menuCode] || `Menu ${menuCode}`;
-      return `${localLabel} ${menuLabel} *(dirrequest ${menuCode})*`;
+      return `${localLabel} ${menuLabel}`;
     })
     .join("\n");
 
