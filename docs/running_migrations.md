@@ -257,3 +257,9 @@ Catatan audit sosial utama:
 - [WHATSAPP_UNIQUE_CONSTRAINT_FIX.md](../WHATSAPP_UNIQUE_CONSTRAINT_FIX.md) - Specific WhatsApp migration details
 - [database_structure.md](./database_structure.md) - Database schema documentation
 - [PostgreSQL Documentation](https://www.postgresql.org/docs/) - Official PostgreSQL docs
+
+### 20261221
+a) `sql/migrations/20261221_add_source_type_to_insta_post_khusus.sql`
+- Menambahkan kolom `source_type` pada `insta_post_khusus` jika belum ada, lalu backfill ke `cron_fetch`.
+- Menetapkan default + NOT NULL + CHECK (`cron_fetch`, `manual_input`) agar konsisten dengan query upsert pada `src/model/instaPostKhususModel.js`.
+- Menambahkan index komposit `insta_post_khusus_client_source_type_created_idx` untuk filter `client_id/source_type/created_at`.
