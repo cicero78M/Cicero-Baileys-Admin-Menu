@@ -166,6 +166,31 @@ export async function findPostByShortcode(shortcode) {
   return res.rows[0] || null;
 }
 
+export async function deletePostByShortcode(shortcode, clientId = null) {
+  const normalizedShortcode = (shortcode || '').trim();
+  if (!normalizedShortcode) {
+    return 0;
+  }
+
+  if (clientId) {
+    const normalizedClientId = String(clientId).trim();
+    if (!normalizedClientId) {
+      return 0;
+    }
+
+    const res = await query(
+      `DELETE FROM insta_post
+       WHERE shortcode = $1
+         AND LOWER(TRIM(client_id)) = LOWER(TRIM($2))`,
+      [normalizedShortcode, normalizedClientId]
+    );
+    return res.rowCount || 0;
+  }
+
+  const res = await query('DELETE FROM insta_post WHERE shortcode = $1', [normalizedShortcode]);
+  return res.rowCount || 0;
+}
+
 export async function getShortcodesTodayByClient(identifier) {
   const { operationalDate: today } = getOperationalAttendanceDate();
   const operationalDateSql = await getInstagramOperationalDateSql('p');

@@ -1,9 +1,11 @@
 import { getUsersSocialByClient, getClientsByRole } from "../../model/userModel.js";
 import {
+  deletePostByShortcode,
   getShortcodesTodayByClient,
   getPostsTodayByClient as getInstaPostsTodayByClient,
 } from "../../model/instaPostModel.js";
 import {
+  deletePostByVideoId,
   getVideoIdsTodayByClient,
   getPostsTodayByClient as getTiktokPostsTodayByClient,
 } from "../../model/tiktokPostModel.js";
@@ -3471,10 +3473,14 @@ export const dirRequestHandlers = {
           contentId: shortcode,
           sourceLink: input,
         });
+        const deletedInstaPosts = await deletePostByShortcode(shortcode, targetClientId);
         await waClient.sendMessage(
           chatId,
           [
             "✅ Post tugas Instagram berhasil dihapus dari daftar tugas harian.",
+            deletedInstaPosts
+              ? "✅ Post Instagram juga berhasil dihapus dari tabel insta_post."
+              : "ℹ️ Post Instagram tidak ditemukan di tabel insta_post untuk client ini.",
             "Data likes Instagram yang sudah tersimpan tidak dihapus.",
             `Client : ${targetClientId}`,
             `Shortcode : ${shortcode}`,
@@ -3487,10 +3493,14 @@ export const dirRequestHandlers = {
           contentId: videoId,
           sourceLink: input,
         });
+        const deletedTiktokPosts = await deletePostByVideoId(videoId, targetClientId);
         await waClient.sendMessage(
           chatId,
           [
             "✅ Post tugas TikTok berhasil dihapus dari daftar tugas harian.",
+            deletedTiktokPosts
+              ? "✅ Post TikTok juga berhasil dihapus dari tabel tiktok_post."
+              : "ℹ️ Post TikTok tidak ditemukan di tabel tiktok_post untuk client ini.",
             "Data komentar TikTok yang sudah tersimpan tidak dihapus.",
             `Client : ${targetClientId}`,
             `Video ID : ${videoId}`,
