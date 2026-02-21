@@ -1,7 +1,36 @@
 import { query } from '../repository/db.js';
 
-export async function insertIgPostComments(postId, comments = []) {
+async function ensureIgExtPostForComment(postId, shortcode = null) {
+  if (!postId) return null;
+
+  const existingPost = await query(
+    `SELECT post_id
+     FROM ig_ext_posts
+     WHERE post_id = $1 OR shortcode = $2
+     LIMIT 1`,
+    [postId, shortcode]
+  );
+
+  if (existingPost.rows.length) {
+    return existingPost.rows[0].post_id;
+  }
+
+  await query(
+    `INSERT INTO ig_ext_posts (post_id, shortcode)
+     VALUES ($1, $2)
+     ON CONFLICT (post_id) DO NOTHING`,
+    [postId, shortcode]
+  );
+
+  return postId;
+}
+
+export async function insertIgPostComments(postId, comments = [], options = {}) {
   if (!postId || !Array.isArray(comments)) return;
+
+  const resolvedPostId = await ensureIgExtPostForComment(postId, options.shortcode || null);
+  if (!resolvedPostId) return;
+
   for (const c of comments) {
     const cid = c?.id || c?.pk;
     if (!cid) continue;
@@ -15,7 +44,7 @@ export async function insertIgPostComments(postId, comments = []) {
          SET user_id=EXCLUDED.user_id,
              text=EXCLUDED.text,
              created_at=to_timestamp($5)`,
-      [cid, postId, userId, text, createdAt]
+      [cid, resolvedPostId, userId, text, createdAt]
     );
   }
 }
