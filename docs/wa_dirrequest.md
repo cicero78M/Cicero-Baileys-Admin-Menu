@@ -111,6 +111,10 @@ dirrequest tanpa langkah tambahan.
 ### Penyimpanan Exclusion Post Tugas (Menu 5️⃣3️⃣)
 - Data exclusion disimpan di tabel baru `task_post_exclusions` dengan kunci unik
   `(client_id, platform, content_id)` agar idempoten untuk input berulang.
+- Module `src/model/taskPostExclusionModel.js` melakukan bootstrap schema
+  ringan (`CREATE TABLE IF NOT EXISTS` + `CREATE INDEX IF NOT EXISTS`) saat
+  pertama kali dipakai, sebagai fallback ketika migration belum sempat dijalankan
+  di environment tertentu.
 - Saat generator daftar link tugas harian membaca post hari berjalan dari
   `insta_post`/`tiktok_post`, bot terlebih dahulu memuat exclusion per client
   untuk memfilter shortcode/video_id yang sudah ditandai di menu **5️⃣3️⃣**.
