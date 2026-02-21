@@ -75,7 +75,7 @@ describe('Instagram Jajaran Attendance', () => {
     ).rejects.toThrow('hanya tersedia untuk client bertipe Direktorat');
   });
 
-  test('throws error when no Instagram posts today', async () => {
+  test('returns informative response when no Instagram posts today', async () => {
     mockFindClientById.mockResolvedValueOnce({
       client_id: 'DITBINMAS',
       nama: 'Direktorat Binmas',
@@ -83,9 +83,21 @@ describe('Instagram Jajaran Attendance', () => {
     });
     mockGetShortcodesTodayByClient.mockResolvedValueOnce([]);
 
-    await expect(
-      collectInstagramJajaranAttendance('DITBINMAS', null)
-    ).rejects.toThrow('Tidak ada konten untuk tanggal operasional');
+    const result = await collectInstagramJajaranAttendance('DITBINMAS', null);
+
+    expect(result.noContent).toBe(true);
+    expect(result.totalKonten).toBe(0);
+    expect(result.reportEntries).toEqual([]);
+    expect(result.infoMessage).toContain('Tidak ada post Instagram untuk diabsensi');
+  });
+
+  test('formats informative response when no content flag is set', () => {
+    const report = formatInstagramJajaranReport({
+      noContent: true,
+      infoMessage: 'ℹ️ Tidak ada post Instagram untuk diabsensi.',
+    });
+
+    expect(report).toBe('ℹ️ Tidak ada post Instagram untuk diabsensi.');
   });
 
   test('collects and sorts data correctly', async () => {
@@ -187,7 +199,6 @@ describe('Instagram Jajaran Attendance', () => {
       );
     }
   });
-
 
   test('uses selected client content source when roleFlag mismatches', async () => {
     const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
