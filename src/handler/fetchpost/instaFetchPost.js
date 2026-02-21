@@ -14,7 +14,6 @@ import {
   findPostByShortcode as findMainPostByShortcode,
 } from "../../model/instaPostModel.js";
 import { extractInstagramShortcode } from "../../utils/utilsHelper.js";
-import { getInstagramCreatedAtJakartaDateSql } from "../../utils/instagramCreatedAtSql.js";
 
 const ADMIN_WHATSAPP = (process.env.ADMIN_WHATSAPP || "")
   .split(",")
@@ -28,6 +27,10 @@ function getJakartaDateString(date = new Date()) {
   return date.toLocaleDateString("en-CA", {
     timeZone: "Asia/Jakarta",
   });
+}
+
+function getFetchedAtJakartaDateSql(columnName = "fetched_at") {
+  return `(${columnName} AT TIME ZONE 'Asia/Jakarta')::date`;
 }
 
 
@@ -56,7 +59,7 @@ function isTodayJakarta(unixTimestamp) {
 
 async function getShortcodesToday(clientId = null) {
   const todayJakarta = getJakartaDateString();
-  let sql = `SELECT shortcode FROM insta_post WHERE ${getInstagramCreatedAtJakartaDateSql()} = $1::date`;
+  let sql = `SELECT shortcode FROM insta_post WHERE ${getFetchedAtJakartaDateSql()} = $1::date`;
   const params = [todayJakarta];
   if (clientId) {
     sql += ` AND client_id = $2`;
@@ -78,7 +81,7 @@ async function deleteShortcodes(shortcodesToDelete, clientId = null) {
   // ig_ext_posts rows cascade when insta_post entries are deleted
   const todayJakarta = getJakartaDateString();
   let sql =
-    `DELETE FROM insta_post WHERE shortcode = ANY($1) AND ${getInstagramCreatedAtJakartaDateSql()} = $2::date`;
+    `DELETE FROM insta_post WHERE shortcode = ANY($1) AND ${getFetchedAtJakartaDateSql()} = $2::date`;
   const params = [shortcodesToDelete, todayJakarta];
   if (clientId) {
     sql += ` AND client_id = $3`;
@@ -280,7 +283,7 @@ export async function fetchAndStoreInstaContent(
     // Hitung jumlah konten hari ini untuk summary
     const todayJakarta = getJakartaDateString();
     const countRes = await query(
-      `SELECT shortcode FROM insta_post WHERE client_id = $1 AND ${getInstagramCreatedAtJakartaDateSql()} = $2::date`,
+      `SELECT shortcode FROM insta_post WHERE client_id = $1 AND ${getFetchedAtJakartaDateSql()} = $2::date`,
       [client.id, todayJakarta]
     );
     summary[client.id] = { count: countRes.rows.length };
@@ -293,7 +296,7 @@ export async function fetchAndStoreInstaContent(
   const todayJakarta = getJakartaDateString();
 
   let sumSql =
-    `SELECT shortcode, created_at FROM insta_post WHERE ${getInstagramCreatedAtJakartaDateSql()} = $1::date`;
+    `SELECT shortcode, created_at FROM insta_post WHERE ${getFetchedAtJakartaDateSql()} = $1::date`;
   const sumParams = [todayJakarta];
   if (targetClientId) {
     sumSql += ` AND client_id = $2`;

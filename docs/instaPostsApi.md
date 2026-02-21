@@ -13,9 +13,15 @@ GET /api/insta/posts?client_id=KEDIRI
 ```
 
 ### Catatan Perilaku
-- Data yang dikembalikan hanya post dengan `created_at` pada tanggal hari ini (Asia/Jakarta).
+- Definisi **hari operasional absensi/fetch Instagram** menggunakan tanggal
+  `fetched_at` (WIB), yaitu tanggal konten masuk ke sistem saat proses fetch.
+- Data endpoint harian dikembalikan berdasarkan tanggal `fetched_at` hari ini
+  (Asia/Jakarta), bukan tanggal publikasi asli konten.
 - Response mengikuti format `sendSuccess` (lihat `src/utils/response.js`).
-- Sinkronisasi cron fetch post akan menghapus konten hari ini yang tidak lagi ada di hasil fetch, termasuk membersihkan data terkait (likes, komentar, dan audit like) agar tidak terkena kendala foreign key saat post dihapus.
+- Sinkronisasi cron fetch post menghapus konten hari operasional yang tidak lagi
+  ada di hasil fetch hari berjalan (`fetched_at` WIB), termasuk membersihkan
+  data terkait (likes, komentar, dan audit like) agar tidak terkena kendala
+  foreign key saat post dihapus.
 
 ## GET /api/instagram/posts
 

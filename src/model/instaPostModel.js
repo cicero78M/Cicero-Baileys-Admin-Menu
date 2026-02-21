@@ -269,8 +269,8 @@ export async function getPostsTodayByClient(client_id) {
     `SELECT *
      FROM insta_post
      WHERE LOWER(client_id) = LOWER($1)
-       AND ${getInstagramCreatedAtJakartaDateSql()} = ${getInstagramNowJakartaDateSql()}
-     ORDER BY created_at ASC`,
+       AND (fetched_at AT TIME ZONE 'Asia/Jakarta')::date = ${getInstagramNowJakartaDateSql()}
+     ORDER BY fetched_at ASC, created_at ASC`,
     [client_id]
   );
   return res.rows;
