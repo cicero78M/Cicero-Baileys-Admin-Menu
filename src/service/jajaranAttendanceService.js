@@ -6,8 +6,8 @@ import { getLikesSets, normalizeUsername as normalizeInstagramUsername } from ".
 import { getCommentsByVideoId } from "../model/tiktokCommentModel.js";
 import { extractUsernamesFromComments, normalizeUsername as normalizeTiktokUsername } from "../handler/fetchabsensi/tiktok/absensiKomentarTiktok.js";
 import { filterAttendanceUsers } from "../utils/utilsHelper.js";
-import { hariIndo } from "../utils/constants.js";
 import { getOperationalAttendanceDate, formatOperationalDateLabel } from "../utils/attendanceOperationalDate.js";
+import { formatJakartaDisplayDate, formatJakartaDisplayTime } from "../utils/dateJakarta.js";
 
 /**
  * Collect Instagram jajaran attendance data
@@ -222,19 +222,15 @@ export async function collectInstagramJajaranAttendance(clientId, roleFlag = nul
 /**
  * Collect TikTok jajaran attendance data
  * Groups by client/polres with detailed stats
+ *
+ * Catatan timezone: gunakan util dateJakarta agar tanggal/jam report konsisten WIB
+ * untuk kebutuhan troubleshooting lintas environment server.
  */
 export async function collectTiktokJajaranAttendance(clientId, roleFlag = null) {
   const now = new Date();
-  const hari = hariIndo[now.getDay()];
-  const tanggal = now.toLocaleDateString("id-ID", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  });
-  const jam = now.toLocaleTimeString("id-ID", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const { hari } = getOperationalAttendanceDate(now);
+  const tanggal = formatJakartaDisplayDate(now);
+  const jam = formatJakartaDisplayTime(now);
 
   const roleName = (roleFlag || clientId || "").toLowerCase();
   const normalizedClientId = String(clientId || "").toUpperCase();
@@ -262,7 +258,7 @@ export async function collectTiktokJajaranAttendance(clientId, roleFlag = null) 
 
   if (!posts.length) {
     throw new Error(
-      `Tidak ada konten pada akun Official TikTok ${clientName} hari ini.`
+      `Tidak ada konten pada akun Official TikTok ${clientName} untuk periode hari ini (WIB).`
     );
   }
 
@@ -426,7 +422,8 @@ export async function collectTiktokJajaranAttendance(clientId, roleFlag = null) 
 }
 
 /**
- * Format Instagram jajaran attendance report
+ * Format Instagram jajaran attendance report.
+ * Catatan: narasi periode report dikunci ke "hari ini (WIB)".
  */
 export function formatInstagramJajaranReport(data) {
   const { clientName, hari, tanggal, jam, totalKonten, kontenLinks, reportEntries } = data;
@@ -460,7 +457,8 @@ export function formatInstagramJajaranReport(data) {
     "📋 *Rekap Absensi Likes Instagram Jajaran*",
     `*${clientName}*`,
     `${hari}, ${tanggal}`,
-    `Jam: ${jam} WIB\n`,
+    `Jam: ${jam} WIB`,
+    `Periode: hari ini (WIB)\n`,
     `*Jumlah Konten:* ${totalKonten}`,
     "*Daftar Link Konten:*",
     kontenLinks.join("\n"),
@@ -492,7 +490,8 @@ export function formatInstagramJajaranReport(data) {
 }
 
 /**
- * Format TikTok jajaran attendance report
+ * Format TikTok jajaran attendance report.
+ * Catatan: narasi periode report dikunci ke "hari ini (WIB)".
  */
 export function formatTiktokJajaranReport(data) {
   const { clientName, hari, tanggal, jam, totalKonten, kontenLinks, reportEntries } = data;
@@ -526,7 +525,8 @@ export function formatTiktokJajaranReport(data) {
     "📋 *Rekap Absensi Komentar TikTok Jajaran*",
     `*${clientName}*`,
     `${hari}, ${tanggal}`,
-    `Jam: ${jam} WIB\n`,
+    `Jam: ${jam} WIB`,
+    `Periode: hari ini (WIB)\n`,
     `*Jumlah Konten:* ${totalKonten}`,
     "*Daftar Link Konten:*",
     kontenLinks.join("\n"),

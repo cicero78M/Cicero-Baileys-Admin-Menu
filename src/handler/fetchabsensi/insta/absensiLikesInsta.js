@@ -1,7 +1,6 @@
 import { query } from "../../../db/index.js";
 import { getUsersByClient } from "../../../model/userModel.js";
 import { getShortcodesTodayByClient } from "../../../model/instaPostModel.js";
-import { hariIndo } from "../../../utils/constants.js";
 import {
   groupByDivision,
   sortDivisionKeys,
@@ -91,13 +90,15 @@ export async function collectLikesRecap(clientId, opts = {}) {
 }
 
 // === AKUMULASI ===
+/**
+ * Rekap akumulasi likes Instagram.
+ * Catatan timezone: seluruh tanggal/jam narasi report dipaksa WIB via util dateJakarta
+ * agar hasil konsisten walau server berjalan di timezone non-Asia/Jakarta.
+ */
 export async function absensiLikes(client_id, opts = {}) {
   const { clientFilter } = opts;
   const roleFlag = opts.roleFlag;
-  const now = new Date();
-  const hari = hariIndo[now.getDay()];
-  const tanggal = now.toLocaleDateString("id-ID");
-  const jam = now.toLocaleTimeString("id-ID", { hour12: false });
+  const { hari, tanggal, jam } = getOperationalAttendanceDate();
 
   const { nama: clientNama, clientType } = await getClientInfo(client_id);
   const allowedRoles = ["ditbinmas", "ditlantas", "bidhumas"];
@@ -211,7 +212,7 @@ export async function absensiLikes(client_id, opts = {}) {
     let msg =
       `Mohon ijin Komandan,\n\n` +
       `📋 Rekap Akumulasi Likes Instagram\n` +
-      `*${clientNama}\n${hari}*, ${tanggal}\nJam: ${jam}\n\n` +
+      `*${clientNama}\n${hari}*, ${tanggal}\nJam: ${jam} WIB\nPeriode: hari ini (WIB)\n\n` +
       `*Jumlah Konten :* ${totalKonten}\n` +
       `*Daftar Link Konten :*\n${kontenLinks.length ? kontenLinks.join("\n") : "-"}\n\n` +
       `*Jumlah Total Personil :* ${totals.total} pers\n` +
@@ -282,7 +283,7 @@ export async function absensiLikes(client_id, opts = {}) {
   // Header: tampilkan jumlah sudah & belum SELALU
   let msg =
     `Mohon ijin Komandan,\n\n` +
-    `📋 *Rekap Akumulasi Likes Instagram*\n*Polres*: *${clientNama}*\n${hari}, ${tanggal}\nJam: ${jam}\n\n` +
+    `📋 *Rekap Akumulasi Likes Instagram*\n*Polres*: *${clientNama}*\n${hari}, ${tanggal}\nJam: ${jam} WIB\nPeriode: hari ini (WIB)\n\n` +
     `*Jumlah Konten:* ${totalKonten}\n` +
     `*Daftar Link Konten:*\n${kontenLinks.length ? kontenLinks.join("\n") : "-"}\n\n` +
     `*Jumlah user:* ${summary.total} user\n` +
@@ -350,10 +351,7 @@ export async function absensiLikes(client_id, opts = {}) {
 // === PER KONTEN ===
 export async function absensiLikesPerKonten(client_id, opts = {}) {
   const { clientFilter } = opts;
-  const now = new Date();
-  const hari = hariIndo[now.getDay()];
-  const tanggal = now.toLocaleDateString("id-ID");
-  const jam = now.toLocaleTimeString("id-ID", { hour12: false });
+  const { hari, tanggal, jam } = getOperationalAttendanceDate();
 
   const { nama: clientNama } = await getClientInfo(client_id);
   const users = await getUsersByClient(client_id);
@@ -372,7 +370,7 @@ export async function absensiLikesPerKonten(client_id, opts = {}) {
   const mode = (opts && opts.mode) ? String(opts.mode).toLowerCase() : "all";
   let msg =
     `Mohon ijin Komandan,\n\n` +
-    `📋 *Rekap Per Konten Likes Instagram*\n *${clientNama}*\n${hari}, ${tanggal}\nJam: ${jam}\n\n` +
+    `📋 *Rekap Per Konten Likes Instagram*\n *${clientNama}*\n${hari}, ${tanggal}\nJam: ${jam} WIB\nPeriode: hari ini (WIB)\n\n` +
     `*Jumlah Konten:* ${shortcodes.length}\n`;
   let likesSets;
   try {
@@ -607,7 +605,7 @@ export async function absensiLikesDitbinmasSimple(clientId = "DITBINMAS") {
     `📋 Rekap Akumulasi Likes Instagram (Simple)\n` +
     `*${clientName.toUpperCase()}*\n` +
     `${hari}, ${tanggal}\n` +
-    `Jam: ${jam}\n\n` +
+    `Jam: ${jam} WIB\nPeriode: hari ini (WIB)\n\n` +
     `*Jumlah Konten:* ${shortcodes.length}\n` +
     `*Daftar Link Konten:*\n${kontenLinks.join("\n")}\n\n` +
     `*Jumlah Total Personil:* ${totals.total} pers\n` +
@@ -623,10 +621,7 @@ export async function absensiLikesDitbinmasSimple(clientId = "DITBINMAS") {
 export async function absensiLikesDitbinmasReport(clientId = "DITBINMAS") {
   const targetClientId = String(clientId || "DITBINMAS").trim().toUpperCase();
   const roleName = targetClientId.toLowerCase();
-  const now = new Date();
-  const hari = hariIndo[now.getDay()];
-  const tanggal = now.toLocaleDateString("id-ID");
-  const jam = now.toLocaleTimeString("id-ID", { hour12: false });
+  const { hari, tanggal, jam } = getOperationalAttendanceDate();
   const { nama: clientName, clientType } = await getClientInfo(targetClientId);
 
   let shortcodes;
@@ -793,7 +788,7 @@ export async function absensiLikesDitbinmasReport(clientId = "DITBINMAS") {
     `📋 Rekap Akumulasi Likes Instagram\n` +
     `*${clientName.toUpperCase()}*\n` +
     `${hari}, ${tanggal}\n` +
-    `Jam: ${jam}\n\n` +
+    `Jam: ${jam} WIB\nPeriode: hari ini (WIB)\n\n` +
     `*Jumlah Konten:* ${shortcodes.length}\n` +
     `*Daftar Link Konten:*\n${kontenLinks.join("\n")}\n\n` +
     `*Jumlah Total Personil :* ${totals.total} pers\n` +
