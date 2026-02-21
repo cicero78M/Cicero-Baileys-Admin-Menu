@@ -27,6 +27,10 @@ function normalizeCreatedAt(createdAt) {
   return parsed.toISOString();
 }
 
+function resolveCanonicalFetchedAt(fetchedAt) {
+  return normalizeCreatedAt(fetchedAt) || new Date().toISOString();
+}
+
 export async function upsertInstaPost(data) {
   // Pastikan field yang dipakai sesuai dengan kolom di DB
   const {
@@ -49,7 +53,7 @@ export async function upsertInstaPost(data) {
   const canonicalSourceType = normalizeSourceType(source_type);
   const canonicalCreatedAt = normalizeCreatedAt(data.created_at);
   const canonicalOriginalCreatedAt = normalizeCreatedAt(original_created_at);
-  const canonicalFetchedAt = normalizeCreatedAt(fetched_at) || new Date().toISOString();
+  const canonicalFetchedAt = resolveCanonicalFetchedAt(fetched_at);
 
   // created_at bisa dihandle via taken_at di service (lihat service)
   await query(
@@ -80,7 +84,7 @@ export async function upsertInstaPost(data) {
             ELSE EXCLUDED.created_at
           END,
           original_created_at = COALESCE(insta_post.original_created_at, EXCLUDED.original_created_at),
-          fetched_at = COALESCE(insta_post.fetched_at, EXCLUDED.fetched_at)`,
+          fetched_at = COALESCE(GREATEST(insta_post.fetched_at, EXCLUDED.fetched_at), EXCLUDED.fetched_at, insta_post.fetched_at)`,
     [
       client_id,
       shortcode,
@@ -108,6 +112,8 @@ export async function findPostByShortcode(shortcode) {
 
 export async function getShortcodesTodayByClient(identifier) {
   const { operationalDate: today } = getOperationalAttendanceDate();
+  const fetchedAtJakartaDateSql =
+    `(COALESCE(p.fetched_at, p.created_at) AT TIME ZONE 'Asia/Jakarta')::date`;
 
   const typeRes = await query(
     'SELECT client_type FROM clients WHERE LOWER(client_id) = LOWER($1)',
@@ -130,21 +136,21 @@ export async function getShortcodesTodayByClient(identifier) {
       `  FROM insta_post p\n` +
       `  JOIN insta_post_roles pr ON pr.shortcode = p.shortcode\n` +
       `  WHERE LOWER(pr.role_name) = LOWER($1)\n` +
-      `    AND (p.fetched_at AT TIME ZONE 'Asia/Jakarta')::date = $2::date\n` +
+      `    AND ${fetchedAtJakartaDateSql} = $2::date\n` +
       `\n` +
       `  UNION\n` +
       `\n` +
       `  SELECT p.shortcode, p.fetched_at\n` +
       `  FROM insta_post p\n` +
       `  WHERE LOWER(p.client_id) = LOWER($1)\n` +
-      `    AND (p.fetched_at AT TIME ZONE 'Asia/Jakarta')::date = $2::date\n` +
+      `    AND ${fetchedAtJakartaDateSql} = $2::date\n` +
       `) merged\n` +
       `ORDER BY fetched_at ASC, shortcode ASC`;
     params = [identifier, today];
   } else {
     sql =
       `SELECT shortcode FROM insta_post\n` +
-      `WHERE LOWER(client_id) = LOWER($1) AND (fetched_at AT TIME ZONE 'Asia/Jakarta')::date = $2::date\n` +
+      `WHERE LOWER(client_id) = LOWER($1) AND ${fetchedAtJakartaDateSql} = $2::date\n` +
       `ORDER BY fetched_at ASC, shortcode ASC`;
     params = [identifier, today];
   }
@@ -154,7 +160,7 @@ export async function getShortcodesTodayByClient(identifier) {
   if (useRoleFilter && clientType === 'direktorat' && rows.length === 0) {
     const fallbackQuery =
       `SELECT shortcode FROM insta_post\n` +
-      `WHERE LOWER(client_id) = LOWER($1) AND (fetched_at AT TIME ZONE 'Asia/Jakarta')::date = $2::date\n` +
+      `WHERE LOWER(client_id) = LOWER($1) AND ${fetchedAtJakartaDateSql} = $2::date\n` +
       `ORDER BY fetched_at ASC, shortcode ASC`;
     rows = (await query(fallbackQuery, [identifier, today])).rows;
   }
