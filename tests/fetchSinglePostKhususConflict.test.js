@@ -80,6 +80,13 @@ describe('fetchSinglePostKhusus', () => {
     expect(mockFetchInstagramPostInfo).toHaveBeenCalledWith('abc123');
     expect(mockUpsertInstaPostKhusus).toHaveBeenCalledTimes(1);
     expect(mockUpsertInstaPost).toHaveBeenCalledTimes(1);
+    expect(mockUpsertInstaPost).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source_type: 'manual_input',
+        created_at: expect.any(String),
+        original_created_at: '2023-11-14T22:13:20.000Z',
+      })
+    );
     expect(mockSavePostWithMedia).toHaveBeenCalledTimes(1);
     expect(result.like_count).toBe(0);
   });

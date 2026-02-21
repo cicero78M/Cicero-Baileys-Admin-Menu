@@ -76,7 +76,7 @@ export async function upsertInstaPost(data) {
               THEN EXCLUDED.created_at
             ELSE EXCLUDED.created_at
           END,
-          original_created_at = COALESCE(EXCLUDED.original_created_at, insta_post.original_created_at)`,
+          original_created_at = COALESCE(insta_post.original_created_at, EXCLUDED.original_created_at)`,
     [
       client_id,
       shortcode,
