@@ -40,6 +40,7 @@ test('getShortcodesTodayByClient filters by client for non-direktorat', async ()
   await getShortcodesTodayByClient('C1');
   const sql = mockQuery.mock.calls[1][0];
   expect(sql).toContain('LOWER(client_id) = LOWER($1)');
+  expect(sql).toContain("(fetched_at AT TIME ZONE 'Asia/Jakarta')::date");
   expect(sql).not.toContain('insta_post_roles');
 });
 
@@ -53,6 +54,7 @@ test('getShortcodesTodayByClient uses role filter for directorate', async () => 
   expect(sql).toContain('insta_post_roles');
   expect(sql).toContain('LOWER(pr.role_name) = LOWER($1)');
   expect(sql).not.toContain('source_type');
+  expect(sql).toContain("(p.fetched_at AT TIME ZONE 'Asia/Jakarta')::date");
 });
 
 test('getShortcodesTodayByClient falls back to client filter when directorate role returns empty', async () => {
@@ -70,23 +72,25 @@ test('getShortcodesTodayByClient falls back to client filter when directorate ro
   expect(result).toEqual(['abc']);
 });
 
-test('getShortcodesTodayByClient uses client filter for Ditbinmas', async () => {
+test('getShortcodesTodayByClient uses role+client fallback for Ditbinmas', async () => {
   mockQuery
     .mockResolvedValueOnce({ rows: [{ client_type: 'direktorat' }] })
+    .mockResolvedValueOnce({ rows: [] })
     .mockResolvedValueOnce({ rows: [] });
   await getShortcodesTodayByClient('DITBINMAS');
   const sql = mockQuery.mock.calls[1][0];
-  expect(sql).toContain('LOWER(client_id) = LOWER($1)');
-  expect(sql).not.toContain('insta_post_roles');
+  const fallbackSql = mockQuery.mock.calls[2][0];
+  expect(sql).toContain('insta_post_roles');
+  expect(fallbackSql).toContain('LOWER(client_id) = LOWER($1)');
 });
 
-test('getShortcodesTodayByClient orders by created_at and shortcode for client filter', async () => {
+test('getShortcodesTodayByClient orders by fetched_at and shortcode for client filter', async () => {
   mockQuery
     .mockResolvedValueOnce({ rows: [{ client_type: 'instansi' }] })
     .mockResolvedValueOnce({ rows: [] });
   await getShortcodesTodayByClient('C1');
   const sql = mockQuery.mock.calls[1][0];
-  expect(sql).toMatch(/ORDER BY\s+created_at\s+ASC,\s+shortcode\s+ASC/i);
+  expect(sql).toMatch(/ORDER BY\s+fetched_at\s+ASC,\s+shortcode\s+ASC/i);
 });
 
 test('getShortcodesTodayByClient falls back to role when client not found', async () => {
@@ -99,14 +103,14 @@ test('getShortcodesTodayByClient falls back to role when client not found', asyn
   expect(sql).toContain('LOWER(pr.role_name) = LOWER($1)');
 });
 
-test('getShortcodesTodayByClient orders by created_at and shortcode for role filter', async () => {
+test('getShortcodesTodayByClient orders by fetched_at and shortcode for role filter', async () => {
   mockQuery
     .mockResolvedValueOnce({ rows: [{ client_type: 'direktorat' }] })
     .mockResolvedValueOnce({ rows: [] })
     .mockResolvedValueOnce({ rows: [] });
   await getShortcodesTodayByClient('DITA');
   const sql = mockQuery.mock.calls[1][0];
-  expect(sql).toMatch(/ORDER BY\s+created_at\s+ASC,\s+shortcode\s+ASC/i);
+  expect(sql).toMatch(/ORDER BY\s+fetched_at\s+ASC,\s+shortcode\s+ASC/i);
 });
 
 test('getShortcodesYesterdayByClient filters by client for non-direktorat', async () => {
