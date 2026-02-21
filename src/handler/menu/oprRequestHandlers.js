@@ -11,6 +11,12 @@ import { appendSubmenuBackInstruction } from "./menuPromptHelpers.js";
 function ignore(..._args) {}
 
 const OPERATOR_ROLE = "operator";
+const INSTAGRAM_TASK_FETCH_FIELDS = [
+  "shortcode",
+  "caption",
+  "like_count",
+  "timestamp",
+];
 
 function normalizeAccessNumbers(rawNumber) {
   const digitsOnly = String(rawNumber || "").replace(/\D/g, "");
@@ -673,7 +679,12 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
           chatId,
           `⏳ Memulai fetch post engagement untuk client *${clientId}*...`
         );
-        await fetchAndStoreInstaContent(null, waClient, chatId, clientId);
+        await fetchAndStoreInstaContent(
+          INSTAGRAM_TASK_FETCH_FIELDS,
+          waClient,
+          chatId,
+          clientId
+        );
         await handleFetchLikesInstagram(waClient, chatId, clientId);
         await fetchAndStoreTiktokContent(clientId, waClient, chatId);
         await handleFetchKomentarTiktokBatch(waClient, chatId, clientId);
@@ -1720,7 +1731,12 @@ Balas *angka* (1/2) sesuai status baru, atau *batal* untuk keluar.
     }
     const { fetchAndStoreInstaContent } = await import("../fetchpost/instaFetchPost.js");
     try {
-      await fetchAndStoreInstaContent(null, waClient, chatId, clientId);
+      await fetchAndStoreInstaContent(
+        INSTAGRAM_TASK_FETCH_FIELDS,
+        waClient,
+        chatId,
+        clientId
+      );
       await waClient.sendMessage(chatId, `✅ Update tugas selesai untuk client *${clientId}*.`);
     } catch (err) {
       await waClient.sendMessage(chatId, `❌ Gagal update tugas IG: ${err.message}`);
@@ -2777,10 +2793,10 @@ Balas *angka* (1/2) sesuai status baru, atau *batal* untuk keluar.
     try {
       const { fetchSinglePostKhusus } = await import("../fetchpost/instaFetchPost.js");
       const post = await fetchSinglePostKhusus(text.trim(), clientId);
-      const link = `https://www.instagram.com/p/${post.shortcode}`;
+      const link = `https://www.instagram.com/p/${post.shortcode}/`;
       await waClient.sendMessage(
         chatId,
-        `✅ Fetch post tugas khusus selesai:\n${link}`
+        `✅ Fetch post tugas khusus selesai:\n${link}\nSumber data: *manual input*.`
       );
     } catch (e) {
       await waClient.sendMessage(chatId, `❌ Gagal fetch: ${e.message}`);

@@ -1,5 +1,5 @@
 # Panduan Operator WA Bot
-*Last updated: 2026-02-19*
+*Last updated: 2026-02-22*
 
 > Perubahan terbaru: menu *userrequest*, *bulk deletion*, dan *Response Komplain* pada alur WA bot telah dinonaktifkan/hapus.
 
@@ -84,13 +84,15 @@ Menu ini hanya muncul jika client memiliki kanal engagement yang aktif. Aturan a
 - **Rekap Link Harian Kemarin**
   1. Bot menampilkan rangkuman link konten yang dikumpulkan kemarin dari pengguna dengan role **operator** di client.
 - **Update Tugas Instagram**
-  1. Bot menjalankan proses pengambilan tugas terbaru untuk client terkait.
+  1. Bot menjalankan proses fetch post Instagram tugas rutin untuk client terkait dengan kontrak field yang sama seperti fetch post Instagram terbaru (`shortcode`, `caption`, `like_count`, `timestamp`).
   2. Sistem juga menjalankan cron otomatis setiap 30 menit (08.00-21.00 WIB) untuk client bertipe org yang aktif dengan amplifikasi aktif, sehingga tugas rutin tetap terbarui tanpa perlu trigger manual.
 - **Input Tugas Khusus**
   1. Operator mengirim link post Instagram pada submenu *Input tugas khusus*.
   2. Sistem mengekstrak `shortcode` lalu memeriksa apakah `shortcode` tersebut sudah tersimpan di `insta_post_khusus`.
   3. Jika `shortcode` sudah dipakai oleh `client_id` lain, input ditolak dengan pesan agar satker mengunggah konten melalui akun khusus miliknya sendiri.
   4. Jika valid, sistem mengambil metadata post Instagram dan menyimpan data ke `insta_post_khusus` serta sinkron ke `insta_post` untuk kebutuhan rekap lintas menu.
+  5. Data input khusus ditandai sebagai sumber *manual input* (`source_type=manual_input`), `created_at` mencatat waktu upload dari bot, dan `original_created_at` menyimpan waktu publish asli dari Instagram. Balasan sukses mengembalikan link post dalam format kanonik `https://www.instagram.com/p/<shortcode>/`.
+  6. Query data tugas khusus harian pada menu laporan/absensi sekarang memakai tanggal **Asia/Jakarta** agar tidak bergeser hari ketika timezone server berbeda.
 - **Absensi Likes Instagram**
   1. Bot menampilkan rekap absensi likes Instagram untuk user operator berdasarkan mode (semua/sudah/belum).
   2. Mode akumulasi menampilkan daftar per satfung dengan sub-list *lengkap/kurang/belum* (lengkap = seluruh konten terpenuhi).
