@@ -112,8 +112,6 @@ export async function findPostByShortcode(shortcode) {
 
 export async function getShortcodesTodayByClient(identifier) {
   const { operationalDate: today } = getOperationalAttendanceDate();
-  const fetchedAtJakartaDateSql =
-    `(COALESCE(p.fetched_at, p.created_at) AT TIME ZONE 'Asia/Jakarta')::date`;
 
   const typeRes = await query(
     'SELECT client_type FROM clients WHERE LOWER(client_id) = LOWER($1)',
@@ -130,38 +128,43 @@ export async function getShortcodesTodayByClient(identifier) {
     clientType === 'direktorat';
 
   if (useRoleFilter) {
-    sql =
-      `SELECT shortcode FROM (\n` +
-      `  SELECT p.shortcode, p.fetched_at\n` +
-      `  FROM insta_post p\n` +
-      `  JOIN insta_post_roles pr ON pr.shortcode = p.shortcode\n` +
-      `  WHERE LOWER(pr.role_name) = LOWER($1)\n` +
-      `    AND ${fetchedAtJakartaDateSql} = $2::date\n` +
-      `\n` +
-      `  UNION\n` +
-      `\n` +
-      `  SELECT p.shortcode, p.fetched_at\n` +
-      `  FROM insta_post p\n` +
-      `  WHERE LOWER(p.client_id) = LOWER($1)\n` +
-      `    AND ${fetchedAtJakartaDateSql} = $2::date\n` +
-      `) merged\n` +
-      `ORDER BY fetched_at ASC, shortcode ASC`;
+    sql = `
+      SELECT shortcode FROM (
+        SELECT p.shortcode, p.created_at
+        FROM insta_post p
+        JOIN insta_post_roles pr ON pr.shortcode = p.shortcode
+        WHERE LOWER(pr.role_name) = LOWER($1)
+          AND ${getInstagramCreatedAtJakartaDateSql('p.created_at')} = $2::date
+
+        UNION
+
+        SELECT p.shortcode, p.created_at
+        FROM insta_post p
+        WHERE LOWER(p.client_id) = LOWER($1)
+          AND ${getInstagramCreatedAtJakartaDateSql('p.created_at')} = $2::date
+      ) merged
+      ORDER BY created_at ASC, shortcode ASC
+    `;
     params = [identifier, today];
   } else {
-    sql =
-      `SELECT shortcode FROM insta_post\n` +
-      `WHERE LOWER(client_id) = LOWER($1) AND ${fetchedAtJakartaDateSql} = $2::date\n` +
-      `ORDER BY fetched_at ASC, shortcode ASC`;
+    sql = `
+      SELECT shortcode FROM insta_post
+      WHERE LOWER(client_id) = LOWER($1)
+        AND ${getInstagramCreatedAtJakartaDateSql()} = $2::date
+      ORDER BY created_at ASC, shortcode ASC
+    `;
     params = [identifier, today];
   }
 
   let rows = (await query(sql, params)).rows;
 
   if (useRoleFilter && clientType === 'direktorat' && rows.length === 0) {
-    const fallbackQuery =
-      `SELECT shortcode FROM insta_post\n` +
-      `WHERE LOWER(client_id) = LOWER($1) AND ${fetchedAtJakartaDateSql} = $2::date\n` +
-      `ORDER BY fetched_at ASC, shortcode ASC`;
+    const fallbackQuery = `
+      SELECT shortcode FROM insta_post
+      WHERE LOWER(client_id) = LOWER($1)
+        AND ${getInstagramCreatedAtJakartaDateSql()} = $2::date
+      ORDER BY created_at ASC, shortcode ASC
+    `;
     rows = (await query(fallbackQuery, [identifier, today])).rows;
   }
 
@@ -190,12 +193,12 @@ export async function getShortcodesYesterdayByClient(identifier) {
       `SELECT p.shortcode FROM insta_post p\n` +
       `JOIN insta_post_roles pr ON pr.shortcode = p.shortcode\n` +
       `WHERE LOWER(pr.role_name) = LOWER($1)\n` +
-      `  AND (p.fetched_at AT TIME ZONE 'Asia/Jakarta')::date = $2::date`;
+      `  AND ${getInstagramCreatedAtJakartaDateSql('p.created_at')} = $2::date`;
     params = [identifier, yesterday];
   } else {
     sql =
       `SELECT shortcode FROM insta_post\n` +
-      `WHERE LOWER(client_id) = LOWER($1) AND (fetched_at AT TIME ZONE 'Asia/Jakarta')::date = $2::date`;
+      `WHERE LOWER(client_id) = LOWER($1) AND ${getInstagramCreatedAtJakartaDateSql()} = $2::date`;
     params = [identifier, yesterday];
   }
 
@@ -275,8 +278,8 @@ export async function getPostsTodayByClient(client_id) {
     `SELECT *
      FROM insta_post
      WHERE LOWER(client_id) = LOWER($1)
-       AND (fetched_at AT TIME ZONE 'Asia/Jakarta')::date = ${getInstagramNowJakartaDateSql()}
-     ORDER BY fetched_at ASC, created_at ASC`,
+       AND ${getInstagramCreatedAtJakartaDateSql()} = ${getInstagramNowJakartaDateSql()}
+     ORDER BY created_at ASC`,
     [client_id]
   );
   return res.rows;
