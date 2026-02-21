@@ -59,6 +59,7 @@ dirrequest tanpa langkah tambahan.
   - **5️⃣0️⃣ Fetch likes IG manual (hari ini)**
   - **5️⃣1️⃣ Fetch komentar TikTok manual (hari ini)**
   - **5️⃣2️⃣ Fetch komentar IG manual (hari ini)**
+  - **5️⃣3️⃣ Hapus post tugas (auto IG/TikTok)**
 - Kedua menu ini dipakai saat operator perlu menambah konten tugas di luar hasil
   crawl akun resmi (misalnya ada konten baru yang belum terambil scheduler).
   Sumber data tugas sekarang dapat berasal dari:
@@ -97,6 +98,24 @@ dirrequest tanpa langkah tambahan.
 - Opsi **5️⃣2️⃣** memanggil handler fetch komentar Instagram dengan filter
   `source_type=manual_input` untuk konten manual hari berjalan (WIB), dengan
   `delay` pagination komentar per halaman disetel ke **1000ms**.
+- Opsi **5️⃣3️⃣** memindahkan sesi ke step
+  `dirrequest_delete_task_post_prompt`, lalu operator cukup mengirim **1 link**
+  post tugas. Bot akan mendeteksi otomatis platform:
+  - Jika link Instagram valid → shortcode disimpan sebagai exclusion tugas.
+  - Jika link TikTok valid → video ID disimpan sebagai exclusion tugas.
+  - Jika format tidak dikenali → bot meminta input link valid/batal.
+- Penghapusan via **5️⃣3️⃣** hanya menghapus post dari **daftar link tugas harian**
+  (list yang ditampilkan pada laporan tugas), **tanpa menghapus** data likes
+  Instagram maupun komentar TikTok yang sudah terdata.
+
+### Penyimpanan Exclusion Post Tugas (Menu 5️⃣3️⃣)
+- Data exclusion disimpan di tabel baru `task_post_exclusions` dengan kunci unik
+  `(client_id, platform, content_id)` agar idempoten untuk input berulang.
+- Saat generator daftar link tugas harian membaca post hari berjalan dari
+  `insta_post`/`tiktok_post`, bot terlebih dahulu memuat exclusion per client
+  untuk memfilter shortcode/video_id yang sudah ditandai di menu **5️⃣3️⃣**.
+- Karena konten utama tidak dihapus dari tabel post, relasi engagement historis
+  (likes/comment) tetap aman dan tidak ikut terhapus.
 
 ### Format Input, Validasi, dan Konfirmasi Output
 

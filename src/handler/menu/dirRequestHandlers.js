@@ -73,6 +73,12 @@ import {
 import { appendSubmenuBackInstruction } from "./menuPromptHelpers.js";
 import { fetchSinglePostKhusus } from "../fetchpost/instaFetchPost.js";
 import { fetchAndStoreSingleTiktokPost } from "../fetchpost/tiktokFetchPost.js";
+import { extractInstagramShortcode } from "../../utils/utilsHelper.js";
+import { extractVideoId } from "../../utils/tiktokHelper.js";
+import {
+  addTaskPostExclusion,
+  getTaskPostExclusionSet,
+} from "../../model/taskPostExclusionModel.js";
 
 const dirRequestGroup = "120363419830216549@g.us";
 const DITBINMAS_CLIENT_ID = "DITBINMAS";
@@ -267,6 +273,14 @@ const DIRREQUEST_INPUT_TIKTOK_MANUAL_PROMPT = appendSubmenuBackInstruction(
   "Kirim link atau video ID TikTok yang ingin diinput manual.\n\n" +
     "Contoh: https://www.tiktok.com/@username/video/1234567890123456789\n" +
     "Ketik *batal* untuk kembali ke menu utama."
+);
+
+const DIRREQUEST_DELETE_TASK_POST_PROMPT = appendSubmenuBackInstruction(
+  "Kirim link post tugas yang ingin dihapus dari daftar tugas harian.\n\n" +
+    "Sistem akan otomatis mendeteksi apakah link Instagram atau TikTok.\n" +
+    "Contoh IG: https://www.instagram.com/p/XXXXXXXXXXX/\n" +
+    "Contoh TikTok: https://www.tiktok.com/@username/video/1234567890123456789\n\n" +
+    "Catatan: penghapusan ini hanya menghapus *post tugas* dari daftar tugas, tanpa menghapus data likes Instagram dan komentar TikTok yang sudah tersimpan."
 );
 
 const DIRREQUEST_FETCH_IG_MANUAL_LIKES_TEXT =
@@ -1728,13 +1742,29 @@ async function formatRekapAllSosmed(
       clientType === "direktorat" || isDitbinmas(normalizedClientId);
 
     if (shouldUseDailyContent) {
+      let igExclusionSet = new Set();
+      let ttExclusionSet = new Set();
       try {
-        igPosts = (await getInstaPostsTodayByClient(normalizedClientId)) || [];
+        [igExclusionSet, ttExclusionSet] = await Promise.all([
+          getTaskPostExclusionSet({ clientId: normalizedClientId, platform: "instagram" }),
+          getTaskPostExclusionSet({ clientId: normalizedClientId, platform: "tiktok" }),
+        ]);
+      } catch {
+        igExclusionSet = new Set();
+        ttExclusionSet = new Set();
+      }
+
+      try {
+        igPosts = ((await getInstaPostsTodayByClient(normalizedClientId)) || []).filter(
+          (post) => !igExclusionSet.has(String(post?.shortcode || "").trim())
+        );
       } catch {
         igPosts = [];
       }
       try {
-        ttPosts = (await getTiktokPostsTodayByClient(normalizedClientId)) || [];
+        ttPosts = ((await getTiktokPostsTodayByClient(normalizedClientId)) || []).filter(
+          (post) => !ttExclusionSet.has(String(post?.video_id || "").trim())
+        );
       } catch {
         ttPosts = [];
       }
@@ -2902,7 +2932,8 @@ export const dirRequestHandlers = {
         "4️⃣7️⃣ Input TikTok post manual\n" +
         "5️⃣0️⃣ Fetch likes IG manual (hari ini)\n" +
         "5️⃣1️⃣ Fetch komentar TikTok manual (hari ini)\n" +
-        "5️⃣2️⃣ Fetch komentar IG manual (hari ini)\n\n" +
+        "5️⃣2️⃣ Fetch komentar IG manual (hari ini)\n" +
+        "5️⃣3️⃣ Hapus post tugas (auto IG/TikTok)\n\n" +
         "📝 *Laporan*\n" +
         "1️⃣7️⃣ Laporan harian Instagram Direktorat/Bidang\n" +
         "1️⃣8️⃣ Laporan harian TikTok Direktorat/Bidang\n" +
@@ -3101,6 +3132,7 @@ export const dirRequestHandlers = {
           "50",
           "51",
           "52",
+          "53",
         ].includes(choice)
     ) {
       await waClient.sendMessage(chatId, "Pilihan tidak valid. Ketik angka menu.");
@@ -3210,6 +3242,12 @@ export const dirRequestHandlers = {
       });
       session.step = "main";
       await dirRequestHandlers.main(session, chatId, "", waClient);
+      return;
+    }
+
+    if (choice === "53") {
+      session.step = "dirrequest_delete_task_post_prompt";
+      await waClient.sendMessage(chatId, DIRREQUEST_DELETE_TASK_POST_PROMPT);
       return;
     }
 
@@ -3401,6 +3439,75 @@ export const dirRequestHandlers = {
       console.error("Gagal input manual post TikTok dirrequest:", error);
       const reason = error?.message || "Terjadi kesalahan saat menyimpan post manual TikTok.";
       await waClient.sendMessage(chatId, `❌ Gagal input manual post TikTok: ${reason}`);
+    }
+
+    session.step = "main";
+    await dirRequestHandlers.main(session, chatId, "", waClient);
+  },
+
+  async dirrequest_delete_task_post_prompt(session, chatId, text, waClient) {
+    const input = (text || "").trim();
+    if (!input) {
+      await waClient.sendMessage(chatId, DIRREQUEST_DELETE_TASK_POST_PROMPT);
+      return;
+    }
+
+    if (input.toLowerCase() === "batal") {
+      await waClient.sendMessage(chatId, "✅ Penghapusan post tugas dibatalkan.");
+      session.step = "main";
+      await dirRequestHandlers.main(session, chatId, "", waClient);
+      return;
+    }
+
+    const targetClientId = session.dir_client_id || session.selectedClientId || DITBINMAS_CLIENT_ID;
+    const shortcode = extractInstagramShortcode(input);
+    const videoId = extractVideoId(input);
+
+    try {
+      if (shortcode) {
+        await addTaskPostExclusion({
+          clientId: targetClientId,
+          platform: "instagram",
+          contentId: shortcode,
+          sourceLink: input,
+        });
+        await waClient.sendMessage(
+          chatId,
+          [
+            "✅ Post tugas Instagram berhasil dihapus dari daftar tugas harian.",
+            "Data likes Instagram yang sudah tersimpan tidak dihapus.",
+            `Client : ${targetClientId}`,
+            `Shortcode : ${shortcode}`,
+          ].join("\n")
+        );
+      } else if (videoId) {
+        await addTaskPostExclusion({
+          clientId: targetClientId,
+          platform: "tiktok",
+          contentId: videoId,
+          sourceLink: input,
+        });
+        await waClient.sendMessage(
+          chatId,
+          [
+            "✅ Post tugas TikTok berhasil dihapus dari daftar tugas harian.",
+            "Data komentar TikTok yang sudah tersimpan tidak dihapus.",
+            `Client : ${targetClientId}`,
+            `Video ID : ${videoId}`,
+          ].join("\n")
+        );
+      } else {
+        await waClient.sendMessage(
+          chatId,
+          "❌ Link tidak dikenali. Kirim link post Instagram/TikTok yang valid atau ketik *batal*."
+        );
+        await waClient.sendMessage(chatId, DIRREQUEST_DELETE_TASK_POST_PROMPT);
+        return;
+      }
+    } catch (error) {
+      console.error("Gagal menghapus post tugas dirrequest:", error);
+      const reason = error?.message || "Terjadi kesalahan saat menghapus post tugas.";
+      await waClient.sendMessage(chatId, `❌ Gagal menghapus post tugas: ${reason}`);
     }
 
     session.step = "main";
