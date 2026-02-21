@@ -234,6 +234,7 @@ dirrequest tanpa langkah tambahan.
   - **Sumber data personil/cakupan user:** memakai role direktorat (`getUsersByDirektorat`/`getClientsByRole`) agar rekap jajaran tetap mengikuti struktur personil direktorat.
   - Guard validasi ditambahkan: bila `roleFlag` tidak cocok dengan role direktorat dari client terpilih, sistem melakukan fallback aman ke role turunan `normalizedClientId` dan menulis warning terstruktur ke log.
 - Sumber shortcode Instagram untuk absensi likes menu direktorat tetap menyertakan gabungan post hasil relasi role (`insta_post_roles`) **dan** seluruh post milik `client_id` direktorat terpilih pada hari berjalan (WIB), termasuk hasil cronjob maupun input manual. Mekanisme ini disamakan dengan pengambilan post harian di cronjob report agar menu **6️⃣** (Absensi like Direktorat/Bidang Simple) dan menu **4️⃣8️⃣** (Absensi Instagram Jajaran) tidak kehilangan post yang tersimpan via jalur non-manual.
+- Pengambilan shortcode untuk client bertipe **direktorat** tidak lagi memiliki pengecualian hardcoded untuk `DITBINMAS`. Seluruh direktorat sekarang mengikuti aturan query yang sama: gabungan role mapping (`insta_post_roles`) + fallback `client_id` pada hari berjalan (WIB), sehingga alur menu **6️⃣** tetap konsisten lintas direktorat.
 - Khusus laporan menu **4️⃣8️⃣** dan **4️⃣9️⃣**, label ringkasan serta detail satker diubah dari **"Sudah Melaksanakan"** menjadi **"Melaksanakan Lengkap"** agar konsisten dengan kategori pelaksanaan lengkap vs kurang lengkap.
 
 - Submenu **6️⃣ (Simple)** kini memakai filtering personil yang sama dengan
