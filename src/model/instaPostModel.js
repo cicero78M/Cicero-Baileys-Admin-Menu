@@ -6,6 +6,62 @@ import {
 } from '../utils/instagramCreatedAtSql.js';
 import { getOperationalAttendanceDate } from '../utils/attendanceOperationalDate.js';
 
+let instaPostFetchedAtColumnMetaCache = null;
+
+async function getInstaPostFetchedAtColumnMeta() {
+  if (instaPostFetchedAtColumnMetaCache) {
+    return instaPostFetchedAtColumnMetaCache;
+  }
+
+  const res = await query(
+    `SELECT
+      EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'insta_post'
+          AND column_name = 'fetched_at'
+      ) AS has_column,
+      (
+        SELECT data_type
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'insta_post'
+          AND column_name = 'fetched_at'
+        LIMIT 1
+      ) AS data_type`
+  );
+
+  const row = res.rows[0] || {};
+  instaPostFetchedAtColumnMetaCache = {
+    hasColumn: Boolean(row.has_column),
+    dataType: String(row.data_type || '').toLowerCase(),
+  };
+
+  return instaPostFetchedAtColumnMetaCache;
+}
+
+async function getInstagramOperationalDateSql(columnAlias = 'p') {
+  const fetchedAtMeta = await getInstaPostFetchedAtColumnMeta();
+
+  if (!fetchedAtMeta.hasColumn) {
+    return getInstagramCreatedAtJakartaDateSql(`${columnAlias}.created_at`);
+  }
+
+  if (fetchedAtMeta.dataType === 'timestamp without time zone') {
+    // Beberapa deployment lama menyimpan fetched_at sebagai timestamp tanpa timezone.
+    // Nilainya diperlakukan sebagai UTC agar konversi tanggal WIB tidak mundur ke H-1.
+    return getInstagramCreatedAtJakartaDateSql(`${columnAlias}.fetched_at`);
+  }
+
+  if (fetchedAtMeta.dataType === 'timestamp with time zone') {
+    return `(${columnAlias}.fetched_at AT TIME ZONE 'Asia/Jakarta')::date`;
+  }
+
+  // Safety-net ketika metadata tipe kolom tidak terdeteksi sesuai ekspektasi.
+  return getInstagramCreatedAtJakartaDateSql(`${columnAlias}.fetched_at`);
+}
+
 function normalizeSourceType(sourceType) {
   const normalized = (sourceType || '')
     .toString()
@@ -112,6 +168,7 @@ export async function findPostByShortcode(shortcode) {
 
 export async function getShortcodesTodayByClient(identifier) {
   const { operationalDate: today } = getOperationalAttendanceDate();
+  const operationalDateSql = await getInstagramOperationalDateSql('p');
 
   const typeRes = await query(
     'SELECT client_type FROM clients WHERE LOWER(client_id) = LOWER($1)',
@@ -134,23 +191,23 @@ export async function getShortcodesTodayByClient(identifier) {
         FROM insta_post p
         JOIN insta_post_roles pr ON pr.shortcode = p.shortcode
         WHERE LOWER(pr.role_name) = LOWER($1)
-          AND ${getInstagramCreatedAtJakartaDateSql('p.created_at')} = $2::date
+          AND ${operationalDateSql} = $2::date
 
         UNION
 
         SELECT p.shortcode, p.created_at
         FROM insta_post p
         WHERE LOWER(p.client_id) = LOWER($1)
-          AND ${getInstagramCreatedAtJakartaDateSql('p.created_at')} = $2::date
+          AND ${operationalDateSql} = $2::date
       ) merged
       ORDER BY created_at ASC, shortcode ASC
     `;
     params = [identifier, today];
   } else {
     sql = `
-      SELECT shortcode FROM insta_post
+      SELECT p.shortcode FROM insta_post p
       WHERE LOWER(client_id) = LOWER($1)
-        AND ${getInstagramCreatedAtJakartaDateSql()} = $2::date
+        AND ${operationalDateSql} = $2::date
       ORDER BY created_at ASC, shortcode ASC
     `;
     params = [identifier, today];
@@ -160,9 +217,9 @@ export async function getShortcodesTodayByClient(identifier) {
 
   if (useRoleFilter && clientType === 'direktorat' && rows.length === 0) {
     const fallbackQuery = `
-      SELECT shortcode FROM insta_post
+      SELECT p.shortcode FROM insta_post p
       WHERE LOWER(client_id) = LOWER($1)
-        AND ${getInstagramCreatedAtJakartaDateSql()} = $2::date
+        AND ${operationalDateSql} = $2::date
       ORDER BY created_at ASC, shortcode ASC
     `;
     rows = (await query(fallbackQuery, [identifier, today])).rows;
@@ -184,6 +241,7 @@ export async function getShortcodesYesterdayByClient(identifier) {
   );
 
   const clientType = typeRes.rows[0]?.client_type?.toLowerCase();
+  const operationalDateSql = await getInstagramOperationalDateSql('p');
 
   let sql;
   let params;
@@ -193,12 +251,12 @@ export async function getShortcodesYesterdayByClient(identifier) {
       `SELECT p.shortcode FROM insta_post p\n` +
       `JOIN insta_post_roles pr ON pr.shortcode = p.shortcode\n` +
       `WHERE LOWER(pr.role_name) = LOWER($1)\n` +
-      `  AND ${getInstagramCreatedAtJakartaDateSql('p.created_at')} = $2::date`;
+      `  AND ${operationalDateSql} = $2::date`;
     params = [identifier, yesterday];
   } else {
     sql =
-      `SELECT shortcode FROM insta_post\n` +
-      `WHERE LOWER(client_id) = LOWER($1) AND ${getInstagramCreatedAtJakartaDateSql()} = $2::date`;
+      `SELECT p.shortcode FROM insta_post p\n` +
+      `WHERE LOWER(p.client_id) = LOWER($1) AND ${operationalDateSql} = $2::date`;
     params = [identifier, yesterday];
   }
 
