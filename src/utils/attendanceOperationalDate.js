@@ -1,12 +1,18 @@
+/**
+ * Attendance operational date helper.
+ * Catatan: formatter tanggal/jam dikonsolidasikan via dateJakarta.js
+ * untuk memastikan key query dan narasi tampil konsisten di WIB.
+ */
 import { hariIndo } from "./constants.js";
-
-const JAKARTA_TIMEZONE = "Asia/Jakarta";
+import {
+  formatJakartaDisplayDate,
+  formatJakartaDisplayTime,
+  formatJakartaQueryDateKey,
+} from "./dateJakarta.js";
 
 export function getOperationalAttendanceDate(now = new Date()) {
   const current = now instanceof Date ? now : new Date(now);
-  const operationalDate = current.toLocaleDateString("en-CA", {
-    timeZone: JAKARTA_TIMEZONE,
-  });
+  const operationalDate = formatJakartaQueryDateKey(current);
 
   const [year, month, day] = operationalDate.split("-").map(Number);
   const localJakartaDate = new Date(Date.UTC(year, month - 1, day));
@@ -14,19 +20,8 @@ export function getOperationalAttendanceDate(now = new Date()) {
   return {
     operationalDate,
     hari: hariIndo[localJakartaDate.getUTCDay()],
-    tanggal: localJakartaDate.toLocaleDateString("id-ID", {
-      day: "2-digit",
-      month: "long",
-      year: "numeric",
-      timeZone: "UTC",
-    }),
-    jam: current.toLocaleTimeString("id-ID", {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: false,
-      timeZone: JAKARTA_TIMEZONE,
-    }),
+    tanggal: formatJakartaDisplayDate(localJakartaDate, { timeZone: "UTC" }),
+    jam: formatJakartaDisplayTime(current),
   };
 }
 
@@ -35,11 +30,6 @@ export function formatOperationalDateLabel(operationalDate) {
   const parsed = new Date(`${operationalDate}T00:00:00Z`);
   if (Number.isNaN(parsed.getTime())) return operationalDate;
   const hari = hariIndo[parsed.getUTCDay()] || "";
-  const tanggal = parsed.toLocaleDateString("id-ID", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-    timeZone: "UTC",
-  });
+  const tanggal = formatJakartaDisplayDate(parsed, { timeZone: "UTC" });
   return `${hari}, ${tanggal}`.trim();
 }
