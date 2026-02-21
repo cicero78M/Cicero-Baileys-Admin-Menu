@@ -85,7 +85,7 @@ describe('Instagram Jajaran Attendance', () => {
 
     await expect(
       collectInstagramJajaranAttendance('DITBINMAS', null)
-    ).rejects.toThrow('Tidak ada konten pada akun Official Instagram');
+    ).rejects.toThrow('Tidak ada konten untuk tanggal operasional');
   });
 
   test('collects and sorts data correctly', async () => {

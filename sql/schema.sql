@@ -223,7 +223,8 @@ CREATE TABLE insta_post (
   is_carousel BOOLEAN DEFAULT FALSE,
   source_type VARCHAR(20) NOT NULL DEFAULT 'cron_fetch',
   created_at TIMESTAMP,
-  original_created_at TIMESTAMPTZ
+  original_created_at TIMESTAMPTZ,
+  fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE insta_post_roles (
@@ -231,6 +232,10 @@ CREATE TABLE insta_post_roles (
   role_name VARCHAR NOT NULL,
   PRIMARY KEY (shortcode, role_name)
 );
+
+
+CREATE INDEX idx_insta_post_client_fetched_at ON insta_post (LOWER(TRIM(client_id)), fetched_at);
+CREATE INDEX idx_insta_post_fetched_at ON insta_post (fetched_at);
 
 CREATE TABLE insta_like (
   shortcode VARCHAR PRIMARY KEY REFERENCES insta_post(shortcode),
@@ -270,7 +275,8 @@ CREATE TABLE insta_post_khusus (
   is_carousel BOOLEAN DEFAULT FALSE,
   source_type VARCHAR(20) NOT NULL DEFAULT 'cron_fetch',
   created_at TIMESTAMP,
-  original_created_at TIMESTAMPTZ
+  original_created_at TIMESTAMPTZ,
+  fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE insta_profile (

@@ -18,6 +18,7 @@ import {
 import { getClientInfo } from "../../../service/instagram/instagramReport.js";
 import { computeDitbinmasLikesStats } from "./ditbinmasLikesUtils.js";
 import { sortUsersByPositionRankAndName } from "../../../utils/sortingHelper.js";
+import { getOperationalAttendanceDate, formatOperationalDateLabel } from "../../../utils/attendanceOperationalDate.js";
 
 // Use the comprehensive sorting function from sortingHelper
 const sortUsersByRankAndName = sortUsersByPositionRankAndName;
@@ -503,10 +504,8 @@ export async function rekapLikesIG(client_id) {
 export async function absensiLikesDitbinmasSimple(clientId = "DITBINMAS") {
   const targetClientId = String(clientId || "DITBINMAS").trim().toUpperCase();
   const roleName = targetClientId.toLowerCase();
-  const now = new Date();
-  const hari = hariIndo[now.getDay()];
-  const tanggal = now.toLocaleDateString("id-ID");
-  const jam = now.toLocaleTimeString("id-ID", { hour12: false });
+  const { hari, tanggal, jam, operationalDate } = getOperationalAttendanceDate();
+  const tanggalOperasionalLabel = formatOperationalDateLabel(operationalDate);
 
   let shortcodes;
   try {
@@ -518,7 +517,7 @@ export async function absensiLikesDitbinmasSimple(clientId = "DITBINMAS") {
   const { nama: clientName, clientType } = await getClientInfo(targetClientId);
 
   if (!shortcodes.length)
-    return `*Belum ada konten Instagram terbaru pada akun official ${clientName.toUpperCase()} pada hari ini.*`;
+    return `*Tidak ada konten untuk tanggal operasional ${tanggalOperasionalLabel} pada akun official ${clientName.toUpperCase()}.*`;
 
   const kontenLinks = shortcodes.map((sc) => `https://www.instagram.com/p/${sc}`);
   let likesSets;

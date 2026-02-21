@@ -7,23 +7,15 @@ import { getCommentsByVideoId } from "../model/tiktokCommentModel.js";
 import { extractUsernamesFromComments, normalizeUsername as normalizeTiktokUsername } from "../handler/fetchabsensi/tiktok/absensiKomentarTiktok.js";
 import { filterAttendanceUsers } from "../utils/utilsHelper.js";
 import { hariIndo } from "../utils/constants.js";
+import { getOperationalAttendanceDate, formatOperationalDateLabel } from "../utils/attendanceOperationalDate.js";
 
 /**
  * Collect Instagram jajaran attendance data
  * Groups by client/polres with detailed stats
  */
 export async function collectInstagramJajaranAttendance(clientId, roleFlag = null) {
-  const now = new Date();
-  const hari = hariIndo[now.getDay()];
-  const tanggal = now.toLocaleDateString("id-ID", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  });
-  const jam = now.toLocaleTimeString("id-ID", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const { hari, tanggal, jam, operationalDate } = getOperationalAttendanceDate();
+  const tanggalOperasionalLabel = formatOperationalDateLabel(operationalDate);
 
   const normalizedClientId = String(clientId || "").toUpperCase();
   const expectedDirektoratRole = normalizedClientId.toLowerCase();
@@ -68,7 +60,7 @@ export async function collectInstagramJajaranAttendance(clientId, roleFlag = nul
 
   if (!shortcodes.length) {
     throw new Error(
-      `Tidak ada konten pada akun Official Instagram ${clientName} hari ini.`
+      `Tidak ada konten untuk tanggal operasional ${tanggalOperasionalLabel} pada akun Official Instagram ${clientName}.`
     );
   }
 

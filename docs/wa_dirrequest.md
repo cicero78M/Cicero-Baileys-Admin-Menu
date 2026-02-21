@@ -237,6 +237,10 @@ dirrequest tanpa langkah tambahan.
 - Pengambilan shortcode untuk client bertipe **direktorat** tidak lagi memiliki pengecualian hardcoded untuk `DITBINMAS`. Seluruh direktorat sekarang mengikuti aturan query yang sama: gabungan role mapping (`insta_post_roles`) + fallback `client_id` pada hari berjalan (WIB), sehingga alur menu **6️⃣** tetap konsisten lintas direktorat.
 - Khusus laporan menu **4️⃣8️⃣** dan **4️⃣9️⃣**, label ringkasan serta detail satker diubah dari **"Sudah Melaksanakan"** menjadi **"Melaksanakan Lengkap"** agar konsisten dengan kategori pelaksanaan lengkap vs kurang lengkap.
 
+- **Definisi eksplisit hari absensi Instagram:** menggunakan **tanggal operasional (WIB)** yang bersumber dari `insta_post.fetched_at` (waktu konten masuk/ditugaskan di sistem), **bukan** dari `insta_post.created_at` (tanggal publikasi konten).
+- Query harian helper `getShortcodesTodayByClient` kini memfilter `(fetched_at AT TIME ZONE 'Asia/Jakarta')::date`, sehingga konten yang dipublikasikan lama tetapi baru difetch hari ini tetap masuk ke absensi hari operasional saat ini.
+- Menu **6️⃣** dan **4️⃣8️⃣** memakai helper tanggal operasional yang sama (`attendanceOperationalDate`) untuk label hari/tanggal/jam agar konsisten di pesan rekap.
+- Guardrail empty data diperjelas: saat konten kosong, sistem menampilkan pesan `Tidak ada konten untuk tanggal operasional <hari, tanggal>` agar operator tidak ambigu antara tanggal publikasi vs tanggal operasional.
 - Submenu **6️⃣ (Simple)** kini memakai filtering personil yang sama dengan
   menu **9️⃣**: hanya **user aktif**, `client_id` harus **persis** sesuai
   **client direktorat terpilih** (normalisasi uppercase), lalu diterapkan
