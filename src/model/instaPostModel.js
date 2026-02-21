@@ -6,33 +6,60 @@ import {
 } from '../utils/instagramCreatedAtSql.js';
 import { getOperationalAttendanceDate } from '../utils/attendanceOperationalDate.js';
 
-let hasInstaPostFetchedAtColumnCache = null;
+let instaPostFetchedAtColumnMetaCache = null;
 
-async function hasInstaPostFetchedAtColumn() {
-  if (typeof hasInstaPostFetchedAtColumnCache === 'boolean') {
-    return hasInstaPostFetchedAtColumnCache;
+async function getInstaPostFetchedAtColumnMeta() {
+  if (instaPostFetchedAtColumnMetaCache) {
+    return instaPostFetchedAtColumnMetaCache;
   }
 
   const res = await query(
-    `SELECT EXISTS (
-      SELECT 1
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'insta_post'
-        AND column_name = 'fetched_at'
-    ) AS has_column`
+    `SELECT
+      EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'insta_post'
+          AND column_name = 'fetched_at'
+      ) AS has_column,
+      (
+        SELECT data_type
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'insta_post'
+          AND column_name = 'fetched_at'
+        LIMIT 1
+      ) AS data_type`
   );
 
-  hasInstaPostFetchedAtColumnCache = Boolean(res.rows[0]?.has_column);
-  return hasInstaPostFetchedAtColumnCache;
+  const row = res.rows[0] || {};
+  instaPostFetchedAtColumnMetaCache = {
+    hasColumn: Boolean(row.has_column),
+    dataType: String(row.data_type || '').toLowerCase(),
+  };
+
+  return instaPostFetchedAtColumnMetaCache;
 }
 
 async function getInstagramOperationalDateSql(columnAlias = 'p') {
-  const hasFetchedAtColumn = await hasInstaPostFetchedAtColumn();
-  if (hasFetchedAtColumn) {
+  const fetchedAtMeta = await getInstaPostFetchedAtColumnMeta();
+
+  if (!fetchedAtMeta.hasColumn) {
+    return getInstagramCreatedAtJakartaDateSql(`${columnAlias}.created_at`);
+  }
+
+  if (fetchedAtMeta.dataType === 'timestamp without time zone') {
+    // Beberapa deployment lama menyimpan fetched_at sebagai timestamp tanpa timezone.
+    // Nilainya diperlakukan sebagai UTC agar konversi tanggal WIB tidak mundur ke H-1.
+    return getInstagramCreatedAtJakartaDateSql(`${columnAlias}.fetched_at`);
+  }
+
+  if (fetchedAtMeta.dataType === 'timestamp with time zone') {
     return `(${columnAlias}.fetched_at AT TIME ZONE 'Asia/Jakarta')::date`;
   }
-  return getInstagramCreatedAtJakartaDateSql(`${columnAlias}.created_at`);
+
+  // Safety-net ketika metadata tipe kolom tidak terdeteksi sesuai ekspektasi.
+  return getInstagramCreatedAtJakartaDateSql(`${columnAlias}.fetched_at`);
 }
 
 function normalizeSourceType(sourceType) {

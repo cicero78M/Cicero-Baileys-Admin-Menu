@@ -162,8 +162,10 @@ Stores Instagram posts fetched for a client.
 - Untuk input manual WA menu **4️⃣6️⃣** (dirrequest), `created_at` disimpan
   pada saat bot memproses input untuk menjaga jejak waktu input manual.
 - Query absensi harian Instagram memprioritaskan `fetched_at` (WIB) sebagai
-  tanggal operasional. Jika deployment lama belum memiliki kolom `fetched_at`,
-  query otomatis fallback ke `created_at` agar tetap kompatibel.
+  tanggal operasional. Helper membaca metadata kolom via `information_schema`:
+  jika `fetched_at` bertipe `timestamp without time zone`, nilainya diperlakukan
+  sebagai UTC sebelum konversi WIB; jika kolom belum ada, query fallback ke
+  `created_at` agar tetap kompatibel.
 
 ### `insta_post_khusus`
 Stores curated Instagram posts for khusus audiences.
