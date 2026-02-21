@@ -419,6 +419,26 @@ test('chakranarayana choose menu meneruskan pilihan ke nomor dirrequest asli', a
   chooseMenuSpy.mockRestore();
 });
 
+
+test('main menampilkan menu chakranarayana aktif pada akhir sesi', async () => {
+  const session = {
+    menu: 'chakranarayana',
+    step: 'main',
+    chakranarayanaSelectedGroup: 'direktorat',
+    chakranarayanaMenuMap: ['3', '6', '9', '46', '47', '50', '51', '53'],
+    allowedDirrequestMenuChoices: ['3', '6', '9', '46', '47', '50', '51', '53'],
+  };
+  const waClient = { sendMessage: jest.fn() };
+
+  await dirRequestHandlers.main(session, '123', '', waClient);
+
+  expect(session.step).toBe('chakranarayana_choose_menu');
+  const msg = waClient.sendMessage.mock.calls[0][1];
+  expect(msg).toContain('Menu Chakranarayana - Direktorat');
+  expect(msg).not.toContain('Client: *');
+  expect(msg).toContain('1️⃣ Rekap data personil *(dirrequest 3)*');
+});
+
 test('choose_menu menolak pilihan di luar whitelist chakranarayana', async () => {
   const session = {
     selectedClientId: 'DITINTELKAM',
