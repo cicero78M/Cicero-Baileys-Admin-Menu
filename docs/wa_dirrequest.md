@@ -97,7 +97,9 @@ dirrequest tanpa langkah tambahan.
   (WIB) untuk `client_id` yang sedang dipilih di sesi dirrequest yang diambil.
 - Opsi **5️⃣2️⃣** memanggil handler fetch komentar Instagram dengan filter
   `source_type=manual_input` untuk konten manual hari berjalan (WIB), dengan
-  `delay` pagination komentar per halaman disetel ke **1000ms**.
+  `delay` pagination komentar per halaman disetel ke **1000ms**. Username
+  komentator hasil fetch juga di-merge ke data existing dan di-upsert ke tabel
+  `insta_like` per shortcode agar sinkron dengan mekanisme fetch likes Instagram.
 - Pada penyimpanan hasil menu **5️⃣2️⃣**, modul komentar IG sekarang menormalkan relasi parent `ig_ext_posts` terlebih dahulu (cocokkan `post_id`/`shortcode`, lalu buat fallback row bila belum ada) agar insert/update `ig_post_comments` tidak gagal oleh foreign key pada data historis manual.
 - Opsi **5️⃣3️⃣** memindahkan sesi ke step
   `dirrequest_delete_task_post_prompt`, lalu operator cukup mengirim **1 link**

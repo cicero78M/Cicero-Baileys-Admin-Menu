@@ -12,6 +12,51 @@ import {
 
 const limit = pLimit(3);
 
+function normalizeUsername(username) {
+  return (username || '')
+    .toString()
+    .trim()
+    .replace(/^@/, '')
+    .toLowerCase();
+}
+
+function extractCommentUsername(comment) {
+  return (
+    comment?.user?.username ||
+    comment?.username ||
+    comment?.owner?.username ||
+    null
+  );
+}
+
+async function getExistingLikes(shortcode) {
+  const res = await query('SELECT likes FROM insta_like WHERE shortcode = $1', [shortcode]);
+  if (!res.rows.length) return [];
+  const val = res.rows[0].likes;
+  if (!val) return [];
+  if (Array.isArray(val)) return val.map(normalizeUsername).filter(Boolean);
+  if (typeof val === 'string') {
+    try {
+      const parsed = JSON.parse(val);
+      if (Array.isArray(parsed)) return parsed.map(normalizeUsername).filter(Boolean);
+      return [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+async function upsertLikesByShortcode(shortcode, likes) {
+  await query(
+    `INSERT INTO insta_like (shortcode, likes, updated_at)
+     VALUES ($1, $2, NOW())
+     ON CONFLICT (shortcode) DO UPDATE
+     SET likes = EXCLUDED.likes, updated_at = NOW()`,
+    [shortcode, JSON.stringify(likes)]
+  );
+}
+
 function getJakartaDateString(date = new Date()) {
   return date.toLocaleDateString('en-CA', {
     timeZone: 'Asia/Jakarta',
@@ -88,11 +133,26 @@ export async function handleFetchKomentarInstagram(
           for (const c of comments) {
             if (c.user) await upsertIgUser(c.user);
           }
+
+          const commentUsernames = comments
+            .map(extractCommentUsername)
+            .map(normalizeUsername)
+            .filter(Boolean);
+          const existingLikes = await getExistingLikes(sc);
+          const mergedLikes = [...new Set([...existingLikes, ...commentUsernames])];
+          await upsertLikesByShortcode(sc, mergedLikes);
+
           await insertIgPostComments(sc, comments);
           sukses++;
           sendDebug({
             tag: 'IG COMMENT',
             msg: `Shortcode ${sc} berhasil simpan komentar (${comments.length})`,
+            client_id,
+            clientName,
+          });
+          sendDebug({
+            tag: 'IG COMMENT LIKE UPSERT',
+            msg: `Shortcode ${sc} upsert insta_like dari komentar (${mergedLikes.length} username unik)`,
             client_id,
             clientName,
           });
