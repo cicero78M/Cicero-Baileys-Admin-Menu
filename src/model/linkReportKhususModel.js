@@ -2,6 +2,8 @@ import { query } from '../repository/db.js';
 import { buildPriorityOrderClause } from '../utils/sqlPriority.js';
 
 const OPERATOR_ROLE_NAME = 'operator';
+const JAKARTA_DATE_SQL = "(NOW() AT TIME ZONE 'Asia/Jakarta')::date";
+const TO_JAKARTA_DATE = (columnName) => `(${columnName} AT TIME ZONE 'Asia/Jakarta')::date`;
 
 export async function createLinkReport(data) {
   const res = await query(
@@ -12,7 +14,7 @@ export async function createLinkReport(data) {
      SELECT p.shortcode, $2, $3, $4, $5, $6, $7, p.created_at
      FROM insta_post_khusus p
      WHERE p.shortcode = $1
-       AND p.created_at::date = (NOW() AT TIME ZONE 'Asia/Jakarta')::date
+       AND ${TO_JAKARTA_DATE('p.created_at')} = ${JAKARTA_DATE_SQL}
      ON CONFLICT (shortcode, user_id) DO UPDATE
      SET instagram_link = EXCLUDED.instagram_link,
          facebook_link = EXCLUDED.facebook_link,
@@ -124,9 +126,9 @@ export async function getReportsTodayByClient(client_id, roleFlag = null) {
   }
   
   const res = await query(
-    `SELECT r.* FROM link_report_khusus r
+     `SELECT r.* FROM link_report_khusus r
      ${joinClause}
-     WHERE ${whereClause} AND r.created_at::date = (NOW() AT TIME ZONE 'Asia/Jakarta')::date
+     WHERE ${whereClause} AND ${TO_JAKARTA_DATE('r.created_at')} = ${JAKARTA_DATE_SQL}
      ORDER BY r.created_at ASC`,
     [client_id]
   );
@@ -143,10 +145,10 @@ export async function getReportsTodayByShortcode(client_id, shortcode, roleFlag 
   }
   
   const res = await query(
-    `SELECT r.* FROM link_report_khusus r
+     `SELECT r.* FROM link_report_khusus r
      ${joinClause}
      WHERE ${whereClause}
-       AND r.created_at::date = (NOW() AT TIME ZONE 'Asia/Jakarta')::date
+       AND ${TO_JAKARTA_DATE('r.created_at')} = ${JAKARTA_DATE_SQL}
      ORDER BY r.created_at ASC`,
     [client_id, shortcode]
   );

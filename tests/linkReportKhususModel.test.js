@@ -36,6 +36,8 @@ test('createLinkReport inserts row', async () => {
   const data = { shortcode: 'abc', user_id: '1', instagram_link: 'a' };
   const res = await createLinkReport(data);
   expect(res).toEqual({ shortcode: 'abc' });
+  const sql = mockQuery.mock.calls[0][0];
+  expect(sql).toContain("(p.created_at AT TIME ZONE 'Asia/Jakarta')::date = (NOW() AT TIME ZONE 'Asia/Jakarta')::date");
   expect(mockQuery).toHaveBeenCalledWith(
     expect.stringContaining('FROM insta_post_khusus p'),
     ['abc', '1', 'a', null, null, null, null]
