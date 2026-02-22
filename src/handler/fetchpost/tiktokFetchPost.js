@@ -90,6 +90,21 @@ async function resolveTikTokVideoId(videoInput) {
   return extractVideoId(rawInput);
 }
 
+async function resolveTikTokPostDetail(videoInput) {
+  const videoId = await resolveTikTokVideoId(videoInput);
+  if (!videoId) {
+    throw new Error(
+      "Format link, shortlink, atau video ID TikTok tidak dikenali. Pastikan link valid atau berisi /video/<ID>."
+    );
+  }
+
+  const detail = await fetchTiktokPostDetail(videoId);
+  return {
+    videoId,
+    detail,
+  };
+}
+
 /**
  * Cek apakah unixTimestamp adalah hari ini (Asia/Jakarta)
  */
@@ -186,12 +201,7 @@ export async function fetchAndStoreSingleTiktokPost(clientId, videoInput) {
     throw new Error(`Client ${clientId} tidak ditemukan.`);
   }
 
-  const videoId = await resolveTikTokVideoId(videoInput);
-  if (!videoId) {
-    throw new Error(
-      "Format link, shortlink, atau video ID TikTok tidak dikenali. Pastikan link valid atau berisi /video/<ID>."
-    );
-  }
+  const { videoId, detail } = await resolveTikTokPostDetail(videoInput);
 
   sendDebug({
     tag: "TIKTOK MANUAL",
@@ -199,7 +209,6 @@ export async function fetchAndStoreSingleTiktokPost(clientId, videoInput) {
     client_id: dbClientId,
   });
 
-  const detail = await fetchTiktokPostDetail(videoId);
   // Khusus input manual menu 47: created_at merekam waktu operator memproses input manual.
   const manualUploadAt = getCurrentJakartaTimestamp();
 
