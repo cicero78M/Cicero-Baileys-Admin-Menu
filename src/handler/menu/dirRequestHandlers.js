@@ -188,7 +188,7 @@ const DIGIT_EMOJI = {
 };
 
 const CHAKRANARAYANA_MENU_GROUPS = {
-  direktorat: ["3", "6", "9", "46", "53"],
+  direktorat: ["3", "6", "9", "46", "53", "54"],
   jajaran: ["1", "48", "49"],
 };
 
@@ -202,6 +202,19 @@ const CHAKRANARAYANA_MENU_LABELS = {
   "48": "Absensi Instagram Jajaran",
   "49": "Absensi TikTok Jajaran",
   "53": "Hapus post tugas (auto IG/TikTok)",
+  "54": "Ambil pesan list tugas IG & TikTok",
+};
+
+const getJakartaDayDateLabel = () => {
+  const now = new Date();
+  const hari = hariIndo[now.getDay()] || now.toLocaleDateString("id-ID", { weekday: "long" });
+  const tanggal = now.toLocaleDateString("id-ID", {
+    timeZone: "Asia/Jakarta",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+  return `${hari}, ${tanggal}`;
 };
 
 const getChakranarayanaMenuText = (groupKey, groupLabel) => {
@@ -2277,6 +2290,25 @@ async function performAction(
       if (fetchErrors.length) {
         msg = `${msg}\n\n⚠️ Sebagian data gagal diambil.`.trim();
       }
+      break;
+    }
+    case "54": {
+      const { generateSosmedTaskMessage } = await import("../fetchabsensi/sosmedTask.js");
+      const targetId = (clientId || DITBINMAS_CLIENT_ID).toUpperCase();
+      const { text: taskMessage } = await generateSosmedTaskMessage(targetId, {
+        skipTiktokFetch: true,
+        skipLikesFetch: true,
+      });
+      const tanggalPengambilan = getJakartaDayDateLabel();
+      msg =
+        `*Header Pesan Tugas*
+` +
+        `Pesan list tugas Instagram & TikTok untuk *${targetId}*
+` +
+        `Hari/Tanggal pengambilan tugas: ${tanggalPengambilan}
+
+` +
+        `${taskMessage}`;
       break;
     }
     case "17": {
