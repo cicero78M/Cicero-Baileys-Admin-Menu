@@ -334,12 +334,55 @@ const DIRREQUEST_INPUT_TIKTOK_MANUAL_PROMPT = appendSubmenuBackInstruction(
 
 const DIRREQUEST_INPUT_POST_MANUAL_PROMPT = appendSubmenuBackInstruction(
   "Kirim link post Instagram/TikTok untuk input manual.\n\n" +
+    "Boleh kirim *multi link* sekaligus dalam satu pesan (campur narasi juga boleh).\n" +
     "Sistem akan otomatis mendeteksi platform dari link yang dikirim.\n" +
+    "Link/narasi yang tidak relevan akan diabaikan.\n" +
     "- Instagram: https://www.instagram.com/p/XXXXXXXXXXX/\n" +
     "- TikTok: https://www.tiktok.com/@username/video/1234567890123456789\n" +
     "- TikTok shortlink: https://vt.tiktok.com/ZSxxxxxxx/\n" +
     "Ketik *batal* untuk kembali ke menu utama."
 );
+
+const cleanDetectedUrl = (url) => String(url || "").replace(/[),.;!?]+$/g, "");
+
+const extractManualPostTargets = (text) => {
+  const rawText = String(text || "");
+  const urlMatches = rawText.match(/https?:\/\/[^\s<>"']+/gi) || [];
+
+  const instagramLinks = [];
+  const tiktokInputs = [];
+  const seenInstagram = new Set();
+  const seenTiktok = new Set();
+  let ignoredUrlCount = 0;
+
+  for (const candidate of urlMatches) {
+    const url = cleanDetectedUrl(candidate);
+    const dedupeKey = url.toLowerCase();
+    if (/instagram\.com\/(p|reel|tv)\//i.test(url)) {
+      if (!seenInstagram.has(dedupeKey)) {
+        seenInstagram.add(dedupeKey);
+        instagramLinks.push(url);
+      }
+      continue;
+    }
+
+    if (/(?:tiktok\.com|vt\.tiktok\.com|vm\.tiktok\.com)\//i.test(url)) {
+      if (!seenTiktok.has(dedupeKey)) {
+        seenTiktok.add(dedupeKey);
+        tiktokInputs.push(url);
+      }
+      continue;
+    }
+
+    ignoredUrlCount += 1;
+  }
+
+  return {
+    instagramLinks,
+    tiktokInputs,
+    ignoredUrlCount,
+  };
+};
 
 const DIRREQUEST_DELETE_TASK_POST_PROMPT = appendSubmenuBackInstruction(
   "Kirim link post tugas yang ingin dihapus dari daftar tugas harian.\n\n" +
@@ -3495,24 +3538,103 @@ export const dirRequestHandlers = {
       return;
     }
 
-    const isInstagramInput = /instagram\.com\/(p|reel|tv)\//i.test(input);
-    const isTiktokInput = /(?:tiktok\.com|vt\.tiktok\.com|vm\.tiktok\.com)\//i.test(input) || /^\d{8,}$/.test(input);
+    const targetClientId = session.dir_client_id || session.selectedClientId || DITBINMAS_CLIENT_ID;
+    const { instagramLinks, tiktokInputs, ignoredUrlCount } = extractManualPostTargets(input);
 
-    if (isInstagramInput) {
-      await dirRequestHandlers.dirrequest_input_ig_manual_prompt(session, chatId, input, waClient);
+    if (!instagramLinks.length && !tiktokInputs.length && /^\d{8,}$/.test(input)) {
+      tiktokInputs.push(input);
+    }
+
+    if (!instagramLinks.length && !tiktokInputs.length) {
+      await waClient.sendMessage(
+        chatId,
+        "❌ Link tidak dikenali. Kirim link Instagram/TikTok yang valid (termasuk shortlink TikTok) atau ketik *batal*."
+      );
+      await waClient.sendMessage(chatId, DIRREQUEST_INPUT_POST_MANUAL_PROMPT);
       return;
     }
 
-    if (isTiktokInput) {
-      await dirRequestHandlers.dirrequest_input_tiktok_manual_prompt(session, chatId, input, waClient);
-      return;
+    const igSuccess = [];
+    const igFailed = [];
+    const ttSuccess = [];
+    const ttFailed = [];
+
+    if (instagramLinks.length) {
+      const { handleFetchLikesInstagram } = await import("../fetchengagement/fetchLikesInstagram.js");
+      for (const instagramLink of instagramLinks) {
+        try {
+          const result = await fetchSinglePostKhusus(instagramLink, targetClientId);
+          if (result?.shortcode) {
+            await handleFetchLikesInstagram(null, null, targetClientId, {
+              shortcodes: [result.shortcode],
+              sourceType: "manual_input",
+              enrichComments: false,
+            });
+          }
+          igSuccess.push(
+            [
+              `- ${instagramLink}`,
+              `  Shortcode: ${result.shortcode || "-"}`,
+              `  Likes: ${result.like_count ?? 0}, Komentar: ${result.comment_count ?? 0}`,
+            ].join("\n")
+          );
+        } catch (error) {
+          igFailed.push(`- ${instagramLink} => ${error?.message || "Gagal diproses"}`);
+        }
+      }
     }
 
-    await waClient.sendMessage(
-      chatId,
-      "❌ Link tidak dikenali. Kirim link Instagram/TikTok yang valid (termasuk shortlink TikTok) atau ketik *batal*."
-    );
-    await waClient.sendMessage(chatId, DIRREQUEST_INPUT_POST_MANUAL_PROMPT);
+    if (tiktokInputs.length) {
+      const { handleFetchKomentarTiktokBatch } = await import("../fetchengagement/fetchCommentTiktok.js");
+      for (const tiktokInput of tiktokInputs) {
+        try {
+          const result = await fetchAndStoreSingleTiktokPost(targetClientId, tiktokInput);
+          if (result?.videoId) {
+            await handleFetchKomentarTiktokBatch(null, null, targetClientId, {
+              videoIds: [result.videoId],
+              sourceType: "manual_input",
+            });
+          }
+          ttSuccess.push(
+            [
+              `- ${tiktokInput}`,
+              `  Video ID: ${result.videoId || "-"}`,
+              `  Likes: ${result.likeCount ?? 0}, Komentar: ${result.commentCount ?? 0}`,
+            ].join("\n")
+          );
+        } catch (error) {
+          ttFailed.push(`- ${tiktokInput} => ${error?.message || "Gagal diproses"}`);
+        }
+      }
+    }
+
+    const summary = [
+      "✅ Proses input manual multi-link selesai.",
+      `Client : ${targetClientId}`,
+      `Instagram berhasil : ${igSuccess.length}`,
+      `TikTok berhasil : ${ttSuccess.length}`,
+      `Gagal diproses : ${igFailed.length + ttFailed.length}`,
+    ];
+    if (ignoredUrlCount > 0) {
+      summary.push(`Diabaikan (bukan link Instagram/TikTok) : ${ignoredUrlCount}`);
+    }
+    await waClient.sendMessage(chatId, summary.join("\n"));
+
+    if (igSuccess.length) {
+      await waClient.sendMessage(chatId, `*Detail sukses Instagram*\n${igSuccess.join("\n")}`);
+    }
+    if (ttSuccess.length) {
+      await waClient.sendMessage(chatId, `*Detail sukses TikTok*\n${ttSuccess.join("\n")}`);
+    }
+    if (igFailed.length || ttFailed.length) {
+      await waClient.sendMessage(
+        chatId,
+        `⚠️ *Detail gagal diproses*\n${[...igFailed, ...ttFailed].join("\n")}`
+      );
+    }
+
+    session.step = "main";
+    await dirRequestHandlers.main(session, chatId, "", waClient);
   },
 
   async dirrequest_input_ig_manual_prompt(session, chatId, text, waClient) {
