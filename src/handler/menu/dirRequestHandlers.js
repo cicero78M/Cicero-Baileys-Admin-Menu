@@ -188,7 +188,7 @@ const DIGIT_EMOJI = {
 };
 
 const CHAKRANARAYANA_MENU_GROUPS = {
-  direktorat: ["3", "6", "9", "46", "47", "53"],
+  direktorat: ["3", "6", "9", "46", "53"],
   jajaran: ["1", "48", "49"],
 };
 
@@ -197,7 +197,7 @@ const CHAKRANARAYANA_MENU_LABELS = {
   "3": "Rekap data personil",
   "6": "Absensi like Direktorat/Bidang Simple",
   "9": "Absensi komentar Direktorat/Bidang Simple",
-  "46": "Input IG post manual",
+  "46": "Input post manual (IG/TikTok)",
   "47": "Input TikTok post manual",
   "48": "Absensi Instagram Jajaran",
   "49": "Absensi TikTok Jajaran",
@@ -326,8 +326,18 @@ const DIRREQUEST_INPUT_IG_MANUAL_PROMPT = appendSubmenuBackInstruction(
 );
 
 const DIRREQUEST_INPUT_TIKTOK_MANUAL_PROMPT = appendSubmenuBackInstruction(
-  "Kirim link atau video ID TikTok yang ingin diinput manual.\n\n" +
-    "Contoh: https://www.tiktok.com/@username/video/1234567890123456789\n" +
+  "Kirim link, shortlink, atau video ID TikTok yang ingin diinput manual.\n\n" +
+    "Contoh link: https://www.tiktok.com/@username/video/1234567890123456789\n" +
+    "Contoh shortlink: https://vt.tiktok.com/ZSxxxxxxx/\n" +
+    "Ketik *batal* untuk kembali ke menu utama."
+);
+
+const DIRREQUEST_INPUT_POST_MANUAL_PROMPT = appendSubmenuBackInstruction(
+  "Kirim link post Instagram/TikTok untuk input manual.\n\n" +
+    "Sistem akan otomatis mendeteksi platform dari link yang dikirim.\n" +
+    "- Instagram: https://www.instagram.com/p/XXXXXXXXXXX/\n" +
+    "- TikTok: https://www.tiktok.com/@username/video/1234567890123456789\n" +
+    "- TikTok shortlink: https://vt.tiktok.com/ZSxxxxxxx/\n" +
     "Ketik *batal* untuk kembali ke menu utama."
 );
 
@@ -3329,6 +3339,11 @@ export const dirRequestHandlers = {
     }
 
     if (choice === "46") {
+      if (session.menu === "chakranarayana") {
+        session.step = "dirrequest_input_post_manual_prompt";
+        await waClient.sendMessage(chatId, DIRREQUEST_INPUT_POST_MANUAL_PROMPT);
+        return;
+      }
       session.step = "dirrequest_input_ig_manual_prompt";
       await waClient.sendMessage(chatId, DIRREQUEST_INPUT_IG_MANUAL_PROMPT);
       return;
@@ -3463,6 +3478,41 @@ export const dirRequestHandlers = {
     );
     session.step = "main";
     await dirRequestHandlers.main(session, chatId, "", waClient);
+  },
+
+
+  async dirrequest_input_post_manual_prompt(session, chatId, text, waClient) {
+    const input = (text || "").trim();
+    if (!input) {
+      await waClient.sendMessage(chatId, DIRREQUEST_INPUT_POST_MANUAL_PROMPT);
+      return;
+    }
+
+    if (input.toLowerCase() === "batal") {
+      await waClient.sendMessage(chatId, "✅ Input manual post dibatalkan.");
+      session.step = "main";
+      await dirRequestHandlers.main(session, chatId, "", waClient);
+      return;
+    }
+
+    const isInstagramInput = /instagram\.com\/(p|reel|tv)\//i.test(input);
+    const isTiktokInput = /(?:tiktok\.com|vt\.tiktok\.com|vm\.tiktok\.com)\//i.test(input) || /^\d{8,}$/.test(input);
+
+    if (isInstagramInput) {
+      await dirRequestHandlers.dirrequest_input_ig_manual_prompt(session, chatId, input, waClient);
+      return;
+    }
+
+    if (isTiktokInput) {
+      await dirRequestHandlers.dirrequest_input_tiktok_manual_prompt(session, chatId, input, waClient);
+      return;
+    }
+
+    await waClient.sendMessage(
+      chatId,
+      "❌ Link tidak dikenali. Kirim link Instagram/TikTok yang valid (termasuk shortlink TikTok) atau ketik *batal*."
+    );
+    await waClient.sendMessage(chatId, DIRREQUEST_INPUT_POST_MANUAL_PROMPT);
   },
 
   async dirrequest_input_ig_manual_prompt(session, chatId, text, waClient) {
