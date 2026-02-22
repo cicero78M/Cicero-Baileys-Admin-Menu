@@ -13,6 +13,7 @@ import {
 import { extractVideoId } from "../../utils/tiktokHelper.js";
 import { getCurrentJakartaTimestamp } from "../../utils/jakartaDateTime.js";
 import dotenv from "dotenv";
+import axios from "axios";
 dotenv.config();
 
 const ADMIN_WHATSAPP = (process.env.ADMIN_WHATSAPP || "")
@@ -20,6 +21,45 @@ const ADMIN_WHATSAPP = (process.env.ADMIN_WHATSAPP || "")
   .map((s) => s.trim())
   .filter(Boolean);
 
+
+
+async function resolveTikTokVideoId(videoInput) {
+  const directVideoId = extractVideoId(videoInput);
+  if (directVideoId) {
+    return directVideoId;
+  }
+
+  const rawInput = String(videoInput || "").trim();
+  if (!rawInput) {
+    return "";
+  }
+
+  const isTiktokUrl = /(?:tiktok\.com|vt\.tiktok\.com|vm\.tiktok\.com)/i.test(rawInput);
+  if (!isTiktokUrl) {
+    return "";
+  }
+
+  try {
+    const response = await axios.get(rawInput, {
+      maxRedirects: 5,
+      timeout: 10000,
+      validateStatus: () => true,
+    });
+
+    const resolvedUrl = response?.request?.res?.responseUrl || rawInput;
+    const resolvedVideoId = extractVideoId(resolvedUrl);
+    if (resolvedVideoId) {
+      return resolvedVideoId;
+    }
+  } catch (error) {
+    sendDebug({
+      tag: "TIKTOK MANUAL",
+      msg: `Gagal resolve shortlink TikTok: ${error?.message || error}`,
+    });
+  }
+
+  return "";
+}
 
 /**
  * Cek apakah unixTimestamp adalah hari ini (Asia/Jakarta)
@@ -117,10 +157,10 @@ export async function fetchAndStoreSingleTiktokPost(clientId, videoInput) {
     throw new Error(`Client ${clientId} tidak ditemukan.`);
   }
 
-  const videoId = extractVideoId(videoInput);
+  const videoId = await resolveTikTokVideoId(videoInput);
   if (!videoId) {
     throw new Error(
-      "Format link atau video ID TikTok tidak dikenali. Pastikan link berisi /video/<ID>."
+      "Format link, shortlink, atau video ID TikTok tidak dikenali. Pastikan link valid atau berisi /video/<ID>."
     );
   }
 
