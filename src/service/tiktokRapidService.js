@@ -89,10 +89,39 @@ function parsePostDetail(resData) {
     }
   }
 
-  if (payload?.itemInfo?.itemStruct) return payload.itemInfo.itemStruct;
-  if (payload?.data?.itemInfo?.itemStruct) return payload.data.itemInfo.itemStruct;
-  if (payload?.itemStruct) return payload.itemStruct;
-  if (payload?.itemInfo?.item) return payload.itemInfo.item;
+  const candidates = [
+    payload?.itemInfo?.itemStruct,
+    payload?.data?.itemInfo?.itemStruct,
+    payload?.itemStruct,
+    payload?.itemInfo?.item,
+    payload?.aweme_detail,
+    payload?.awemeDetail,
+    payload?.detail,
+    payload?.item,
+    payload?.video
+  ];
+
+  const directCandidate = candidates.find(candidate => candidate && typeof candidate === 'object');
+  if (directCandidate) return normalizePostItem(directCandidate);
+
+  const nestedData = payload?.data;
+  if (nestedData && typeof nestedData === 'object') {
+    const nestedCandidate = [
+      nestedData?.aweme_detail,
+      nestedData?.awemeDetail,
+      nestedData?.detail,
+      nestedData?.item,
+      nestedData?.video,
+      nestedData?.itemInfo?.itemStruct
+    ].find(candidate => candidate && typeof candidate === 'object');
+
+    if (nestedCandidate) return normalizePostItem(nestedCandidate);
+  }
+
+  if (Array.isArray(payload?.items) && payload.items.length > 0) {
+    return normalizePostItem(payload.items[0]);
+  }
+
   return null;
 }
 
