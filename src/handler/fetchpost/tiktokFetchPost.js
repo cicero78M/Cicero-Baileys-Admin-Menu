@@ -23,20 +23,48 @@ const ADMIN_WHATSAPP = (process.env.ADMIN_WHATSAPP || "")
 
 
 
-async function resolveTikTokVideoId(videoInput) {
-  const directVideoId = extractVideoId(videoInput);
-  if (directVideoId) {
-    return directVideoId;
+function extractVideoIdFromTikTokUrl(rawUrl) {
+  if (!rawUrl) return "";
+  try {
+    const parsed = new URL(rawUrl);
+    const pathMatch = parsed.pathname.match(/\/video\/(\d{8,21})/i);
+    if (pathMatch?.[1]) {
+      return pathMatch[1];
+    }
+
+    const params = parsed.searchParams;
+    const knownKeys = ["video_id", "videoId", "item_id", "itemId", "share_video_id"];
+    for (const key of knownKeys) {
+      const value = (params.get(key) || "").trim();
+      if (/^\d{8,21}$/.test(value)) {
+        return value;
+      }
+    }
+  } catch {
+    return "";
   }
 
+  return "";
+}
+
+async function resolveTikTokVideoId(videoInput) {
   const rawInput = String(videoInput || "").trim();
   if (!rawInput) {
     return "";
   }
 
+  if (/^\d{8,21}$/.test(rawInput)) {
+    return rawInput;
+  }
+
   const isTiktokUrl = /(?:tiktok\.com|vt\.tiktok\.com|vm\.tiktok\.com)/i.test(rawInput);
   if (!isTiktokUrl) {
     return "";
+  }
+
+  const videoIdFromInputUrl = extractVideoIdFromTikTokUrl(rawInput);
+  if (videoIdFromInputUrl) {
+    return videoIdFromInputUrl;
   }
 
   try {
@@ -47,7 +75,7 @@ async function resolveTikTokVideoId(videoInput) {
     });
 
     const resolvedUrl = response?.request?.res?.responseUrl || rawInput;
-    const resolvedVideoId = extractVideoId(resolvedUrl);
+    const resolvedVideoId = extractVideoIdFromTikTokUrl(resolvedUrl);
     if (resolvedVideoId) {
       return resolvedVideoId;
     }
@@ -58,7 +86,8 @@ async function resolveTikTokVideoId(videoInput) {
     });
   }
 
-  return "";
+  // fallback lama tetap dipertahankan untuk kompatibilitas input non-standar.
+  return extractVideoId(rawInput);
 }
 
 /**
