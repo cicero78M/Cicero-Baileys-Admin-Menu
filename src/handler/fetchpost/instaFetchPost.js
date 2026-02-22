@@ -182,10 +182,16 @@ export async function fetchAndStoreInstaContent(
         client_id: client.id
       });
     } catch (err) {
+      const errorMessage = err.response?.data
+        ? JSON.stringify(err.response.data)
+        : err.message;
       sendDebug({
         tag: "IG POST ERROR",
-        msg: err.response?.data ? JSON.stringify(err.response.data) : err.message,
-        client_id: client.id
+        msg: `Fetch posts failed for @${username}: ${errorMessage}`,
+        client_id: client.id,
+        error_name: err.name,
+        error_code: err.code,
+        error_stack: err.stack,
       });
       continue;
     }
