@@ -33,6 +33,10 @@ function getFetchedAtJakartaDateSql(columnName = "fetched_at") {
   return `(${columnName} AT TIME ZONE 'Asia/Jakarta')::date`;
 }
 
+function getCurrentTimestampIso() {
+  return new Date().toISOString();
+}
+
 
 /**
  * Utility: Cek apakah unixTimestamp adalah hari ini (Asia/Jakarta)
@@ -197,6 +201,12 @@ export async function fetchAndStoreInstaContent(
     if (items.length > 0) hasSuccessfulFetch = true;
 
     for (const post of items) {
+      const taskUpdatedAt = getCurrentTimestampIso();
+      const originalCreatedAt =
+        typeof post.taken_at === "number" && Number.isFinite(post.taken_at)
+          ? new Date(post.taken_at * 1000).toISOString()
+          : null;
+
       const toSave = {
         client_id: client.id,
         shortcode: post.code,
@@ -241,10 +251,10 @@ export async function fetchAndStoreInstaContent(
       await upsertInstaPost({
         ...toSave,
         source_type: "cron_fetch",
-        created_at:
-          typeof post.taken_at === "number" && Number.isFinite(post.taken_at)
-            ? new Date(post.taken_at * 1000).toISOString()
-            : null,
+        // created_at untuk tugas rutin harus merekam waktu update tugas (bukan publish time IG).
+        created_at: taskUpdatedAt,
+        // Waktu upload/publish asli konten IG disimpan terpisah.
+        original_created_at: originalCreatedAt,
       });
       sendDebug({
         tag: "IG FETCH",
@@ -345,7 +355,7 @@ export async function fetchAndStoreInstaContent(
 export async function fetchSinglePostKhusus(linkOrCode, clientId) {
   const code = extractInstagramShortcode(linkOrCode);
   if (!code) throw new Error('invalid link');
-  const manualUploadAt = new Date().toISOString();
+  const manualUploadAt = getCurrentTimestampIso();
 
   const existingKhususPost = await findKhususPostByShortcode(code);
   if (
