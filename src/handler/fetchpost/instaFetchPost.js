@@ -37,6 +37,27 @@ function getCurrentTimestampIso() {
   return new Date().toISOString();
 }
 
+let instaPostSourceTypeColumnExistsCache = null;
+
+async function hasInstaPostSourceTypeColumn() {
+  if (instaPostSourceTypeColumnExistsCache !== null) {
+    return instaPostSourceTypeColumnExistsCache;
+  }
+
+  const res = await query(
+    `SELECT EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'insta_post'
+        AND column_name = 'source_type'
+    ) AS has_column`
+  );
+
+  instaPostSourceTypeColumnExistsCache = Boolean(res.rows[0]?.has_column);
+  return instaPostSourceTypeColumnExistsCache;
+}
+
 
 /**
  * Utility: Cek apakah unixTimestamp adalah hari ini (Asia/Jakarta)
@@ -63,8 +84,12 @@ function isTodayJakarta(unixTimestamp) {
 
 async function getShortcodesToday(clientId = null) {
   const todayJakarta = getJakartaDateString();
+  const hasSourceTypeColumn = await hasInstaPostSourceTypeColumn();
   let sql = `SELECT shortcode FROM insta_post WHERE ${getFetchedAtJakartaDateSql()} = $1::date`;
   const params = [todayJakarta];
+  if (hasSourceTypeColumn) {
+    sql += ` AND COALESCE(LOWER(TRIM(source_type)), 'cron_fetch') <> 'manual_input'`;
+  }
   if (clientId) {
     sql += ` AND client_id = $2`;
     params.push(clientId);
@@ -84,9 +109,13 @@ async function deleteShortcodes(shortcodesToDelete, clientId = null) {
   if (!shortcodesToDelete.length) return;
   // ig_ext_posts rows cascade when insta_post entries are deleted
   const todayJakarta = getJakartaDateString();
+  const hasSourceTypeColumn = await hasInstaPostSourceTypeColumn();
   let sql =
     `DELETE FROM insta_post WHERE shortcode = ANY($1) AND ${getFetchedAtJakartaDateSql()} = $2::date`;
   const params = [shortcodesToDelete, todayJakarta];
+  if (hasSourceTypeColumn) {
+    sql += ` AND COALESCE(LOWER(TRIM(source_type)), 'cron_fetch') <> 'manual_input'`;
+  }
   if (clientId) {
     sql += ` AND client_id = $3`;
     params.push(clientId);

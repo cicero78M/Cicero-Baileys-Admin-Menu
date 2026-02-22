@@ -19,6 +19,13 @@ const INSTAGRAM_TASK_FETCH_FIELDS = [
   "timestamp",
 ];
 
+function extractInstagramLinksFromInput(text) {
+  return String(text || "")
+    .split(/\s+/)
+    .map((item) => item.trim())
+    .filter((item) => item && /^https?:\/\//i.test(item) && /instagram\.com/i.test(item));
+}
+
 function normalizeAccessNumbers(rawNumber) {
   const digitsOnly = String(rawNumber || "").replace(/\D/g, "");
   if (!digitsOnly) return [];
@@ -789,7 +796,7 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
     if (/^2$/i.test(text.trim())) {
       clean();
       session.step = "tugasKhusus_link";
-      await waClient.sendMessage(chatId, "Kirim link Instagram tugas khusus:");
+      await waClient.sendMessage(chatId, "Kirim link Instagram tugas khusus. Boleh kirim *multiple link* sekaligus (pisahkan dengan spasi atau baris baru):");
       return;
     }
     await waClient.sendMessage(
@@ -2802,12 +2809,46 @@ Balas *angka* (1/2) sesuai status baru, atau *batal* untuk keluar.
     }
     try {
       const { fetchSinglePostKhusus } = await import("../fetchpost/instaFetchPost.js");
-      const post = await fetchSinglePostKhusus(text.trim(), clientId);
-      const link = `https://www.instagram.com/p/${post.shortcode}/`;
-      await waClient.sendMessage(
-        chatId,
-        `✅ Fetch post tugas khusus selesai:\n${link}\nSumber data: *manual input*.`
-      );
+      const links = extractInstagramLinksFromInput(text);
+      if (!links.length) {
+        await waClient.sendMessage(
+          chatId,
+          "❌ Tidak ada link Instagram valid. Kirim satu atau beberapa URL Instagram (pisahkan dengan spasi atau baris baru)."
+        );
+        return;
+      }
+
+      const successLinks = [];
+      const failedLinks = [];
+      for (const linkInput of links) {
+        try {
+          const post = await fetchSinglePostKhusus(linkInput, clientId);
+          successLinks.push(`https://www.instagram.com/p/${post.shortcode}/`);
+        } catch (error) {
+          failedLinks.push(`- ${linkInput} => ${error.message}`);
+        }
+      }
+
+      if (successLinks.length) {
+        await waClient.sendMessage(
+          chatId,
+          `✅ Fetch post tugas khusus selesai: *${successLinks.length}* berhasil.
+${successLinks.join("\n")}
+Sumber data: *manual input*.`
+        );
+      }
+
+      if (failedLinks.length) {
+        await waClient.sendMessage(
+          chatId,
+          `⚠️ Sebagian link gagal diproses (*${failedLinks.length}*):
+${failedLinks.join("\n")}`
+        );
+      }
+
+      if (!successLinks.length && failedLinks.length) {
+        await waClient.sendMessage(chatId, "❌ Tidak ada link yang berhasil diproses.");
+      }
     } catch (e) {
       await waClient.sendMessage(chatId, `❌ Gagal fetch: ${e.message}`);
     }
