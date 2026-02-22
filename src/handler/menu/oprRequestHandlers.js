@@ -7,6 +7,7 @@ import {
   sortTitleKeys,
 } from "../../utils/utilsHelper.js";
 import { appendSubmenuBackInstruction } from "./menuPromptHelpers.js";
+import { sendDebug } from "../../middleware/debugHandler.js";
 
 function ignore(..._args) {}
 
@@ -1739,6 +1740,15 @@ Balas *angka* (1/2) sesuai status baru, atau *batal* untuk keluar.
       );
       await waClient.sendMessage(chatId, `✅ Update tugas selesai untuk client *${clientId}*.`);
     } catch (err) {
+      sendDebug({
+        tag: "OPRREQUEST UPDATE TUGAS ERROR",
+        msg: `Gagal update tugas IG untuk client ${clientId}: ${err.message}`,
+        chat_id: chatId,
+        client_id: clientId,
+        error_name: err.name,
+        error_code: err.code,
+        error_stack: err.stack,
+      });
       await waClient.sendMessage(chatId, `❌ Gagal update tugas IG: ${err.message}`);
     }
     session.step = "main";

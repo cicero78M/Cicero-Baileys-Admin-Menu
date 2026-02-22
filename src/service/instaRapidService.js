@@ -105,7 +105,7 @@ async function axiosGetRapidApi(path, params, options = {}) {
   }
 }
 
-export async function fetchInstagramPosts(username, limit = 10) {
+export async function fetchInstagramPosts(username, limit = 10, options = {}) {
   if (!username) return [];
   assertRapidApiKey();
 
@@ -118,6 +118,15 @@ export async function fetchInstagramPosts(username, limit = 10) {
   do {
     sendConsoleDebug('fetchInstagramPostsPageToken', { token });
     const { items, next_token, has_more } = await fetchInstagramPostsPageToken(username, token);
+    if (onPageLog) {
+      onPageLog({
+        username,
+        token,
+        fetchedItems: items.length,
+        nextToken: next_token,
+        hasMore: has_more,
+      });
+    }
     sendConsoleDebug('fetched page', { items: items.length, next_token, has_more });
     if (!items.length) break;
     all.push(...items);
