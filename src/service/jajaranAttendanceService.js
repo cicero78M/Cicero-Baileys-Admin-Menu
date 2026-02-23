@@ -1,4 +1,4 @@
-import { findClientById, findAllClientsByType } from "./clientService.js";
+import { findClientById } from "./clientService.js";
 import { getClientsByRole, getUsersByDirektorat } from "../model/userModel.js";
 import { getShortcodesTodayByClient } from "../model/instaPostModel.js";
 import { getPostsTodayByClient } from "../model/tiktokPostModel.js";
@@ -87,11 +87,7 @@ export async function collectInstagramJajaranAttendance(clientId, roleFlag = nul
   // Get all polres IDs under this direktorat
   const polresIds = await getClientsByRole(personilScopeRole);
   
-  // Get all ORG clients for completeness
-  const allOrgClients = (await findAllClientsByType("org")) || [];
-  const allOrgClientIds = allOrgClients.map((c) => c.client_id.toUpperCase());
-
-  // Merge polresIds with allOrgClientIds to ensure we have all clients
+  // Build daftar satker dari direktorat + polres sesuai role direktorat.
   const seen = new Set();
   const allClientIds = [];
   
@@ -108,14 +104,6 @@ export async function collectInstagramJajaranAttendance(clientId, roleFlag = nul
     }
   });
   
-  // Add all ORG clients
-  allOrgClientIds.forEach((id) => {
-    if (!seen.has(id)) {
-      seen.add(id);
-      allClientIds.push(id);
-    }
-  });
-
   // Get all users
   const allUsers = await getUsersByDirektorat(personilScopeRole, allClientIds);
   
@@ -160,17 +148,16 @@ export async function collectInstagramJajaranAttendance(clientId, roleFlag = nul
         if (set.has(uname)) count += 1;
       });
       
-      // Calculate execution percentage
-      const percentage = totalKonten ? (count / totalKonten) * 100 : 0;
-      if (percentage >= 50) {
+      if (count >= totalKonten) {
         sudahMelaksanakan += 1;
-      } else if (percentage > 0) {
+      } else if (count > 0) {
         melaksanakanKurangLengkap += 1;
       }
     });
     
     const belumMelaksanakan = sudahInputUsername - sudahMelaksanakan - melaksanakanKurangLengkap;
-    const persenPelaksanaan = totalPersonil > 0 ? (sudahMelaksanakan / totalPersonil) * 100 : 0;
+    const totalMelaksanakan = sudahMelaksanakan + melaksanakanKurangLengkap;
+    const persenPelaksanaan = totalPersonil > 0 ? (totalMelaksanakan / totalPersonil) * 100 : 0;
     
     reportEntries.push({
       clientId: cid,
@@ -289,11 +276,7 @@ export async function collectTiktokJajaranAttendance(clientId, roleFlag = null) 
   // Get all polres IDs under this direktorat
   const polresIds = await getClientsByRole(roleName);
   
-  // Get all ORG clients for completeness
-  const allOrgClients = (await findAllClientsByType("org")) || [];
-  const allOrgClientIds = allOrgClients.map((c) => c.client_id.toUpperCase());
-
-  // Merge polresIds with allOrgClientIds to ensure we have all clients
+  // Build daftar satker dari direktorat + polres sesuai role direktorat.
   const seen = new Set();
   const allClientIds = [];
   
@@ -310,14 +293,6 @@ export async function collectTiktokJajaranAttendance(clientId, roleFlag = null) 
     }
   });
   
-  // Add all ORG clients
-  allOrgClientIds.forEach((id) => {
-    if (!seen.has(id)) {
-      seen.add(id);
-      allClientIds.push(id);
-    }
-  });
-
   // Get all users
   const allUsers = await getUsersByDirektorat(roleName, allClientIds);
   
@@ -362,17 +337,16 @@ export async function collectTiktokJajaranAttendance(clientId, roleFlag = null) 
         if (set.has(uname)) count += 1;
       });
       
-      // Calculate execution percentage
-      const percentage = totalKonten ? (count / totalKonten) * 100 : 0;
-      if (percentage >= 50) {
+      if (count >= totalKonten) {
         sudahMelaksanakan += 1;
-      } else if (percentage > 0) {
+      } else if (count > 0) {
         melaksanakanKurangLengkap += 1;
       }
     });
     
     const belumMelaksanakan = sudahInputUsername - sudahMelaksanakan - melaksanakanKurangLengkap;
-    const persenPelaksanaan = totalPersonil > 0 ? (sudahMelaksanakan / totalPersonil) * 100 : 0;
+    const totalMelaksanakan = sudahMelaksanakan + melaksanakanKurangLengkap;
+    const persenPelaksanaan = totalPersonil > 0 ? (totalMelaksanakan / totalPersonil) * 100 : 0;
     
     reportEntries.push({
       clientId: cid,
@@ -459,8 +433,9 @@ export function formatInstagramJajaranReport(data) {
     totals.belumMelaksanakan += entry.belumMelaksanakan;
   });
   
-  const totalPersenPelaksanaan = totals.totalPersonil > 0 
-    ? (totals.sudahMelaksanakan / totals.totalPersonil) * 100 
+  const totalPelaksanaan = totals.sudahMelaksanakan + totals.melaksanakanKurangLengkap;
+  const totalPersenPelaksanaan = totals.totalPersonil > 0
+    ? (totalPelaksanaan / totals.totalPersonil) * 100
     : 0;
   
   // Build report
@@ -527,8 +502,9 @@ export function formatTiktokJajaranReport(data) {
     totals.belumMelaksanakan += entry.belumMelaksanakan;
   });
   
-  const totalPersenPelaksanaan = totals.totalPersonil > 0 
-    ? (totals.sudahMelaksanakan / totals.totalPersonil) * 100 
+  const totalPelaksanaan = totals.sudahMelaksanakan + totals.melaksanakanKurangLengkap;
+  const totalPersenPelaksanaan = totals.totalPersonil > 0
+    ? (totalPelaksanaan / totals.totalPersonil) * 100
     : 0;
   
   // Build report
