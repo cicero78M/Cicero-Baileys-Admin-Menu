@@ -192,6 +192,39 @@ test('baileys adapter sends media message', async () => {
   );
 });
 
+
+test('baileys adapter sends document message from wwebjs-style payload', async () => {
+  const client = await createBaileysClient();
+
+  const mediaContent = {
+    document: Buffer.from('test-doc'),
+    mimetype: 'application/pdf',
+    fileName: 'test.pdf',
+  };
+
+  await client.sendMessage('144852301946929@lid', mediaContent);
+
+  expect(mockSock.sendMessage).toHaveBeenCalledWith(
+    '144852301946929@lid',
+    expect.objectContaining({
+      document: expect.any(Buffer),
+      mimetype: 'application/pdf',
+      fileName: 'test.pdf',
+    })
+  );
+});
+
+test('baileys adapter throws descriptive error for invalid media payload', async () => {
+  const client = await createBaileysClient();
+
+  await expect(
+    client.sendMessage('1234567890@s.whatsapp.net', {
+      mimetype: 'application/pdf',
+      fileName: 'missing.pdf',
+    })
+  ).rejects.toThrow('Invalid media payload: missing data/document buffer');
+});
+
 test('baileys adapter retries send message on timed out waiting for message', async () => {
   const client = await createBaileysClient();
 

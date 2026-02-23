@@ -111,7 +111,6 @@ function shouldClearAuthSession() {
 const LOGOUT_DISCONNECT_REASONS = new Set([
   DisconnectReason.loggedOut,
   DisconnectReason.badSession,
-  DisconnectReason.timedOut,
 ]);
 
 /**
@@ -461,21 +460,22 @@ export async function createBaileysClient(clientId = 'wa-admin') {
       let payload;
       if (typeof content === 'string') {
         payload = { text: content };
-      } else if (content.mimetype) {
+      } else if (content?.mimetype) {
         const mediaType = getMediaType(content.mimetype);
-        const mediaBuffer = Buffer.from(content.data, 'base64');
+        const mediaBuffer = resolveMediaBuffer(content);
 
         payload = {
           [mediaType]: mediaBuffer,
           mimetype: content.mimetype,
         };
 
-        if (content.filename) {
-          payload.fileName = content.filename;
+        if (content.filename || content.fileName) {
+          payload.fileName = content.filename || content.fileName;
         }
 
-        if (options.caption) {
-          payload.caption = options.caption;
+        const caption = options.caption || content.caption;
+        if (caption) {
+          payload.caption = caption;
         }
       }
 
@@ -693,6 +693,31 @@ function getMediaType(mimetype) {
   if (mimetype.startsWith('video/')) return 'video';
   if (mimetype.startsWith('audio/')) return 'audio';
   return 'document';
+}
+
+
+function resolveMediaBuffer(content) {
+  if (Buffer.isBuffer(content?.data)) {
+    return content.data;
+  }
+
+  if (content?.data) {
+    return Buffer.from(content.data, 'base64');
+  }
+
+  if (Buffer.isBuffer(content?.document)) {
+    return content.document;
+  }
+
+  if (content?.document instanceof ArrayBuffer) {
+    return Buffer.from(content.document);
+  }
+
+  if (ArrayBuffer.isView(content?.document)) {
+    return Buffer.from(content.document.buffer, content.document.byteOffset, content.document.byteLength);
+  }
+
+  throw new Error('Invalid media payload: missing data/document buffer');
 }
 
 /**

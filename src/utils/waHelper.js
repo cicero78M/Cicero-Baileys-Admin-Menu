@@ -11,8 +11,8 @@ const spreadsheetMimeTypes = {
 
 const defaultMimeType = spreadsheetMimeTypes['.xlsx'];
 
-const validWaSuffixes = ['@c.us', '@s.whatsapp.net', '@g.us'];
-export const userWaSuffixes = ['@c.us', '@s.whatsapp.net'];
+const validWaSuffixes = ['@c.us', '@s.whatsapp.net', '@g.us', '@lid'];
+export const userWaSuffixes = ['@c.us', '@s.whatsapp.net', '@lid'];
 export const minPhoneDigitLength = 8;
 
 export function isValidWid(wid) {
