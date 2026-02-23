@@ -3591,10 +3591,26 @@ export const dirRequestHandlers = {
     const igFailed = [];
     const ttSuccess = [];
     const ttFailed = [];
+    const totalTargets = instagramLinks.length + tiktokInputs.length;
+    let processedCount = 0;
+
+    await waClient.sendMessage(
+      chatId,
+      [
+        "⏳ Proses input manual multi-link dimulai.",
+        `Total target : ${totalTargets}`,
+        `Instagram : ${instagramLinks.length}`,
+        `TikTok : ${tiktokInputs.length}`,
+      ].join("\n")
+    );
 
     if (instagramLinks.length) {
       const { handleFetchLikesInstagram } = await import("../fetchengagement/fetchLikesInstagram.js");
-      for (const instagramLink of instagramLinks) {
+      for (const [index, instagramLink] of instagramLinks.entries()) {
+        await waClient.sendMessage(
+          chatId,
+          `⏳ [Instagram ${index + 1}/${instagramLinks.length}] Memproses link:\n${instagramLink}`
+        );
         try {
           const result = await fetchSinglePostKhusus(instagramLink, targetClientId);
           if (result?.shortcode) {
@@ -3611,15 +3627,29 @@ export const dirRequestHandlers = {
               `  Likes: ${result.like_count ?? 0}, Komentar: ${result.comment_count ?? 0}`,
             ].join("\n")
           );
+          processedCount += 1;
+          await waClient.sendMessage(
+            chatId,
+            `✅ [Instagram ${index + 1}/${instagramLinks.length}] Berhasil diproses. Progress total: ${processedCount}/${totalTargets}`
+          );
         } catch (error) {
           igFailed.push(`- ${instagramLink} => ${error?.message || "Gagal diproses"}`);
+          processedCount += 1;
+          await waClient.sendMessage(
+            chatId,
+            `⚠️ [Instagram ${index + 1}/${instagramLinks.length}] Gagal diproses. Progress total: ${processedCount}/${totalTargets}`
+          );
         }
       }
     }
 
     if (tiktokInputs.length) {
       const { handleFetchKomentarTiktokBatch } = await import("../fetchengagement/fetchCommentTiktok.js");
-      for (const tiktokInput of tiktokInputs) {
+      for (const [index, tiktokInput] of tiktokInputs.entries()) {
+        await waClient.sendMessage(
+          chatId,
+          `⏳ [TikTok ${index + 1}/${tiktokInputs.length}] Memproses input:\n${tiktokInput}`
+        );
         try {
           const result = await fetchAndStoreSingleTiktokPost(targetClientId, tiktokInput);
           if (result?.videoId) {
@@ -3635,8 +3665,18 @@ export const dirRequestHandlers = {
               `  Likes: ${result.likeCount ?? 0}, Komentar: ${result.commentCount ?? 0}`,
             ].join("\n")
           );
+          processedCount += 1;
+          await waClient.sendMessage(
+            chatId,
+            `✅ [TikTok ${index + 1}/${tiktokInputs.length}] Berhasil diproses. Progress total: ${processedCount}/${totalTargets}`
+          );
         } catch (error) {
           ttFailed.push(`- ${tiktokInput} => ${error?.message || "Gagal diproses"}`);
+          processedCount += 1;
+          await waClient.sendMessage(
+            chatId,
+            `⚠️ [TikTok ${index + 1}/${tiktokInputs.length}] Gagal diproses. Progress total: ${processedCount}/${totalTargets}`
+          );
         }
       }
     }
