@@ -111,7 +111,6 @@ function shouldClearAuthSession() {
 const LOGOUT_DISCONNECT_REASONS = new Set([
   DisconnectReason.loggedOut,
   DisconnectReason.badSession,
-  DisconnectReason.timedOut,
 ]);
 
 /**
