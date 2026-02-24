@@ -625,9 +625,11 @@ const enrichTiktokPerpostOption = async (post, index) => {
   };
 };
 
-const buildPolresMapForDirektorat = async (clientId) => {
-  const roleName = String(clientId || "").toLowerCase();
+const buildPolresMapForDirektorat = async (clientId, roleFlag = null) => {
   const normalizedClientId = String(clientId || "").toUpperCase();
+  const expectedRole = normalizedClientId.toLowerCase();
+  const providedRole = String(roleFlag || "").trim().toLowerCase();
+  const roleName = providedRole && providedRole === expectedRole ? providedRole : expectedRole;
   const polresIds = await getClientsByRole(roleName);
 
   const mergedIds = uniq([normalizedClientId, ...polresIds.map((id) => String(id || "").toUpperCase())]);
@@ -5102,6 +5104,7 @@ export const dirRequestHandlers = {
       chatId,
       waClient,
       targetClientId,
+      session.role,
       platform,
       selectedDate,
       selectedPost
@@ -5113,8 +5116,20 @@ export const dirRequestHandlers = {
     await dirRequestHandlers.main(session, chatId, "", waClient);
   },
 
-  async send_jajaran_perpost_report(session, chatId, waClient, targetClientId, platform, selectedDate, selectedPost) {
-    const { mergedIds, usernameToClient, expectedByClient } = await buildPolresMapForDirektorat(targetClientId);
+  async send_jajaran_perpost_report(
+    session,
+    chatId,
+    waClient,
+    targetClientId,
+    roleFlag,
+    platform,
+    selectedDate,
+    selectedPost
+  ) {
+    const { mergedIds, usernameToClient, expectedByClient } = await buildPolresMapForDirektorat(
+      targetClientId,
+      roleFlag
+    );
     const presentByClient = new Map();
     mergedIds.forEach((cid) => presentByClient.set(cid, new Set()));
 
@@ -5135,6 +5150,11 @@ export const dirRequestHandlers = {
     }
 
     const rows = [];
+    const summary = {
+      expected: 0,
+      hadir: 0,
+      belum: 0,
+    };
     for (const cid of mergedIds) {
       const client = await findClientById(cid);
       const clientName = client?.nama || cid;
@@ -5142,8 +5162,22 @@ export const dirRequestHandlers = {
       const hadir = presentByClient.get(cid)?.size || 0;
       const belum = Math.max(expected - hadir, 0);
       const persen = expected > 0 ? ((hadir / expected) * 100).toFixed(2) : "0.00";
-      rows.push(`${clientName}: hadir ${hadir}/${expected}, belum ${belum}, ${persen}%`);
+      summary.expected += expected;
+      summary.hadir += hadir;
+      summary.belum += belum;
+
+      rows.push(
+        [
+          `• *${clientName}*`,
+          `  Hadir: ${hadir}/${expected} personel`,
+          `  Belum: ${belum} personel`,
+          `  Persentase: ${persen}%`,
+        ].join("\n")
+      );
     }
+
+    const totalPersen =
+      summary.expected > 0 ? ((summary.hadir / summary.expected) * 100).toFixed(2) : "0.00";
 
     const engagementSummary =
       platform === "instagram"
@@ -5154,11 +5188,23 @@ export const dirRequestHandlers = {
       "Mohon ijin Komandan,",
       `📋 *Rekap ${platform === "instagram" ? "Instagram" : "TikTok"} Perpost Jajaran*`,
       `Tanggal: ${formatYmdToIndoLong(selectedDate)} (WIB)`,
+      `Client Direktorat: *${targetClientId}*`,
+      roleFlag ? `Role Filter: *${String(roleFlag).toLowerCase()}*` : null,
+      "",
+      "*Informasi Konten*",
       `Link Post: ${selectedPost.link}`,
-      `Rincian Engagement: ${engagementSummary}`,
-      "Rincian Pelaksanaan (berdasarkan nama Polres):",
+      `Caption: ${selectedPost.captionPreview || "(tanpa caption)"}`,
+      `Engagement (dari tabel post): ${engagementSummary}`,
+      "",
+      "*Ringkasan Pelaksanaan*",
+      `Total Hadir: ${summary.hadir}/${summary.expected} personel (${totalPersen}%)`,
+      `Total Belum: ${summary.belum} personel`,
+      "",
+      "*Rincian per Polres*",
       ...rows,
-    ].join("\n");
+    ]
+      .filter(Boolean)
+      .join("\n");
 
     await waClient.sendMessage(chatId, message);
   },
