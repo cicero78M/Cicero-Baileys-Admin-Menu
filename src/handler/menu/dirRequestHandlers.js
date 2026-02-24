@@ -1,16 +1,19 @@
-import { getUsersSocialByClient, getClientsByRole } from "../../model/userModel.js";
+import { getUsersSocialByClient, getClientsByRole, getUsersByDirektorat } from "../../model/userModel.js";
 import {
   deletePostByShortcode,
   getShortcodesTodayByClient,
   getPostsTodayByClient as getInstaPostsTodayByClient,
+  getPostsByFilters as getInstaPostsByFilters,
 } from "../../model/instaPostModel.js";
 import {
   deletePostByVideoId,
   getVideoIdsTodayByClient,
   getPostsTodayByClient as getTiktokPostsTodayByClient,
+  getPostsByClientAndDateRange as getTiktokPostsByDateRange,
 } from "../../model/tiktokPostModel.js";
+import { getLikeUsernamesByShortcode } from "../../model/instaLikeModel.js";
 import { getRekapLikesByClient } from "../../model/instaLikeModel.js";
-import { getRekapKomentarByClient } from "../../model/tiktokCommentModel.js";
+import { getCommentsByVideoId, getRekapKomentarByClient } from "../../model/tiktokCommentModel.js";
 import {
   absensiLikes,
   lapharDitbinmas,
@@ -24,6 +27,7 @@ import {
   absensiKomentarDitbinmasReport,
   absensiKomentar,
   absensiKomentarDitbinmasSimple as absensiKomentarDitbinmasSimpleReport,
+  extractUsernamesFromComments,
 } from "../fetchabsensi/tiktok/absensiKomentarTiktok.js";
 import { absensiRegistrasiDashboardDirektorat } from "../fetchabsensi/dashboard/absensiRegistrasiDashboardDirektorat.js";
 import { findClientById, findAllClientsByType } from "../../service/clientService.js";
@@ -189,7 +193,7 @@ const DIGIT_EMOJI = {
 
 const CHAKRANARAYANA_MENU_GROUPS = {
   direktorat: ["3", "6", "9", "46", "53", "54"],
-  jajaran: ["1", "48", "49"],
+  jajaran: ["1", "48", "49", "55", "56"],
 };
 
 const CHAKRANARAYANA_MENU_LABELS = {
@@ -201,9 +205,29 @@ const CHAKRANARAYANA_MENU_LABELS = {
   "47": "Input TikTok post manual",
   "48": "Absensi Instagram Jajaran",
   "49": "Absensi TikTok Jajaran",
+  "55": "Rekap Instagram Jajaran Perpost",
+  "56": "Rekap TikTok Jajaran Perpost",
   "53": "Hapus post tugas (auto IG/TikTok)",
   "54": "Ambil pesan list tugas IG & TikTok",
 };
+
+const PERPOST_DATE_MENU_TEXT = appendSubmenuBackInstruction(
+  "Silakan pilih sumber tanggal rekap perpost:\n" +
+    "1️⃣ Hari ini (WIB)\n" +
+    "2️⃣ Pilih tanggal (format YYYY-MM-DD)\n\n" +
+    "Balas angka pilihan atau ketik *batal* untuk kembali."
+);
+
+const JAKARTA_DATE_FORMATTER = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Jakarta",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+const getJakartaYmd = (value = new Date()) => JAKARTA_DATE_FORMATTER.format(value);
+
+const isValidYmd = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || "").trim());
 
 const getJakartaDayDateLabel = () => {
   const now = new Date();
@@ -529,6 +553,70 @@ const pangkatOrder = [
 const rankIdx = (t) => {
   const i = pangkatOrder.indexOf((t || "").toUpperCase());
   return i === -1 ? pangkatOrder.length : i;
+};
+
+const formatYmdToIndoLong = (ymd) => {
+  if (!isValidYmd(ymd)) return ymd;
+  const [year, month, day] = String(ymd).split("-").map((v) => Number(v));
+  const date = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
+  return date.toLocaleDateString("id-ID", {
+    timeZone: "Asia/Jakarta",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+};
+
+const normalizeSocialUsername = (value) =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^@+/, "")
+    .replace(/\s+/g, "");
+
+const uniq = (items) => [...new Set(items.filter(Boolean))];
+
+const buildPolresMapForDirektorat = async (clientId) => {
+  const roleName = String(clientId || "").toLowerCase();
+  const normalizedClientId = String(clientId || "").toUpperCase();
+  const polresIds = await getClientsByRole(roleName);
+
+  const mergedIds = uniq([normalizedClientId, ...polresIds.map((id) => String(id || "").toUpperCase())]);
+  const users = await getUsersByDirektorat(roleName, mergedIds);
+  const usernameToClient = new Map();
+  const expectedByClient = new Map();
+  const usersByClient = new Map();
+
+  users.forEach((user) => {
+    if (user?.status !== true) return;
+    const cid = String(user?.client_id || "").toUpperCase();
+    if (!usersByClient.has(cid)) usersByClient.set(cid, []);
+    usersByClient.get(cid).push(user);
+  });
+
+  for (const cid of mergedIds) {
+    const client = await findClientById(cid);
+    const clientType = client?.client_type?.toLowerCase();
+    const filteredUsers = filterAttendanceUsers(usersByClient.get(cid) || [], clientType);
+    expectedByClient.set(cid, {
+      instagram: 0,
+      tiktok: 0,
+    });
+    filteredUsers.forEach((u) => {
+      const ig = normalizeSocialUsername(u?.insta);
+      const tt = normalizeSocialUsername(u?.tiktok);
+      if (ig) {
+        usernameToClient.set(`ig:${ig}`, cid);
+        expectedByClient.get(cid).instagram += 1;
+      }
+      if (tt) {
+        usernameToClient.set(`tt:${tt}`, cid);
+        expectedByClient.get(cid).tiktok += 1;
+      }
+    });
+  }
+
+  return { mergedIds, usernameToClient, expectedByClient };
 };
 
 async function formatRekapUserData(clientId, roleFlag = null) {
@@ -3129,7 +3217,9 @@ export const dirRequestHandlers = {
         "1️⃣0️⃣ Absensi komentar Direktorat/Bidang\n" +
         "1️⃣1️⃣ Absensi user web dashboard Direktorat/Bidang\n" +
         "4️⃣8️⃣ Absensi Instagram Jajaran\n" +
-        "4️⃣9️⃣ Absensi TikTok Jajaran\n\n" +
+        "4️⃣9️⃣ Absensi TikTok Jajaran\n" +
+        "5️⃣5️⃣ Rekap Instagram Jajaran Perpost\n" +
+        "5️⃣6️⃣ Rekap TikTok Jajaran Perpost\n\n" +
         "📥 *Pengambilan Data*\n" +
         "1️⃣2️⃣ Ambil konten & like Instagram\n" +
         "1️⃣3️⃣ Ambil like Instagram saja\n" +
@@ -3352,6 +3442,8 @@ export const dirRequestHandlers = {
           "52",
           "53",
           "54",
+          "55",
+          "56",
         ].includes(choice)
     ) {
       await waClient.sendMessage(chatId, "Pilihan tidak valid. Ketik angka menu.");
@@ -3484,6 +3576,20 @@ export const dirRequestHandlers = {
     if (choice === "49") {
       session.step = "absensi_tiktok_jajaran";
       await dirRequestHandlers.absensi_tiktok_jajaran(session, chatId, "", waClient);
+      return;
+    }
+
+    if (choice === "55") {
+      session.perpostPlatform = "instagram";
+      session.step = "choose_jajaran_perpost_date_option";
+      await waClient.sendMessage(chatId, PERPOST_DATE_MENU_TEXT);
+      return;
+    }
+
+    if (choice === "56") {
+      session.perpostPlatform = "tiktok";
+      session.step = "choose_jajaran_perpost_date_option";
+      await waClient.sendMessage(chatId, PERPOST_DATE_MENU_TEXT);
       return;
     }
 
@@ -4790,6 +4896,209 @@ export const dirRequestHandlers = {
 
     session.step = "main";
     await dirRequestHandlers.main(session, chatId, "", waClient);
+  },
+
+  async choose_jajaran_perpost_date_option(session, chatId, text, waClient) {
+    const input = String(text || "").trim().toLowerCase();
+    if (!input) {
+      await waClient.sendMessage(chatId, PERPOST_DATE_MENU_TEXT);
+      return;
+    }
+
+    if (input === "batal") {
+      session.perpostPlatform = undefined;
+      session.perpostSelectedDate = undefined;
+      session.step = "main";
+      await dirRequestHandlers.main(session, chatId, "", waClient);
+      return;
+    }
+
+    if (input === "1") {
+      session.perpostSelectedDate = getJakartaYmd();
+      session.step = "choose_jajaran_perpost_post";
+      await dirRequestHandlers.choose_jajaran_perpost_post(session, chatId, "", waClient);
+      return;
+    }
+
+    if (input === "2") {
+      session.step = "input_jajaran_perpost_date";
+      await waClient.sendMessage(
+        chatId,
+        appendSubmenuBackInstruction(
+          "Masukkan tanggal rekap perpost dengan format *YYYY-MM-DD* (WIB).\nContoh: 2026-01-31"
+        )
+      );
+      return;
+    }
+
+    await waClient.sendMessage(chatId, "Pilihan tidak valid. Balas 1/2 atau ketik *batal*.");
+    await waClient.sendMessage(chatId, PERPOST_DATE_MENU_TEXT);
+  },
+
+  async input_jajaran_perpost_date(session, chatId, text, waClient) {
+    const input = String(text || "").trim();
+    if (!input) {
+      await waClient.sendMessage(chatId, "Masukkan tanggal dengan format YYYY-MM-DD.");
+      return;
+    }
+    if (input.toLowerCase() === "batal") {
+      session.step = "choose_jajaran_perpost_date_option";
+      await waClient.sendMessage(chatId, PERPOST_DATE_MENU_TEXT);
+      return;
+    }
+    if (!isValidYmd(input)) {
+      await waClient.sendMessage(chatId, "❌ Format tanggal tidak valid. Gunakan YYYY-MM-DD.");
+      return;
+    }
+
+    session.perpostSelectedDate = input;
+    session.step = "choose_jajaran_perpost_post";
+    await dirRequestHandlers.choose_jajaran_perpost_post(session, chatId, "", waClient);
+  },
+
+  async choose_jajaran_perpost_post(session, chatId, text, waClient) {
+    const platform = session.perpostPlatform;
+    const targetClientId = session.dir_client_id || session.selectedClientId || DITBINMAS_CLIENT_ID;
+    const selectedDate = session.perpostSelectedDate || getJakartaYmd();
+
+    if (!platform) {
+      await waClient.sendMessage(chatId, "❌ Platform rekap perpost belum dipilih.");
+      session.step = "main";
+      await dirRequestHandlers.main(session, chatId, "", waClient);
+      return;
+    }
+
+    if (!session.perpostOptions || !Array.isArray(session.perpostOptions)) {
+      let posts = [];
+      if (platform === "instagram") {
+        posts = await getInstaPostsByFilters(targetClientId, {
+          periode: "harian",
+          tanggal: selectedDate,
+          role: String(targetClientId || "").toLowerCase(),
+          scope: "direktorat",
+        });
+      } else {
+        posts = await getTiktokPostsByDateRange(targetClientId, selectedDate, selectedDate);
+      }
+
+      if (!posts.length) {
+        await waClient.sendMessage(
+          chatId,
+          `ℹ️ Tidak ada post ${platform === "instagram" ? "Instagram" : "TikTok"} pada ${formatYmdToIndoLong(selectedDate)}.`
+        );
+        session.step = "main";
+        await dirRequestHandlers.main(session, chatId, "", waClient);
+        return;
+      }
+
+      session.perpostOptions = posts.map((post, index) => ({
+        index: index + 1,
+        shortcode: post.shortcode,
+        videoId: post.video_id,
+        link:
+          post.link ||
+          (post.shortcode ? `https://www.instagram.com/p/${post.shortcode}` : `https://www.tiktok.com/@username/video/${post.video_id}`),
+        likeCount: Number(post.like_count || 0),
+        commentCount: Number(post.comment_count || 0),
+      }));
+    }
+
+    const input = String(text || "").trim().toLowerCase();
+    if (!input) {
+      const listText = session.perpostOptions
+        .map((item) => {
+          const perf = platform === "instagram" ? `likes ${item.likeCount}` : `komentar ${item.commentCount}`;
+          return `${item.index}. ${item.link}\n   Engagement: ${perf}`;
+        })
+        .join("\n\n");
+
+      await waClient.sendMessage(
+        chatId,
+        appendSubmenuBackInstruction(
+          `Pilih post tugas ${platform === "instagram" ? "Instagram" : "TikTok"} untuk rekap perpost tanggal ${formatYmdToIndoLong(selectedDate)}:\n\n${listText}\n\nBalas nomor post.`
+        )
+      );
+      return;
+    }
+
+    if (input === "batal") {
+      session.perpostOptions = undefined;
+      session.step = "main";
+      await dirRequestHandlers.main(session, chatId, "", waClient);
+      return;
+    }
+
+    const idx = Number(input);
+    if (!Number.isInteger(idx) || idx < 1 || idx > session.perpostOptions.length) {
+      await waClient.sendMessage(chatId, "❌ Pilihan post tidak valid.");
+      return;
+    }
+
+    const selectedPost = session.perpostOptions[idx - 1];
+    await dirRequestHandlers.send_jajaran_perpost_report(
+      session,
+      chatId,
+      waClient,
+      targetClientId,
+      platform,
+      selectedDate,
+      selectedPost
+    );
+    session.perpostOptions = undefined;
+    session.perpostPlatform = undefined;
+    session.perpostSelectedDate = undefined;
+    session.step = "main";
+    await dirRequestHandlers.main(session, chatId, "", waClient);
+  },
+
+  async send_jajaran_perpost_report(session, chatId, waClient, targetClientId, platform, selectedDate, selectedPost) {
+    const { mergedIds, usernameToClient, expectedByClient } = await buildPolresMapForDirektorat(targetClientId);
+    const presentByClient = new Map();
+    mergedIds.forEach((cid) => presentByClient.set(cid, new Set()));
+
+    if (platform === "instagram") {
+      const likers = await getLikeUsernamesByShortcode(selectedPost.shortcode);
+      likers.map(normalizeSocialUsername).forEach((uname) => {
+        const cid = usernameToClient.get(`ig:${uname}`);
+        if (cid) presentByClient.get(cid)?.add(uname);
+      });
+    } else {
+      const { comments } = await getCommentsByVideoId(selectedPost.videoId);
+      extractUsernamesFromComments(comments)
+        .map(normalizeSocialUsername)
+        .forEach((uname) => {
+          const cid = usernameToClient.get(`tt:${uname}`);
+          if (cid) presentByClient.get(cid)?.add(uname);
+        });
+    }
+
+    const rows = [];
+    for (const cid of mergedIds) {
+      const client = await findClientById(cid);
+      const clientName = client?.nama || cid;
+      const expected = expectedByClient.get(cid)?.[platform === "instagram" ? "instagram" : "tiktok"] || 0;
+      const hadir = presentByClient.get(cid)?.size || 0;
+      const belum = Math.max(expected - hadir, 0);
+      const persen = expected > 0 ? ((hadir / expected) * 100).toFixed(2) : "0.00";
+      rows.push(`${clientName}: hadir ${hadir}/${expected}, belum ${belum}, ${persen}%`);
+    }
+
+    const engagementSummary =
+      platform === "instagram"
+        ? `Likes: ${selectedPost.likeCount} | Komentar: ${selectedPost.commentCount}`
+        : `Komentar: ${selectedPost.commentCount} | Likes: ${selectedPost.likeCount}`;
+
+    const message = [
+      "Mohon ijin Komandan,",
+      `📋 *Rekap ${platform === "instagram" ? "Instagram" : "TikTok"} Perpost Jajaran*`,
+      `Tanggal: ${formatYmdToIndoLong(selectedDate)} (WIB)`,
+      `Link Post: ${selectedPost.link}`,
+      `Rincian Engagement: ${engagementSummary}`,
+      "Rincian Pelaksanaan (berdasarkan nama Polres):",
+      ...rows,
+    ].join("\n");
+
+    await waClient.sendMessage(chatId, message);
   },
 };
 
