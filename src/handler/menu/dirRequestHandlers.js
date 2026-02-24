@@ -636,6 +636,7 @@ const buildPolresMapForDirektorat = async (clientId, roleFlag = null) => {
   const users = await getUsersByDirektorat(roleName, mergedIds);
   const usernameToClient = new Map();
   const expectedByClient = new Map();
+  const userStatsByClient = new Map();
   const usersByClient = new Map();
 
   users.forEach((user) => {
@@ -649,25 +650,39 @@ const buildPolresMapForDirektorat = async (clientId, roleFlag = null) => {
     const client = await findClientById(cid);
     const clientType = client?.client_type?.toLowerCase();
     const filteredUsers = filterAttendanceUsers(usersByClient.get(cid) || [], clientType);
+    let instagramFilled = 0;
+    let tiktokFilled = 0;
+
     expectedByClient.set(cid, {
       instagram: 0,
       tiktok: 0,
     });
+
     filteredUsers.forEach((u) => {
       const ig = normalizeSocialUsername(u?.insta);
       const tt = normalizeSocialUsername(u?.tiktok);
       if (ig) {
         usernameToClient.set(`ig:${ig}`, cid);
         expectedByClient.get(cid).instagram += 1;
+        instagramFilled += 1;
       }
       if (tt) {
         usernameToClient.set(`tt:${tt}`, cid);
         expectedByClient.get(cid).tiktok += 1;
+        tiktokFilled += 1;
       }
+    });
+
+    userStatsByClient.set(cid, {
+      totalUsers: filteredUsers.length,
+      instagramFilled,
+      instagramMissing: Math.max(filteredUsers.length - instagramFilled, 0),
+      tiktokFilled,
+      tiktokMissing: Math.max(filteredUsers.length - tiktokFilled, 0),
     });
   }
 
-  return { mergedIds, usernameToClient, expectedByClient };
+  return { mergedIds, usernameToClient, expectedByClient, userStatsByClient };
 };
 
 async function formatRekapUserData(clientId, roleFlag = null) {
@@ -5126,7 +5141,7 @@ export const dirRequestHandlers = {
     selectedDate,
     selectedPost
   ) {
-    const { mergedIds, usernameToClient, expectedByClient } = await buildPolresMapForDirektorat(
+    const { mergedIds, usernameToClient, expectedByClient, userStatsByClient } = await buildPolresMapForDirektorat(
       targetClientId,
       roleFlag
     );
@@ -5151,6 +5166,9 @@ export const dirRequestHandlers = {
 
     const rows = [];
     const summary = {
+      totalUsers: 0,
+      usernameFilled: 0,
+      usernameMissing: 0,
       expected: 0,
       hadir: 0,
       belum: 0,
@@ -5158,10 +5176,35 @@ export const dirRequestHandlers = {
     for (const cid of mergedIds) {
       const client = await findClientById(cid);
       const clientName = client?.nama || cid;
+      const clientType = String(client?.client_type || "").toLowerCase();
+
+      if (clientName.toUpperCase() === "DIREKTORAT LALU LINTAS") {
+        continue;
+      }
+
+      if (clientType === "direktorat" && String(cid).toUpperCase() !== String(targetClientId).toUpperCase()) {
+        continue;
+      }
+
+      const userStats = userStatsByClient.get(cid) || {
+        totalUsers: 0,
+        instagramFilled: 0,
+        instagramMissing: 0,
+        tiktokFilled: 0,
+        tiktokMissing: 0,
+      };
+
+      const usernameFilled =
+        platform === "instagram" ? userStats.instagramFilled : userStats.tiktokFilled;
+      const usernameMissing =
+        platform === "instagram" ? userStats.instagramMissing : userStats.tiktokMissing;
       const expected = expectedByClient.get(cid)?.[platform === "instagram" ? "instagram" : "tiktok"] || 0;
       const hadir = presentByClient.get(cid)?.size || 0;
       const belum = Math.max(expected - hadir, 0);
       const persen = expected > 0 ? ((hadir / expected) * 100).toFixed(2) : "0.00";
+      summary.totalUsers += userStats.totalUsers;
+      summary.usernameFilled += usernameFilled;
+      summary.usernameMissing += usernameMissing;
       summary.expected += expected;
       summary.hadir += hadir;
       summary.belum += belum;
@@ -5169,6 +5212,9 @@ export const dirRequestHandlers = {
       rows.push(
         [
           `• *${clientName}*`,
+          `  Total User: ${userStats.totalUsers} personel`,
+          `  Sudah Isi Username: ${usernameFilled} personel`,
+          `  Belum Isi Username: ${usernameMissing} personel`,
           `  Hadir: ${hadir}/${expected} personel`,
           `  Belum: ${belum} personel`,
           `  Persentase: ${persen}%`,
@@ -5197,6 +5243,9 @@ export const dirRequestHandlers = {
       `Engagement (dari tabel post): ${engagementSummary}`,
       "",
       "*Ringkasan Pelaksanaan*",
+      `Total User: ${summary.totalUsers} personel`,
+      `Sudah Isi Username: ${summary.usernameFilled} personel`,
+      `Belum Isi Username: ${summary.usernameMissing} personel`,
       `Total Hadir: ${summary.hadir}/${summary.expected} personel (${totalPersen}%)`,
       `Total Belum: ${summary.belum} personel`,
       "",
