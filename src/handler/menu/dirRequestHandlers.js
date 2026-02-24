@@ -576,6 +576,55 @@ const normalizeSocialUsername = (value) =>
 
 const uniq = (items) => [...new Set(items.filter(Boolean))];
 
+const formatCaptionPreview = (caption) => {
+  const normalized = sanitizeManualCaption(caption);
+  if (!normalized || normalized === "-") {
+    return "(tanpa caption)";
+  }
+  return normalized;
+};
+
+const enrichInstagramPerpostOption = async (post, index) => {
+  const shortcode = post?.shortcode;
+  const likesByFetcher = shortcode
+    ? (await getLikeUsernamesByShortcode(shortcode)).length
+    : 0;
+  const likeCount = Number(post?.like_count || 0);
+  const commentCount = Number(post?.comment_count || 0);
+
+  return {
+    index,
+    shortcode,
+    videoId: null,
+    link: post?.link || `https://www.instagram.com/p/${shortcode}`,
+    likeCount,
+    commentCount,
+    likesByFetcher,
+    commentsByFetcher: null,
+    captionPreview: formatCaptionPreview(post?.caption),
+  };
+};
+
+const enrichTiktokPerpostOption = async (post, index) => {
+  const videoId = post?.video_id;
+  const { comments } = videoId ? await getCommentsByVideoId(videoId) : { comments: [] };
+  const commentsByFetcher = Array.isArray(comments) ? comments.length : 0;
+  const likeCount = Number(post?.like_count || 0);
+  const commentCount = Number(post?.comment_count || 0);
+
+  return {
+    index,
+    shortcode: null,
+    videoId,
+    link: post?.link || `https://www.tiktok.com/@username/video/${videoId}`,
+    likeCount,
+    commentCount,
+    likesByFetcher: null,
+    commentsByFetcher,
+    captionPreview: formatCaptionPreview(post?.caption),
+  };
+};
+
 const buildPolresMapForDirektorat = async (clientId) => {
   const roleName = String(clientId || "").toLowerCase();
   const normalizedClientId = String(clientId || "").toUpperCase();
@@ -4991,24 +5040,37 @@ export const dirRequestHandlers = {
         return;
       }
 
-      session.perpostOptions = posts.map((post, index) => ({
-        index: index + 1,
-        shortcode: post.shortcode,
-        videoId: post.video_id,
-        link:
-          post.link ||
-          (post.shortcode ? `https://www.instagram.com/p/${post.shortcode}` : `https://www.tiktok.com/@username/video/${post.video_id}`),
-        likeCount: Number(post.like_count || 0),
-        commentCount: Number(post.comment_count || 0),
-      }));
+      if (platform === "instagram") {
+        session.perpostOptions = await Promise.all(
+          posts.map((post, index) => enrichInstagramPerpostOption(post, index + 1))
+        );
+      } else {
+        session.perpostOptions = await Promise.all(
+          posts.map((post, index) => enrichTiktokPerpostOption(post, index + 1))
+        );
+      }
     }
 
     const input = String(text || "").trim().toLowerCase();
     if (!input) {
       const listText = session.perpostOptions
         .map((item) => {
-          const perf = platform === "instagram" ? `likes ${item.likeCount}` : `komentar ${item.commentCount}`;
-          return `${item.index}. ${item.link}\n   Engagement: ${perf}`;
+          const engagementLines =
+            platform === "instagram"
+              ? [
+                  `Likes Post: ${item.likeCount} | Komentar Post: ${item.commentCount}`,
+                  `Likes Terambil (insta_like): ${item.likesByFetcher ?? 0}`,
+                ]
+              : [
+                  `Likes Post: ${item.likeCount} | Komentar Post: ${item.commentCount}`,
+                  `Komentar Terambil (tiktok_comment): ${item.commentsByFetcher ?? 0}`,
+                ];
+
+          return [
+            `${item.index}. ${item.link}`,
+            `   Caption: ${item.captionPreview}`,
+            `   Engagement: ${engagementLines.join(" | ")}`,
+          ].join("\n");
         })
         .join("\n\n");
 
