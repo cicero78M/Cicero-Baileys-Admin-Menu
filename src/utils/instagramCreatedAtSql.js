@@ -10,7 +10,7 @@ export function getInstagramCreatedAtJakartaDateSql(columnName = 'created_at') {
 }
 
 export function getInstagramNowJakartaDateSql() {
-  return `(${getInstagramCreatedAtJakartaTimestampSql('NOW()')}::date)`;
+  return `((NOW() AT TIME ZONE '${JAKARTA_TIMEZONE}')::date)`;
 }
 
 export function getNormalizedInstagramSourceTypeSql(columnName = 'source_type') {
