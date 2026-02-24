@@ -90,7 +90,7 @@ export async function getShortcodesTodayByClient(client_id) {
   const res = await query(
     `SELECT shortcode FROM insta_post_khusus
      WHERE client_id = $1
-       AND (created_at AT TIME ZONE 'Asia/Jakarta')::date = (NOW() AT TIME ZONE 'Asia/Jakarta')::date`,
+       AND created_at::date = (NOW() AT TIME ZONE 'Asia/Jakarta')::date`,
     [client_id]
   );
   return res.rows.map(r => r.shortcode);
@@ -101,7 +101,7 @@ export async function getShortcodesTodayByUsername(username) {
   const res = await query(
     `SELECT p.shortcode FROM insta_post_khusus p JOIN clients c ON c.client_id = p.client_id
      WHERE c.client_insta = $1
-       AND (p.created_at AT TIME ZONE 'Asia/Jakarta')::date = (NOW() AT TIME ZONE 'Asia/Jakarta')::date`,
+       AND p.created_at::date = (NOW() AT TIME ZONE 'Asia/Jakarta')::date`,
     [username]
   );
   return res.rows.map(r => r.shortcode);
@@ -112,7 +112,7 @@ export async function getPostsTodayByClient(client_id) {
   const res = await query(
     `SELECT * FROM insta_post_khusus
      WHERE client_id = $1
-       AND (created_at AT TIME ZONE 'Asia/Jakarta')::date = (NOW() AT TIME ZONE 'Asia/Jakarta')::date`,
+       AND created_at::date = (NOW() AT TIME ZONE 'Asia/Jakarta')::date`,
     [client_id]
   );
   return res.rows;
