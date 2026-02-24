@@ -5164,7 +5164,7 @@ export const dirRequestHandlers = {
         });
     }
 
-    const rows = [];
+    const detailEntries = [];
     const summary = {
       totalUsers: 0,
       usernameFilled: 0,
@@ -5209,18 +5209,48 @@ export const dirRequestHandlers = {
       summary.hadir += hadir;
       summary.belum += belum;
 
-      rows.push(
-        [
-          `• *${clientName}*`,
-          `  Total User: ${userStats.totalUsers} personel`,
-          `  Sudah Isi Username: ${usernameFilled} personel`,
-          `  Belum Isi Username: ${usernameMissing} personel`,
-          `  Hadir: ${hadir}/${expected} personel`,
-          `  Belum: ${belum} personel`,
-          `  Persentase: ${persen}%`,
-        ].join("\n")
-      );
+      detailEntries.push({
+        clientName,
+        clientType,
+        totalUsers: userStats.totalUsers,
+        usernameFilled,
+        usernameMissing,
+        hadir,
+        expected,
+        belum,
+        persen: Number(persen),
+      });
     }
+
+    const getUserGroupRank = (totalUsers) => {
+      if (totalUsers > 1000) return 1;
+      if (totalUsers >= 500) return 2;
+      return 3;
+    };
+
+    detailEntries.sort((a, b) => {
+      if (a.clientType === "direktorat" && b.clientType !== "direktorat") return -1;
+      if (b.clientType === "direktorat" && a.clientType !== "direktorat") return 1;
+
+      const groupRankDiff = getUserGroupRank(a.totalUsers) - getUserGroupRank(b.totalUsers);
+      if (groupRankDiff !== 0) return groupRankDiff;
+
+      if (Math.abs(a.persen - b.persen) > 0.01) {
+        return b.persen - a.persen;
+      }
+
+      return a.clientName.localeCompare(b.clientName, "id-ID");
+    });
+
+    const rows = detailEntries.map((entry) => [
+      `• *${entry.clientName}*`,
+      `  Total User: ${entry.totalUsers} personel`,
+      `  Sudah Isi Username: ${entry.usernameFilled} personel`,
+      `  Belum Isi Username: ${entry.usernameMissing} personel`,
+      `  Hadir: ${entry.hadir}/${entry.expected} personel`,
+      `  Belum: ${entry.belum} personel`,
+      `  Persentase: ${entry.persen.toFixed(2)}%`,
+    ].join("\n"));
 
     const totalPersen =
       summary.expected > 0 ? ((summary.hadir / summary.expected) * 100).toFixed(2) : "0.00";
