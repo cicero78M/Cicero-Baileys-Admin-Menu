@@ -1874,7 +1874,23 @@ async function formatExecutiveSummary(clientId, roleFlag = null, options = {}) {
     : 0;
   const trendLabel = getExecutiveSummaryTrendLabel(currentRate, previousRate);
 
-  const sortedHours = [...hourlyActivity].sort((a, b) => b.totalEvents - a.totalEvents);
+  const hourlyActivityMap = new Map(
+    Array.from({ length: 24 }, (_, hour) => [hour, 0])
+  );
+  hourlyActivity.forEach((item) => {
+    const hourNumber = Number(String(item.hourLabel || "").split(":")[0]);
+    if (!Number.isFinite(hourNumber)) return;
+    if (hourNumber < 0 || hourNumber > 23) return;
+    hourlyActivityMap.set(hourNumber, Number(item.totalEvents || 0));
+  });
+
+  const normalizedHourlyActivity = Array.from({ length: 24 }, (_, hour) => ({
+    hourNumber: hour,
+    hourLabel: `${String(hour).padStart(2, "0")}:00`,
+    totalEvents: Number(hourlyActivityMap.get(hour) || 0),
+  }));
+
+  const sortedHours = [...normalizedHourlyActivity].sort((a, b) => b.totalEvents - a.totalEvents || a.hourNumber - b.hourNumber);
   const dominantHours = sortedHours
     .filter((item) => item.totalEvents > 0)
     .slice(0, 2)
@@ -1882,27 +1898,11 @@ async function formatExecutiveSummary(clientId, roleFlag = null, options = {}) {
   const lowestHour = sortedHours.length
     ? sortedHours[sortedHours.length - 1]
     : { hourLabel: "-", totalEvents: 0 };
-  const hourlyActivityMap = new Map();
-  hourlyActivity.forEach((item) => {
-    const hourNumber = Number(String(item.hourLabel || "").split(":")[0]);
-    if (!Number.isFinite(hourNumber)) return;
-    if (hourNumber < 0 || hourNumber > 22) return;
-    hourlyActivityMap.set(hourNumber, Number(item.totalEvents || 0));
+  const hourlyActivityLines = normalizedHourlyActivity.map((item) => {
+    const startHour = item.hourNumber;
+    const endHour = (startHour + 1) % 24;
+    return `• ${String(startHour).padStart(2, "0")}.00-${String(endHour).padStart(2, "0")}.00 WIB: ${item.totalEvents} aktivitas`;
   });
-
-  const firstActiveHour = [...hourlyActivityMap.entries()]
-    .filter(([, total]) => total > 0)
-    .map(([hour]) => hour)
-    .sort((a, b) => a - b)[0];
-
-  const hourlyActivityLines = Number.isFinite(firstActiveHour)
-    ? Array.from({ length: 23 - firstActiveHour }, (_, index) => firstActiveHour + index)
-      .map((startHour) => {
-        const endHour = startHour + 1;
-        const totalEvents = Number(hourlyActivityMap.get(startHour) || 0);
-        return `• ${String(startHour).padStart(2, "0")}.00-${String(endHour).padStart(2, "0")}.00 WIB: ${totalEvents} aktivitas`;
-      })
-    : [];
 
   const activityCounter = {
     instagram: new Map(),
