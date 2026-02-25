@@ -1487,7 +1487,19 @@ async function getEngagementHourlyActivity(clientId, roleFlag, startDate, endDat
         AND (COALESCE(array_length($4::text[], 1), 0) = 0 OR liked.username = ANY($4::text[]))
       GROUP BY 1
     ),
-    tt_activity AS (
+    ig_activity_first_hour AS (
+      SELECT
+        username,
+        LPAD(EXTRACT(HOUR FROM MIN(event_time))::text, 2, '0') || ':00' AS hour_label
+      FROM ig_activity_raw
+      GROUP BY username
+    ),
+    ig_activity AS (
+      SELECT hour_label, COUNT(*)::int AS total_events
+      FROM ig_activity_first_hour
+      GROUP BY hour_label
+    ),
+    tt_activity_raw AS (
       SELECT
         LPAD(EXTRACT(HOUR FROM tc.updated_at AT TIME ZONE 'Asia/Jakarta')::text, 2, '0') || ':00' AS hour_label,
         COUNT(DISTINCT tasks.video_id || ':' || commenter.username)::int AS total_events
@@ -1596,6 +1608,10 @@ async function formatExecutiveSummary(clientId, roleFlag = null) {
   const users = await getUsersSocialByClient(targetClientId, effectiveRole);
   const totalPersonil = users.length;
   const totalUsernameUpdated = users.filter((u) => u?.insta || u?.tiktok).length;
+  const totalInstagramUpdated = users.filter((u) => u?.insta).length;
+  const totalTiktokUpdated = users.filter((u) => u?.tiktok).length;
+  const totalBelumUpdate = users.filter((u) => !u?.insta && !u?.tiktok).length;
+  const totalKurangLengkap = users.filter((u) => (u?.insta && !u?.tiktok) || (!u?.insta && u?.tiktok)).length;
   const persentaseUpdated = totalPersonil
     ? ((totalUsernameUpdated / totalPersonil) * 100).toFixed(1)
     : "0.0";
@@ -1665,12 +1681,37 @@ async function formatExecutiveSummary(clientId, roleFlag = null) {
   const lowestHour = sortedHours.length
     ? sortedHours[sortedHours.length - 1]
     : { hourLabel: "-", totalEvents: 0 };
+  const hourlyActivityMap = new Map();
+  hourlyActivity.forEach((item) => {
+    const hourNumber = Number(String(item.hourLabel || "").split(":")[0]);
+    if (!Number.isFinite(hourNumber)) return;
+    if (hourNumber < 0 || hourNumber > 22) return;
+    hourlyActivityMap.set(hourNumber, Number(item.totalEvents || 0));
+  });
+
+  const firstActiveHour = [...hourlyActivityMap.entries()]
+    .filter(([, total]) => total > 0)
+    .map(([hour]) => hour)
+    .sort((a, b) => a - b)[0];
+
+  const hourlyActivityLines = Number.isFinite(firstActiveHour)
+    ? Array.from({ length: 23 - firstActiveHour }, (_, index) => firstActiveHour + index)
+      .map((startHour) => {
+        const endHour = startHour + 1;
+        const totalEvents = Number(hourlyActivityMap.get(startHour) || 0);
+        return `• ${String(startHour).padStart(2, "0")}.00-${String(endHour).padStart(2, "0")}.00 WIB: ${totalEvents} aktivitas`;
+      })
+    : [];
 
   const bucketCounter = {
     "06.00-15.00 WIB": 0,
     "15.00-19.00 WIB": 0,
     "19.00-23.00 WIB": 0,
   };
+  activityByUsername.forEach((row) => {
+    if (!row.username || !activityCounter[row.platform]) return;
+    activityCounter[row.platform].set(row.username, Number(row.activityCount || 0));
+  });
 
   hourlyActivity.forEach((item) => {
     const hour = parseHourFromTimeLabel(item.hourLabel);
@@ -1681,9 +1722,31 @@ async function formatExecutiveSummary(clientId, roleFlag = null) {
     }
   });
 
-  const heatmapLines = Object.entries(bucketCounter)
-    .sort((a, b) => b[1] - a[1])
-    .map(([bucket, total]) => `• ${bucket}: ${total} aktivitas`);
+  const topPolresByPelaksanaan = [...polresMap.values()]
+    .sort((a, b) => b.totalPelaksanaan - a.totalPelaksanaan || b.totalUpdated - a.totalUpdated)
+    .slice(0, 5);
+
+  const bottomPolresByUpdate = [...polresMap.values()]
+    .map((item) => ({
+      ...item,
+      updateRate: item.totalPersonil ? (item.totalUpdated / item.totalPersonil) * 100 : 0,
+    }))
+    .sort((a, b) => a.updateRate - b.updateRate || a.totalUpdated - b.totalUpdated || b.totalPelaksanaan - a.totalPelaksanaan)
+    .slice(0, 10);
+
+  const topPolresLines = topPolresByPelaksanaan.map((item, index) => {
+    const updateRate = item.totalPersonil
+      ? ((item.totalUpdated / item.totalPersonil) * 100).toFixed(1)
+      : "0.0";
+    return `• ${index + 1}. ${item.polresId}: ${item.totalPelaksanaan.toLocaleString("id-ID")} pelaksanaan (update ${item.totalUpdated}/${item.totalPersonil} personil - ${updateRate}%)`;
+  });
+
+  const bottomPolresLines = bottomPolresByUpdate.map((item, index) => {
+    const updateRate = item.totalPersonil
+      ? ((item.totalUpdated / item.totalPersonil) * 100).toFixed(1)
+      : "0.0";
+    return `• ${index + 1}. ${item.polresId}: update ${item.totalUpdated}/${item.totalPersonil} personil (${updateRate}%) | ${item.totalPelaksanaan.toLocaleString("id-ID")} pelaksanaan`;
+  });
 
   const periodLabel = `${formatYmdToIndoLong(startYmd)} s.d. ${formatYmdToIndoLong(endYmd)}`;
   const clientName = (client?.nama || targetClientId).toUpperCase();
@@ -1698,16 +1761,18 @@ async function formatExecutiveSummary(clientId, roleFlag = null) {
     "",
     "1️⃣ *Skala Personil Terdata*",
     `• Total personil terinput: *${totalPersonil.toLocaleString("id-ID")}* personil.`,
-    `• Personil dengan username Instagram/TikTok terupdate: *${totalUsernameUpdated.toLocaleString("id-ID")}* personil (*${persentaseUpdated}%*).`,
-    `• Personil yang masih perlu validasi/update username: *${Math.max(totalPersonil - totalUsernameUpdated, 0).toLocaleString("id-ID")}* personil.`,
+    `• Personil dengan username Instagram terupdate: *${totalInstagramUpdated.toLocaleString("id-ID")}* personil.`,
+    `• Personil dengan username TikTok terupdate: *${totalTiktokUpdated.toLocaleString("id-ID")}* personil.`,
+    `• Total personil dengan minimal 1 username terupdate: *${totalUsernameUpdated.toLocaleString("id-ID")}* personil (*${persentaseUpdated}%*).`,
+    `• Personil yang masih perlu validasi/update username: *${(totalBelumUpdate + totalKurangLengkap).toLocaleString("id-ID")}* personil (Belum update: ${totalBelumUpdate.toLocaleString("id-ID")}, Kurang lengkap: ${totalKurangLengkap.toLocaleString("id-ID")}).`,
     "",
     "2️⃣ *Aktivitas Upload Konten*",
     `• Total post Instagram terunggah: *${Number(totalPostInstagram || 0).toLocaleString("id-ID")}* post.`,
     `• Total post TikTok terunggah: *${Number(totalPostTiktok || 0).toLocaleString("id-ID")}* post.`,
     "",
     "3️⃣ *Pelaksanaan Likes & Komentar*",
-    `• Total likes Instagram tercatat: *${totalLikes.toLocaleString("id-ID")}* aktivitas.`,
-    `• Total komentar TikTok tercatat: *${totalKomentar.toLocaleString("id-ID")}* aktivitas.`,
+    `• Total likes Instagram tercatat: *${totalLikes.toLocaleString("id-ID")}* aktivitas (dari *${Number(totalPostInstagram || 0).toLocaleString("id-ID")}* post konten/tugas).`,
+    `• Total komentar TikTok tercatat: *${totalKomentar.toLocaleString("id-ID")}* aktivitas (dari *${Number(totalPostTiktok || 0).toLocaleString("id-ID")}* post konten/tugas).`,
     `• Rata-rata partisipasi terhadap personil terdata: *${avgPartisipasi}%*.`,
     `• Tren kepatuhan dibanding minggu sebelumnya: *${trendLabel}* (minggu ini ${currentRate.toFixed(1)}% vs sebelumnya ${previousRate.toFixed(1)}%).`,
     "",
@@ -1717,9 +1782,15 @@ async function formatExecutiveSummary(clientId, roleFlag = null) {
       : "• Jam aktivitas dominan: *belum ada aktivitas terekam*.",
     `• Jam aktivitas terendah: *${lowestHour.hourLabel} (${lowestHour.totalEvents})*.`,
     "• Peta waktu pelaksanaan likes IG dan komentar TikTok:",
-    ...(heatmapLines.length ? heatmapLines : ["• Data waktu belum tersedia."]),
+    ...(hourlyActivityLines.length ? hourlyActivityLines : ["• Data waktu belum tersedia."]),
     "",
-    "5️⃣ *Kesimpulan Strategis*",
+    "5️⃣ *Top 5 Polres dengan Pelaksanaan Tertinggi*",
+    ...(topPolresLines.length ? topPolresLines : ["• Data pelaksanaan per Polres belum tersedia."]),
+    "",
+    "6️⃣ *Top 10 Polres dengan Update Data Terendah*",
+    ...(bottomPolresLines.length ? bottomPolresLines : ["• Data update personil per Polres belum tersedia."]),
+    "",
+    "7️⃣ *Kesimpulan Strategis*",
     "• Struktur data personil telah terbentuk dan dapat dipantau secara terukur.",
     "• Aktivitas engagement mingguan sudah termonitor dari sisi output konten dan pelaksanaan tugas.",
     "• Data pola waktu dapat digunakan sebagai dasar reminder terjadwal untuk jam partisipasi rendah.",
