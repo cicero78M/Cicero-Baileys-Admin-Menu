@@ -1604,6 +1604,7 @@ async function getEngagementHourlyActivity(clientId, roleFlag, startDate, endDat
         FROM jsonb_array_elements(COALESCE(il.likes, '[]'::jsonb)) AS elem
       ) liked ON TRUE
       WHERE il.updated_at IS NOT NULL
+        AND (il.updated_at AT TIME ZONE 'Asia/Jakarta')::date BETWEEN $1::date AND $2::date
         AND liked.username <> ''
         AND (COALESCE(array_length($4::text[], 1), 0) = 0 OR liked.username = ANY($4::text[]))
     ),
@@ -1630,6 +1631,7 @@ async function getEngagementHourlyActivity(clientId, roleFlag, startDate, endDat
         FROM jsonb_array_elements_text(COALESCE(tc.comments, '[]'::jsonb)) AS raw(raw_username)
       ) commenter ON TRUE
       WHERE tc.updated_at IS NOT NULL
+        AND (tc.updated_at AT TIME ZONE 'Asia/Jakarta')::date BETWEEN $1::date AND $2::date
         AND commenter.username <> ''
         AND (COALESCE(array_length($5::text[], 1), 0) = 0 OR commenter.username = ANY($5::text[]))
     ),
@@ -1987,6 +1989,7 @@ async function formatExecutiveSummary(clientId, roleFlag = null, options = {}) {
     `• Tren kepatuhan dibanding minggu sebelumnya: *${trendLabel}* (minggu ini ${currentRate.toFixed(1)}% vs sebelumnya ${previousRate.toFixed(1)}%).`,
     "",
     "4️⃣ *Pola Waktu Pelaksanaan*",
+    `• Periode pola waktu: *${periodLabel} (WIB)*.`,
     dominantHours.length
       ? `• Jam aktivitas dominan: *${dominantHours.join("; ")}*.`
       : "• Jam aktivitas dominan: *belum ada aktivitas terekam*.",
