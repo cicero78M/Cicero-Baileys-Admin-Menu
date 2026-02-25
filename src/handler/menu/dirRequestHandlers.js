@@ -1460,10 +1460,10 @@ async function getEngagementHourlyActivity(clientId, roleFlag, startDate, endDat
           OR LOWER(TRIM(tpr.role_name)) = LOWER($3)
         )
     ),
-    ig_activity AS (
+    ig_activity_raw AS (
       SELECT
-        LPAD(EXTRACT(HOUR FROM il.updated_at AT TIME ZONE 'Asia/Jakarta')::text, 2, '0') || ':00' AS hour_label,
-        COUNT(DISTINCT tasks.shortcode || ':' || liked.username)::int AS total_events
+        liked.username,
+        (il.updated_at AT TIME ZONE 'Asia/Jakarta') AS event_time
       FROM insta_like il
       JOIN ig_task_shortcodes tasks ON tasks.shortcode = il.shortcode
       JOIN LATERAL (
@@ -1473,12 +1473,23 @@ async function getEngagementHourlyActivity(clientId, roleFlag, startDate, endDat
       WHERE il.updated_at IS NOT NULL
         AND liked.username <> ''
         AND (COALESCE(array_length($4::text[], 1), 0) = 0 OR liked.username = ANY($4::text[]))
-      GROUP BY 1
     ),
-    tt_activity AS (
+    ig_activity_first_hour AS (
       SELECT
-        LPAD(EXTRACT(HOUR FROM tc.updated_at AT TIME ZONE 'Asia/Jakarta')::text, 2, '0') || ':00' AS hour_label,
-        COUNT(DISTINCT tasks.video_id || ':' || commenter.username)::int AS total_events
+        username,
+        LPAD(EXTRACT(HOUR FROM MIN(event_time))::text, 2, '0') || ':00' AS hour_label
+      FROM ig_activity_raw
+      GROUP BY username
+    ),
+    ig_activity AS (
+      SELECT hour_label, COUNT(*)::int AS total_events
+      FROM ig_activity_first_hour
+      GROUP BY hour_label
+    ),
+    tt_activity_raw AS (
+      SELECT
+        commenter.username,
+        (tc.updated_at AT TIME ZONE 'Asia/Jakarta') AS event_time
       FROM tiktok_comment tc
       JOIN tt_task_video_ids tasks ON tasks.video_id = tc.video_id
       JOIN LATERAL (
@@ -1488,7 +1499,18 @@ async function getEngagementHourlyActivity(clientId, roleFlag, startDate, endDat
       WHERE tc.updated_at IS NOT NULL
         AND commenter.username <> ''
         AND (COALESCE(array_length($5::text[], 1), 0) = 0 OR commenter.username = ANY($5::text[]))
-      GROUP BY 1
+    ),
+    tt_activity_first_hour AS (
+      SELECT
+        username,
+        LPAD(EXTRACT(HOUR FROM MIN(event_time))::text, 2, '0') || ':00' AS hour_label
+      FROM tt_activity_raw
+      GROUP BY username
+    ),
+    tt_activity AS (
+      SELECT hour_label, COUNT(*)::int AS total_events
+      FROM tt_activity_first_hour
+      GROUP BY hour_label
     ),
     merged AS (
       SELECT hour_label, total_events FROM ig_activity
