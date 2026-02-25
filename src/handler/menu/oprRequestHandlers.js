@@ -685,7 +685,7 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
 
         await waClient.sendMessage(
           chatId,
-          `⏳ Memulai fetch post engagement untuk client *${clientId}*...`
+          `⏳ Memulai fetch post engagement untuk client *${clientId}*...\n• Instagram: fetch post + likes\n• TikTok: fetch post + komentar`
         );
         await fetchAndStoreInstaContent(
           INSTAGRAM_TASK_FETCH_FIELDS,
@@ -693,8 +693,10 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
           chatId,
           clientId
         );
+        // OPR requirement: Instagram fetch engagement hanya likes (tanpa fetch komentar).
         await handleFetchLikesInstagram(waClient, chatId, clientId);
         await fetchAndStoreTiktokContent(clientId, waClient, chatId);
+        // OPR requirement: TikTok fetch engagement menggunakan komentar.
         await handleFetchKomentarTiktokBatch(waClient, chatId, clientId);
         await waClient.sendMessage(
           chatId,
