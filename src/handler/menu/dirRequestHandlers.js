@@ -195,12 +195,13 @@ const DIGIT_EMOJI = {
 };
 
 const CHAKRANARAYANA_MENU_GROUPS = {
-  direktorat: ["3", "6", "9", "46", "53", "54"],
+  direktorat: ["2", "3", "6", "9", "46", "53", "54"],
   jajaran: ["1", "48", "49", "55", "56"],
 };
 
 const CHAKRANARAYANA_MENU_LABELS = {
   "1": "Rekap Kelengkapan data Personil Satker",
+  "2": "Executive Summary Narative CICERO",
   "3": "Rekap data personil",
   "6": "Absensi like Direktorat/Bidang Simple",
   "9": "Absensi komentar Direktorat/Bidang Simple",
@@ -3404,7 +3405,7 @@ export const dirRequestHandlers = {
       "┏━━━━━━━━━━━━ *MENU DIRREQUEST* ━━━━━━━━━━━━\n" +
         "📊 *Rekap Data*\n" +
         "1️⃣ Rekap Kelengkapan data Personil Satker.\n" +
-        "2️⃣ Ringkasan pengisian data personel\n" +
+        "2️⃣ Executive Summary Narative CICERO (minggu sebelumnya)\n" +
         "3️⃣ Rekap data personil\n" +
         "4️⃣ Rekap Matriks Update Satker\n\n" +
         "📅 *Absensi*\n" +
