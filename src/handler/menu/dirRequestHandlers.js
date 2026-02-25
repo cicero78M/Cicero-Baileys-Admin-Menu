@@ -1429,18 +1429,6 @@ const getExecutiveSummaryTrendLabel = (currentRate, previousRate) => {
   return "STABIL";
 };
 
-const mapHourToBucket = (hourNumber) => {
-  if (hourNumber >= 6 && hourNumber < 15) return "06.00-15.00 WIB";
-  if (hourNumber >= 15 && hourNumber < 19) return "15.00-19.00 WIB";
-  if (hourNumber >= 19 && hourNumber <= 23) return "19.00-23.00 WIB";
-  return "Di luar cluster";
-};
-
-const parseHourFromTimeLabel = (timeLabel) => {
-  const hourValue = Number(String(timeLabel || "").split(":")[0]);
-  return Number.isFinite(hourValue) ? hourValue : null;
-};
-
 async function getEngagementHourlyActivity(clientId, roleFlag, startDate, endDate, trackedInstaUsernames = [], trackedTiktokUsernames = []) {
   const params = [startDate, endDate];
   const roleFilter = String(roleFlag || "").trim().toLowerCase();
@@ -1472,10 +1460,10 @@ async function getEngagementHourlyActivity(clientId, roleFlag, startDate, endDat
           OR LOWER(TRIM(tpr.role_name)) = LOWER($3)
         )
     ),
-    ig_activity AS (
+    ig_activity_raw AS (
       SELECT
-        LPAD(EXTRACT(HOUR FROM il.updated_at AT TIME ZONE 'Asia/Jakarta')::text, 2, '0') || ':00' AS hour_label,
-        COUNT(DISTINCT tasks.shortcode || ':' || liked.username)::int AS total_events
+        liked.username,
+        (il.updated_at AT TIME ZONE 'Asia/Jakarta') AS event_time
       FROM insta_like il
       JOIN ig_task_shortcodes tasks ON tasks.shortcode = il.shortcode
       JOIN LATERAL (
@@ -1485,12 +1473,23 @@ async function getEngagementHourlyActivity(clientId, roleFlag, startDate, endDat
       WHERE il.updated_at IS NOT NULL
         AND liked.username <> ''
         AND (COALESCE(array_length($4::text[], 1), 0) = 0 OR liked.username = ANY($4::text[]))
-      GROUP BY 1
     ),
-    tt_activity AS (
+    ig_activity_first_hour AS (
       SELECT
-        LPAD(EXTRACT(HOUR FROM tc.updated_at AT TIME ZONE 'Asia/Jakarta')::text, 2, '0') || ':00' AS hour_label,
-        COUNT(DISTINCT tasks.video_id || ':' || commenter.username)::int AS total_events
+        username,
+        LPAD(EXTRACT(HOUR FROM MIN(event_time))::text, 2, '0') || ':00' AS hour_label
+      FROM ig_activity_raw
+      GROUP BY username
+    ),
+    ig_activity AS (
+      SELECT hour_label, COUNT(*)::int AS total_events
+      FROM ig_activity_first_hour
+      GROUP BY hour_label
+    ),
+    tt_activity_raw AS (
+      SELECT
+        commenter.username,
+        (tc.updated_at AT TIME ZONE 'Asia/Jakarta') AS event_time
       FROM tiktok_comment tc
       JOIN tt_task_video_ids tasks ON tasks.video_id = tc.video_id
       JOIN LATERAL (
@@ -1500,7 +1499,18 @@ async function getEngagementHourlyActivity(clientId, roleFlag, startDate, endDat
       WHERE tc.updated_at IS NOT NULL
         AND commenter.username <> ''
         AND (COALESCE(array_length($5::text[], 1), 0) = 0 OR commenter.username = ANY($5::text[]))
-      GROUP BY 1
+    ),
+    tt_activity_first_hour AS (
+      SELECT
+        username,
+        LPAD(EXTRACT(HOUR FROM MIN(event_time))::text, 2, '0') || ':00' AS hour_label
+      FROM tt_activity_raw
+      GROUP BY username
+    ),
+    tt_activity AS (
+      SELECT hour_label, COUNT(*)::int AS total_events
+      FROM tt_activity_first_hour
+      GROUP BY hour_label
     ),
     merged AS (
       SELECT hour_label, total_events FROM ig_activity
@@ -1518,6 +1528,72 @@ async function getEngagementHourlyActivity(clientId, roleFlag, startDate, endDat
   return rows.map((row) => ({
     hourLabel: row.hour_label,
     totalEvents: Number(row.total_events || 0),
+  }));
+}
+
+async function getExecutiveSummaryActivityByUsername(clientId, roleFlag, startDate, endDate, trackedInstaUsernames = [], trackedTiktokUsernames = []) {
+  const roleFilter = String(roleFlag || "").trim().toLowerCase();
+  const fallbackClientFilter = String(clientId || "").trim().toLowerCase();
+  const scopeFilter = roleFilter || fallbackClientFilter;
+  const params = [startDate, endDate, scopeFilter, trackedInstaUsernames, trackedTiktokUsernames];
+
+  const { rows } = await query(
+    `
+    WITH ig_task_shortcodes AS (
+      SELECT DISTINCT ip.shortcode
+      FROM insta_post ip
+      LEFT JOIN insta_post_roles ipr ON ipr.shortcode = ip.shortcode
+      WHERE (ip.created_at AT TIME ZONE 'Asia/Jakarta')::date BETWEEN $1::date AND $2::date
+        AND (
+          LOWER(TRIM(ip.client_id)) = LOWER($3)
+          OR LOWER(TRIM(ipr.role_name)) = LOWER($3)
+        )
+    ),
+    tt_task_video_ids AS (
+      SELECT DISTINCT tp.video_id
+      FROM tiktok_post tp
+      LEFT JOIN tiktok_post_roles tpr ON tpr.video_id = tp.video_id
+      WHERE (tp.created_at AT TIME ZONE 'Asia/Jakarta')::date BETWEEN $1::date AND $2::date
+        AND (
+          LOWER(TRIM(tp.client_id)) = LOWER($3)
+          OR LOWER(TRIM(tpr.role_name)) = LOWER($3)
+        )
+    ),
+    ig_activity AS (
+      SELECT
+        lower(replace(trim(COALESCE(elem->>'username', trim(both '"' FROM elem::text))), '@', '')) AS username,
+        COUNT(DISTINCT il.shortcode || ':' || lower(replace(trim(COALESCE(elem->>'username', trim(both '"' FROM elem::text))), '@', '')))::int AS activity_count
+      FROM insta_like il
+      JOIN ig_task_shortcodes tasks ON tasks.shortcode = il.shortcode
+      JOIN LATERAL jsonb_array_elements(COALESCE(il.likes, '[]'::jsonb)) elem ON TRUE
+      WHERE lower(replace(trim(COALESCE(elem->>'username', trim(both '"' FROM elem::text))), '@', '')) <> ''
+        AND (COALESCE(array_length($4::text[], 1), 0) = 0
+          OR lower(replace(trim(COALESCE(elem->>'username', trim(both '"' FROM elem::text))), '@', '')) = ANY($4::text[]))
+      GROUP BY 1
+    ),
+    tt_activity AS (
+      SELECT
+        lower(replace(trim(commenter.raw_username), '@', '')) AS username,
+        COUNT(DISTINCT tc.video_id || ':' || lower(replace(trim(commenter.raw_username), '@', '')))::int AS activity_count
+      FROM tiktok_comment tc
+      JOIN tt_task_video_ids tasks ON tasks.video_id = tc.video_id
+      JOIN LATERAL jsonb_array_elements_text(COALESCE(tc.comments, '[]'::jsonb)) AS commenter(raw_username) ON TRUE
+      WHERE lower(replace(trim(commenter.raw_username), '@', '')) <> ''
+        AND (COALESCE(array_length($5::text[], 1), 0) = 0
+          OR lower(replace(trim(commenter.raw_username), '@', '')) = ANY($5::text[]))
+      GROUP BY 1
+    )
+    SELECT 'instagram'::text AS platform, username, activity_count FROM ig_activity
+    UNION ALL
+    SELECT 'tiktok'::text AS platform, username, activity_count FROM tt_activity
+    `,
+    params
+  );
+
+  return rows.map((row) => ({
+    platform: String(row.platform || "").toLowerCase(),
+    username: String(row.username || "").toLowerCase(),
+    activityCount: Number(row.activity_count || 0),
   }));
 }
 
@@ -1596,6 +1672,10 @@ async function formatExecutiveSummary(clientId, roleFlag = null) {
   const users = await getUsersSocialByClient(targetClientId, effectiveRole);
   const totalPersonil = users.length;
   const totalUsernameUpdated = users.filter((u) => u?.insta || u?.tiktok).length;
+  const totalInstagramUpdated = users.filter((u) => u?.insta).length;
+  const totalTiktokUpdated = users.filter((u) => u?.tiktok).length;
+  const totalBelumUpdate = users.filter((u) => !u?.insta && !u?.tiktok).length;
+  const totalKurangLengkap = users.filter((u) => (u?.insta && !u?.tiktok) || (!u?.insta && u?.tiktok)).length;
   const persentaseUpdated = totalPersonil
     ? ((totalUsernameUpdated / totalPersonil) * 100).toFixed(1)
     : "0.0";
@@ -1619,7 +1699,7 @@ async function formatExecutiveSummary(clientId, roleFlag = null) {
   const previousStartYmd = getJakartaYmd(previousWeekStart);
   const previousEndYmd = getJakartaYmd(previousWeekEnd);
 
-  const [currentTotals, previousTotals, hourlyActivity, client] = await Promise.all([
+  const [currentTotals, previousTotals, hourlyActivity, activityByUsername, client] = await Promise.all([
     getExecutiveSummaryActivityTotals(targetClientId, effectiveRole, startYmd, endYmd, trackedInstaUsernames, trackedTiktokUsernames),
     getExecutiveSummaryActivityTotals(
       targetClientId,
@@ -1630,6 +1710,7 @@ async function formatExecutiveSummary(clientId, roleFlag = null) {
       trackedTiktokUsernames
     ),
     getEngagementHourlyActivity(targetClientId, effectiveRole, startYmd, endYmd, trackedInstaUsernames, trackedTiktokUsernames),
+    getExecutiveSummaryActivityByUsername(targetClientId, effectiveRole, startYmd, endYmd, trackedInstaUsernames, trackedTiktokUsernames),
     findClientById(targetClientId),
   ]);
 
@@ -1665,25 +1746,71 @@ async function formatExecutiveSummary(clientId, roleFlag = null) {
   const lowestHour = sortedHours.length
     ? sortedHours[sortedHours.length - 1]
     : { hourLabel: "-", totalEvents: 0 };
+  const hourlyActivityLines = hourlyActivity
+    .filter((item) => item.totalEvents > 0)
+    .map((item) => {
+      const startHour = Number(String(item.hourLabel || "").split(":")[0]);
+      if (!Number.isFinite(startHour)) return null;
+      const endHour = (startHour + 1) % 24;
+      return `• ${String(startHour).padStart(2, "0")}.00-${String(endHour).padStart(2, "0")}.00 WIB: ${item.totalEvents} aktivitas`;
+    })
+    .filter(Boolean);
 
-  const bucketCounter = {
-    "06.00-15.00 WIB": 0,
-    "15.00-19.00 WIB": 0,
-    "19.00-23.00 WIB": 0,
+  const activityCounter = {
+    instagram: new Map(),
+    tiktok: new Map(),
   };
-
-  hourlyActivity.forEach((item) => {
-    const hour = parseHourFromTimeLabel(item.hourLabel);
-    if (hour === null) return;
-    const bucket = mapHourToBucket(hour);
-    if (bucketCounter[bucket] !== undefined) {
-      bucketCounter[bucket] += item.totalEvents;
-    }
+  activityByUsername.forEach((row) => {
+    if (!row.username || !activityCounter[row.platform]) return;
+    activityCounter[row.platform].set(row.username, Number(row.activityCount || 0));
   });
 
-  const heatmapLines = Object.entries(bucketCounter)
-    .sort((a, b) => b[1] - a[1])
-    .map(([bucket, total]) => `• ${bucket}: ${total} aktivitas`);
+  const polresMap = new Map();
+  users.forEach((user) => {
+    const polresId = String(user?.client_id || targetClientId).toUpperCase();
+    if (!polresMap.has(polresId)) {
+      polresMap.set(polresId, {
+        polresId,
+        totalPersonil: 0,
+        totalUpdated: 0,
+        totalPelaksanaan: 0,
+      });
+    }
+    const entry = polresMap.get(polresId);
+    entry.totalPersonil += 1;
+
+    const insta = String(user?.insta || "").trim().replace(/^@+/, "").toLowerCase();
+    const tiktok = String(user?.tiktok || "").trim().replace(/^@+/, "").toLowerCase();
+    if (insta || tiktok) entry.totalUpdated += 1;
+    if (insta) entry.totalPelaksanaan += Number(activityCounter.instagram.get(insta) || 0);
+    if (tiktok) entry.totalPelaksanaan += Number(activityCounter.tiktok.get(tiktok) || 0);
+  });
+
+  const topPolresByPelaksanaan = [...polresMap.values()]
+    .sort((a, b) => b.totalPelaksanaan - a.totalPelaksanaan || b.totalUpdated - a.totalUpdated)
+    .slice(0, 5);
+
+  const bottomPolresByUpdate = [...polresMap.values()]
+    .map((item) => ({
+      ...item,
+      updateRate: item.totalPersonil ? (item.totalUpdated / item.totalPersonil) * 100 : 0,
+    }))
+    .sort((a, b) => a.updateRate - b.updateRate || a.totalUpdated - b.totalUpdated || b.totalPelaksanaan - a.totalPelaksanaan)
+    .slice(0, 10);
+
+  const topPolresLines = topPolresByPelaksanaan.map((item, index) => {
+    const updateRate = item.totalPersonil
+      ? ((item.totalUpdated / item.totalPersonil) * 100).toFixed(1)
+      : "0.0";
+    return `• ${index + 1}. ${item.polresId}: ${item.totalPelaksanaan.toLocaleString("id-ID")} pelaksanaan (update ${item.totalUpdated}/${item.totalPersonil} personil - ${updateRate}%)`;
+  });
+
+  const bottomPolresLines = bottomPolresByUpdate.map((item, index) => {
+    const updateRate = item.totalPersonil
+      ? ((item.totalUpdated / item.totalPersonil) * 100).toFixed(1)
+      : "0.0";
+    return `• ${index + 1}. ${item.polresId}: update ${item.totalUpdated}/${item.totalPersonil} personil (${updateRate}%) | ${item.totalPelaksanaan.toLocaleString("id-ID")} pelaksanaan`;
+  });
 
   const periodLabel = `${formatYmdToIndoLong(startYmd)} s.d. ${formatYmdToIndoLong(endYmd)}`;
   const clientName = (client?.nama || targetClientId).toUpperCase();
@@ -1698,16 +1825,18 @@ async function formatExecutiveSummary(clientId, roleFlag = null) {
     "",
     "1️⃣ *Skala Personil Terdata*",
     `• Total personil terinput: *${totalPersonil.toLocaleString("id-ID")}* personil.`,
-    `• Personil dengan username Instagram/TikTok terupdate: *${totalUsernameUpdated.toLocaleString("id-ID")}* personil (*${persentaseUpdated}%*).`,
-    `• Personil yang masih perlu validasi/update username: *${Math.max(totalPersonil - totalUsernameUpdated, 0).toLocaleString("id-ID")}* personil.`,
+    `• Personil dengan username Instagram terupdate: *${totalInstagramUpdated.toLocaleString("id-ID")}* personil.`,
+    `• Personil dengan username TikTok terupdate: *${totalTiktokUpdated.toLocaleString("id-ID")}* personil.`,
+    `• Total personil dengan minimal 1 username terupdate: *${totalUsernameUpdated.toLocaleString("id-ID")}* personil (*${persentaseUpdated}%*).`,
+    `• Personil yang masih perlu validasi/update username: *${(totalBelumUpdate + totalKurangLengkap).toLocaleString("id-ID")}* personil (Belum update: ${totalBelumUpdate.toLocaleString("id-ID")}, Kurang lengkap: ${totalKurangLengkap.toLocaleString("id-ID")}).`,
     "",
     "2️⃣ *Aktivitas Upload Konten*",
     `• Total post Instagram terunggah: *${Number(totalPostInstagram || 0).toLocaleString("id-ID")}* post.`,
     `• Total post TikTok terunggah: *${Number(totalPostTiktok || 0).toLocaleString("id-ID")}* post.`,
     "",
     "3️⃣ *Pelaksanaan Likes & Komentar*",
-    `• Total likes Instagram tercatat: *${totalLikes.toLocaleString("id-ID")}* aktivitas.`,
-    `• Total komentar TikTok tercatat: *${totalKomentar.toLocaleString("id-ID")}* aktivitas.`,
+    `• Total likes Instagram tercatat: *${totalLikes.toLocaleString("id-ID")}* aktivitas (dari *${Number(totalPostInstagram || 0).toLocaleString("id-ID")}* post konten/tugas).`,
+    `• Total komentar TikTok tercatat: *${totalKomentar.toLocaleString("id-ID")}* aktivitas (dari *${Number(totalPostTiktok || 0).toLocaleString("id-ID")}* post konten/tugas).`,
     `• Rata-rata partisipasi terhadap personil terdata: *${avgPartisipasi}%*.`,
     `• Tren kepatuhan dibanding minggu sebelumnya: *${trendLabel}* (minggu ini ${currentRate.toFixed(1)}% vs sebelumnya ${previousRate.toFixed(1)}%).`,
     "",
@@ -1717,9 +1846,15 @@ async function formatExecutiveSummary(clientId, roleFlag = null) {
       : "• Jam aktivitas dominan: *belum ada aktivitas terekam*.",
     `• Jam aktivitas terendah: *${lowestHour.hourLabel} (${lowestHour.totalEvents})*.`,
     "• Peta waktu pelaksanaan likes IG dan komentar TikTok:",
-    ...(heatmapLines.length ? heatmapLines : ["• Data waktu belum tersedia."]),
+    ...(hourlyActivityLines.length ? hourlyActivityLines : ["• Data waktu belum tersedia."]),
     "",
-    "5️⃣ *Kesimpulan Strategis*",
+    "5️⃣ *Top 5 Polres dengan Pelaksanaan Tertinggi*",
+    ...(topPolresLines.length ? topPolresLines : ["• Data pelaksanaan per Polres belum tersedia."]),
+    "",
+    "6️⃣ *Top 10 Polres dengan Update Data Terendah*",
+    ...(bottomPolresLines.length ? bottomPolresLines : ["• Data update personil per Polres belum tersedia."]),
+    "",
+    "7️⃣ *Kesimpulan Strategis*",
     "• Struktur data personil telah terbentuk dan dapat dipantau secara terukur.",
     "• Aktivitas engagement mingguan sudah termonitor dari sisi output konten dan pelaksanaan tugas.",
     "• Data pola waktu dapat digunakan sebagai dasar reminder terjadwal untuk jam partisipasi rendah.",
