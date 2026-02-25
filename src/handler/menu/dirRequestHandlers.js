@@ -1441,12 +1441,14 @@ const parseHourFromTimeLabel = (timeLabel) => {
   return Number.isFinite(hourValue) ? hourValue : null;
 };
 
-async function getEngagementHourlyActivity(clientId, roleFlag, startDate, endDate) {
+async function getEngagementHourlyActivity(clientId, roleFlag, startDate, endDate, trackedInstaUsernames = [], trackedTiktokUsernames = []) {
   const params = [startDate, endDate];
   const roleFilter = String(roleFlag || "").trim().toLowerCase();
   const fallbackClientFilter = String(clientId || "").trim().toLowerCase();
   const scopeFilter = roleFilter || fallbackClientFilter;
   params.push(scopeFilter);
+  params.push(trackedInstaUsernames);
+  params.push(trackedTiktokUsernames);
 
   const { rows } = await query(
     `
@@ -1473,21 +1475,31 @@ async function getEngagementHourlyActivity(clientId, roleFlag, startDate, endDat
     ig_activity AS (
       SELECT
         LPAD(EXTRACT(HOUR FROM il.updated_at AT TIME ZONE 'Asia/Jakarta')::text, 2, '0') || ':00' AS hour_label,
-        COUNT(*)::int AS total_events
+        COUNT(DISTINCT tasks.shortcode || ':' || liked.username)::int AS total_events
       FROM insta_like il
       JOIN ig_task_shortcodes tasks ON tasks.shortcode = il.shortcode
-      WHERE 1=1
-        AND il.updated_at IS NOT NULL
+      JOIN LATERAL (
+        SELECT lower(replace(trim(COALESCE(elem->>'username', trim(both '"' FROM elem::text))), '@', '')) AS username
+        FROM jsonb_array_elements(COALESCE(il.likes, '[]'::jsonb)) AS elem
+      ) liked ON TRUE
+      WHERE il.updated_at IS NOT NULL
+        AND liked.username <> ''
+        AND (COALESCE(array_length($4::text[], 1), 0) = 0 OR liked.username = ANY($4::text[]))
       GROUP BY 1
     ),
     tt_activity AS (
       SELECT
         LPAD(EXTRACT(HOUR FROM tc.updated_at AT TIME ZONE 'Asia/Jakarta')::text, 2, '0') || ':00' AS hour_label,
-        COUNT(*)::int AS total_events
+        COUNT(DISTINCT tasks.video_id || ':' || commenter.username)::int AS total_events
       FROM tiktok_comment tc
       JOIN tt_task_video_ids tasks ON tasks.video_id = tc.video_id
-      WHERE 1=1
-        AND tc.updated_at IS NOT NULL
+      JOIN LATERAL (
+        SELECT lower(replace(trim(raw_username), '@', '')) AS username
+        FROM jsonb_array_elements_text(COALESCE(tc.comments, '[]'::jsonb)) AS raw(raw_username)
+      ) commenter ON TRUE
+      WHERE tc.updated_at IS NOT NULL
+        AND commenter.username <> ''
+        AND (COALESCE(array_length($5::text[], 1), 0) = 0 OR commenter.username = ANY($5::text[]))
       GROUP BY 1
     ),
     merged AS (
@@ -1509,11 +1521,11 @@ async function getEngagementHourlyActivity(clientId, roleFlag, startDate, endDat
   }));
 }
 
-async function getExecutiveSummaryActivityTotals(clientId, roleFlag, startDate, endDate) {
+async function getExecutiveSummaryActivityTotals(clientId, roleFlag, startDate, endDate, trackedInstaUsernames = [], trackedTiktokUsernames = []) {
   const roleFilter = String(roleFlag || "").trim().toLowerCase();
   const fallbackClientFilter = String(clientId || "").trim().toLowerCase();
   const scopeFilter = roleFilter || fallbackClientFilter;
-  const params = [startDate, endDate, scopeFilter];
+  const params = [startDate, endDate, scopeFilter, trackedInstaUsernames, trackedTiktokUsernames];
 
   const { rows } = await query(
     `
@@ -1544,6 +1556,9 @@ async function getExecutiveSummaryActivityTotals(clientId, roleFlag, startDate, 
       FROM insta_like il
       JOIN ig_task_shortcodes tasks ON tasks.shortcode = il.shortcode
       JOIN LATERAL jsonb_array_elements(COALESCE(il.likes, '[]'::jsonb)) elem ON TRUE
+      WHERE lower(replace(trim(COALESCE(elem->>'username', trim(both '"' FROM elem::text))), '@', '')) <> ''
+        AND (COALESCE(array_length($4::text[], 1), 0) = 0
+          OR lower(replace(trim(COALESCE(elem->>'username', trim(both '"' FROM elem::text))), '@', '')) = ANY($4::text[]))
     ),
     tt_real_comments AS (
       SELECT DISTINCT
@@ -1552,6 +1567,9 @@ async function getExecutiveSummaryActivityTotals(clientId, roleFlag, startDate, 
       FROM tiktok_comment tc
       JOIN tt_task_video_ids tasks ON tasks.video_id = tc.video_id
       JOIN LATERAL jsonb_array_elements_text(COALESCE(tc.comments, '[]'::jsonb)) AS commenter(raw_username) ON TRUE
+      WHERE lower(replace(trim(commenter.raw_username), '@', '')) <> ''
+        AND (COALESCE(array_length($5::text[], 1), 0) = 0
+          OR lower(replace(trim(commenter.raw_username), '@', '')) = ANY($5::text[]))
     )
     SELECT
       (SELECT COUNT(*)::int FROM ig_task_shortcodes) AS total_post_instagram,
@@ -1582,6 +1600,17 @@ async function formatExecutiveSummary(clientId, roleFlag = null) {
     ? ((totalUsernameUpdated / totalPersonil) * 100).toFixed(1)
     : "0.0";
 
+  const trackedInstaUsernames = [...new Set(
+    users
+      .map((u) => String(u?.insta || "").trim().replace(/^@+/, "").toLowerCase())
+      .filter(Boolean)
+  )];
+  const trackedTiktokUsernames = [...new Set(
+    users
+      .map((u) => String(u?.tiktok || "").trim().replace(/^@+/, "").toLowerCase())
+      .filter(Boolean)
+  )];
+
 
   const previousWeekStart = new Date(`${startYmd}T00:00:00+07:00`);
   previousWeekStart.setDate(previousWeekStart.getDate() - 7);
@@ -1591,14 +1620,16 @@ async function formatExecutiveSummary(clientId, roleFlag = null) {
   const previousEndYmd = getJakartaYmd(previousWeekEnd);
 
   const [currentTotals, previousTotals, hourlyActivity, client] = await Promise.all([
-    getExecutiveSummaryActivityTotals(targetClientId, effectiveRole, startYmd, endYmd),
+    getExecutiveSummaryActivityTotals(targetClientId, effectiveRole, startYmd, endYmd, trackedInstaUsernames, trackedTiktokUsernames),
     getExecutiveSummaryActivityTotals(
       targetClientId,
       effectiveRole,
       previousStartYmd,
-      previousEndYmd
+      previousEndYmd,
+      trackedInstaUsernames,
+      trackedTiktokUsernames
     ),
-    getEngagementHourlyActivity(targetClientId, effectiveRole, startYmd, endYmd),
+    getEngagementHourlyActivity(targetClientId, effectiveRole, startYmd, endYmd, trackedInstaUsernames, trackedTiktokUsernames),
     findClientById(targetClientId),
   ]);
 
@@ -1607,17 +1638,22 @@ async function formatExecutiveSummary(clientId, roleFlag = null) {
   const totalLikes = currentTotals.totalLikes;
   const totalKomentar = currentTotals.totalKomentar;
 
-  const avgPartisipasiLikes = totalPersonil ? (totalLikes / totalPersonil) * 100 : 0;
-  const avgPartisipasiKomentar = totalPersonil ? (totalKomentar / totalPersonil) * 100 : 0;
-  const avgPartisipasi = ((avgPartisipasiLikes + avgPartisipasiKomentar) / 2).toFixed(1);
+  const totalPosts = totalPostInstagram + totalPostTiktok;
+  const totalParticipation = totalLikes + totalKomentar;
+  const avgParticipationPerPost = totalPosts ? totalParticipation / totalPosts : 0;
+  const avgPartisipasi = totalPersonil
+    ? ((avgParticipationPerPost / totalPersonil) * 100).toFixed(1)
+    : "0.0";
 
   const prevLikes = previousTotals.totalLikes;
   const prevKomentar = previousTotals.totalKomentar;
+  const prevTotalPosts = previousTotals.totalPostInstagram + previousTotals.totalPostTiktok;
+  const prevTotalParticipation = prevLikes + prevKomentar;
   const currentRate = totalPersonil
-    ? ((totalLikes + totalKomentar) / (totalPersonil * 2)) * 100
+    ? ((avgParticipationPerPost / totalPersonil) * 100)
     : 0;
   const previousRate = totalPersonil
-    ? ((prevLikes + prevKomentar) / (totalPersonil * 2)) * 100
+    ? (((prevTotalPosts ? prevTotalParticipation / prevTotalPosts : 0) / totalPersonil) * 100)
     : 0;
   const trendLabel = getExecutiveSummaryTrendLabel(currentRate, previousRate);
 
