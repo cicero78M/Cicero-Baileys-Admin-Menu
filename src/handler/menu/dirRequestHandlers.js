@@ -4,12 +4,14 @@ import {
   getShortcodesTodayByClient,
   getPostsTodayByClient as getInstaPostsTodayByClient,
   getPostsByFilters as getInstaPostsByFilters,
+  countPostsByClient as countInstaPostsByClient,
 } from "../../model/instaPostModel.js";
 import {
   deletePostByVideoId,
   getVideoIdsTodayByClient,
   getPostsTodayByClient as getTiktokPostsTodayByClient,
   getPostsByClientAndDateRange as getTiktokPostsByDateRange,
+  countPostsByClient as countTiktokPostsByClient,
 } from "../../model/tiktokPostModel.js";
 import { getLikeUsernamesByShortcode } from "../../model/instaLikeModel.js";
 import { getRekapLikesByClient } from "../../model/instaLikeModel.js";
@@ -85,6 +87,7 @@ import {
   addTaskPostExclusion,
   getTaskPostExclusionSet,
 } from "../../model/taskPostExclusionModel.js";
+import { query } from "../../db/index.js";
 
 const dirRequestGroup = "120363419830216549@g.us";
 const DITBINMAS_CLIENT_ID = "DITBINMAS";
@@ -192,12 +195,13 @@ const DIGIT_EMOJI = {
 };
 
 const CHAKRANARAYANA_MENU_GROUPS = {
-  direktorat: ["3", "6", "9", "46", "53", "54"],
+  direktorat: ["2", "3", "6", "9", "46", "53", "54"],
   jajaran: ["1", "48", "49", "55", "56"],
 };
 
 const CHAKRANARAYANA_MENU_LABELS = {
   "1": "Rekap Kelengkapan data Personil Satker",
+  "2": "Executive Summary Narative CICERO",
   "3": "Rekap data personil",
   "6": "Absensi like Direktorat/Bidang Simple",
   "9": "Absensi komentar Direktorat/Bidang Simple",
@@ -1395,169 +1399,299 @@ async function formatRekapBelumLengkapDirektorat(clientId) {
   ).trim();
 }
 
-async function formatExecutiveSummary(clientId, roleFlag = null) {
-  const users = await getUsersSocialByClient(clientId, roleFlag);
-  const groups = {};
-  users.forEach((u) => {
-    const cid = String(u.client_id || "").trim().toLowerCase();
-    if (!cid) return;
-    if (!groups[cid]) groups[cid] = { total: 0, insta: 0, tiktok: 0 };
-    groups[cid].total++;
-    if (u.insta) groups[cid].insta++;
-    if (u.tiktok) groups[cid].tiktok++;
+const getPreviousWeekWindow = (referenceDate = new Date()) => {
+  const now = new Date(referenceDate);
+  const jakartaNowText = now.toLocaleString("en-US", {
+    timeZone: "Asia/Jakarta",
+    hour12: false,
   });
-  const stats = await Promise.all(
-    Object.entries(groups).map(async ([cid, stat]) => {
-      const normalizedCid = String(cid || "").trim().toLowerCase();
-      const client = await findClientById(normalizedCid);
-      const name = (client?.nama || normalizedCid).toUpperCase();
-      const igPct = stat.total ? (stat.insta / stat.total) * 100 : 0;
-      const ttPct = stat.total ? (stat.tiktok / stat.total) * 100 : 0;
-      return { cid: normalizedCid, name, ...stat, igPct, ttPct };
-    })
-  );
-  const totals = stats.reduce(
-    (acc, s) => {
-      acc.total += s.total;
-      acc.insta += s.insta;
-      acc.tiktok += s.tiktok;
-      return acc;
-    },
-    { total: 0, insta: 0, tiktok: 0 }
-  );
-  const toPercent = (num, den) => (den ? ((num / den) * 100).toFixed(1) : "0.0");
-  const arrAvg = (arr) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0);
-  const arrMedian = (arr) => {
-    if (!arr.length) return 0;
-    const sorted = [...arr].sort((a, b) => a - b);
-    const mid = Math.floor(sorted.length / 2);
-    return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+  const jakartaNow = new Date(jakartaNowText);
+  const day = jakartaNow.getDay();
+  const mondayOffset = day === 0 ? -6 : 1 - day;
+  const thisWeekMonday = new Date(jakartaNow);
+  thisWeekMonday.setHours(0, 0, 0, 0);
+  thisWeekMonday.setDate(jakartaNow.getDate() + mondayOffset);
+
+  const lastWeekMonday = new Date(thisWeekMonday);
+  lastWeekMonday.setDate(thisWeekMonday.getDate() - 7);
+
+  const lastWeekSunday = new Date(lastWeekMonday);
+  lastWeekSunday.setDate(lastWeekMonday.getDate() + 6);
+
+  return {
+    startYmd: getJakartaYmd(lastWeekMonday),
+    endYmd: getJakartaYmd(lastWeekSunday),
   };
-  const igArr = stats.map((s) => s.igPct);
-  const ttArr = stats.map((s) => s.ttPct);
-  const avgIg = arrAvg(igArr);
-  const avgTt = arrAvg(ttArr);
-  const medIg = arrMedian(igArr);
-  const medTt = arrMedian(ttArr);
-  const lowSatkers = stats.filter((s) => s.igPct < 10 && s.ttPct < 10).length;
-  const topSatkers = stats
-    .filter((s) => s.igPct >= 90 && s.ttPct >= 90)
-    .map((s) => s.name);
-  const strongSatkers = stats
-    .filter((s) => s.igPct >= 80 && s.ttPct >= 80 && !(s.igPct >= 90 && s.ttPct >= 90))
-    .map((s) => `${s.name} (${s.igPct.toFixed(1)}% / ${s.ttPct.toFixed(1)}%)`);
-  const sortedAvg = [...stats].sort((a, b) => b.igPct + b.ttPct - (a.igPct + a.ttPct));
-  const topPerformers = sortedAvg
-    .slice(0, 5)
-    .map((s, i) => `${i + 1}) ${s.name} ${s.igPct.toFixed(1)} / ${s.ttPct.toFixed(1)}`);
-  const bottomPerformers = sortedAvg
-    .slice(-5)
-    .map((s) => `${s.name} ${s.igPct.toFixed(1)}% / ${s.ttPct.toFixed(1)}%`);
-  const anomalies = stats
-    .filter((s) => Math.abs(s.igPct - s.ttPct) >= 15)
-    .map((s) => {
-      const diff = (s.igPct - s.ttPct).toFixed(1);
-      if (s.igPct > s.ttPct)
-        return `${s.name} IG ${s.igPct.toFixed(1)}% vs TT ${s.ttPct.toFixed(1)}% (+${diff} poin ke IG)`;
-      return `${s.name} IG ${s.igPct.toFixed(1)}% vs TT ${s.ttPct.toFixed(1)}% (${diff} ke IG)`;
-    });
-  const backlogIg = stats
-    .map((s) => ({ name: s.name, count: s.total - s.insta }))
-    .sort((a, b) => b.count - a.count);
-  const backlogTt = stats
-    .map((s) => ({ name: s.name, count: s.total - s.tiktok }))
-    .sort((a, b) => b.count - a.count);
-  const top10Ig = backlogIg.slice(0, 10);
-  const top10Tt = backlogTt.slice(0, 10);
-  const top10IgCount = top10Ig.reduce((a, b) => a + b.count, 0);
-  const top10TtCount = top10Tt.reduce((a, b) => a + b.count, 0);
-  const missingIg = totals.total - totals.insta;
-  const missingTt = totals.total - totals.tiktok;
-  const percentTopIg = missingIg ? ((top10IgCount / missingIg) * 100).toFixed(1) : "0.0";
-  const percentTopTt = missingTt ? ((top10TtCount / missingTt) * 100).toFixed(1) : "0.0";
-  const projectedIg = ((totals.insta + 0.7 * top10IgCount) / totals.total) * 100;
-  const projectedTt = ((totals.tiktok + 0.7 * top10TtCount) / totals.total) * 100;
-  const now = new Date();
-  const dateStr = now.toLocaleDateString("id-ID", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-  const timeStr = now.toLocaleTimeString("id-ID", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-  const lines = [
-    "Mohon Ijin Komandan,",
-    "",
-    `*Rekap User Insight ${dateStr} ${timeStr} WIB*`,
-    `*Personil Saat ini:* ${totals.total.toLocaleString("id-ID")} personil`,
-    "",
-    `*Cakupan keseluruhan:* IG ${toPercent(totals.insta, totals.total)}% (${totals.insta}/${totals.total}), TT ${toPercent(totals.tiktok, totals.total)}% (${totals.tiktok}/${totals.total}).`,
-    "",
-    `*Rata-rata satker:* IG ${avgIg.toFixed(1)}% (median ${medIg.toFixed(1)}%), TT ${avgTt.toFixed(1)}% (median ${medTt.toFixed(1)}%)${
-      lowSatkers ? " → *penyebaran masih lebar, banyak satker di bawah 10%.*" : ""
-    }`,
-  ];
-  if (topSatkers.length)
-    lines.push("", `*Satker dengan capaian terbaik (≥90% IG & TT):* ${topSatkers.join(", ")}.`);
-  if (strongSatkers.length)
-    lines.push("", `*Tambahan kuat (≥80% IG & TT):* ${strongSatkers.join(", ")}.`);
-  if (topPerformers.length || bottomPerformers.length)
-    lines.push("", "*Highlight Pencapaian & Masalah*");
-  if (topPerformers.length)
-    lines.push("", `*Top performer* (rata-rata IG/TT): ${topPerformers.join(", ")}.`);
-  if (bottomPerformers.length)
-    lines.push(
-      "",
-      `*Bottom performer* (rata-rata IG/TT, sangat rendah di kedua platform): ${bottomPerformers.join(" • ")}`
-    );
-  if (anomalies.length)
-    lines.push("", "*Anomali :*", anomalies.map((a) => `*${a}*`).join("\n"));
-  lines.push("", "*Konsentrasi Backlog (prioritas penanganan)*", "");
-  lines.push(
-    `Top-10 penyumbang backlog menyerap >50% backlog masing-masing platform.`
+};
+
+const getExecutiveSummaryTrendLabel = (currentRate, previousRate) => {
+  const diff = currentRate - previousRate;
+  if (diff >= 5) return "MENINGKAT";
+  if (diff <= -5) return "PERLU PEMBINAAN";
+  return "STABIL";
+};
+
+const mapHourToBucket = (hourNumber) => {
+  if (hourNumber >= 0 && hourNumber <= 5) return "00.00-05.59 WIB";
+  if (hourNumber <= 11) return "06.00-11.59 WIB";
+  if (hourNumber <= 17) return "12.00-17.59 WIB";
+  return "18.00-23.59 WIB";
+};
+
+const parseHourFromTimeLabel = (timeLabel) => {
+  const hourValue = Number(String(timeLabel || "").split(":")[0]);
+  return Number.isFinite(hourValue) ? hourValue : null;
+};
+
+async function getEngagementHourlyActivity(clientId, roleFlag, startDate, endDate) {
+  const params = [startDate, endDate];
+  const roleFilter = String(roleFlag || "").trim().toLowerCase();
+  let igRoleSql = "";
+  let ttRoleSql = "";
+  if (roleFilter) {
+    params.push(roleFilter);
+    igRoleSql = `
+      AND (
+        LOWER(TRIM(ip.client_id)) = LOWER($3)
+        OR EXISTS (
+          SELECT 1
+          FROM insta_post_roles ipr
+          WHERE ipr.shortcode = ip.shortcode
+            AND LOWER(TRIM(ipr.role_name)) = LOWER($3)
+        )
+      )
+    `;
+    ttRoleSql = `
+      AND (
+        LOWER(TRIM(tp.client_id)) = LOWER($3)
+        OR EXISTS (
+          SELECT 1
+          FROM tiktok_post_roles tpr
+          WHERE tpr.video_id = tp.video_id
+            AND LOWER(TRIM(tpr.role_name)) = LOWER($3)
+        )
+      )
+    `;
+  } else {
+    params.push(clientId);
+    igRoleSql = `
+      AND LOWER(TRIM(ip.client_id)) = LOWER($3)
+    `;
+    ttRoleSql = `
+      AND LOWER(TRIM(tp.client_id)) = LOWER($3)
+    `;
+  }
+
+  const { rows } = await query(
+    `
+    WITH ig_activity AS (
+      SELECT
+        LPAD(EXTRACT(HOUR FROM il.updated_at AT TIME ZONE 'Asia/Jakarta')::text, 2, '0') || ':00' AS hour_label,
+        COUNT(*)::int AS total_events
+      FROM insta_like il
+      JOIN insta_post ip ON ip.shortcode = il.shortcode
+      WHERE (ip.created_at AT TIME ZONE 'Asia/Jakarta')::date BETWEEN $1::date AND $2::date
+        AND il.updated_at IS NOT NULL
+        ${igRoleSql}
+      GROUP BY 1
+    ),
+    tt_activity AS (
+      SELECT
+        LPAD(EXTRACT(HOUR FROM tc.updated_at AT TIME ZONE 'Asia/Jakarta')::text, 2, '0') || ':00' AS hour_label,
+        COUNT(*)::int AS total_events
+      FROM tiktok_comment tc
+      JOIN tiktok_post tp ON tp.video_id = tc.video_id
+      WHERE (tp.created_at AT TIME ZONE 'Asia/Jakarta')::date BETWEEN $1::date AND $2::date
+        AND tc.updated_at IS NOT NULL
+        ${ttRoleSql}
+      GROUP BY 1
+    ),
+    merged AS (
+      SELECT hour_label, total_events FROM ig_activity
+      UNION ALL
+      SELECT hour_label, total_events FROM tt_activity
+    )
+    SELECT hour_label, SUM(total_events)::int AS total_events
+    FROM merged
+    GROUP BY hour_label
+    ORDER BY hour_label ASC
+    `,
+    params
   );
-  if (missingIg)
-    lines.push(
-      "",
-      `*IG Belum Diisi (${missingIg}) – 10 terbesar (≈${percentTopIg}%):*`,
-      top10Ig.map((s) => `${s.name} (${s.count})`).join(", ")
-    );
-  if (missingTt)
-    lines.push(
-      "",
-      `*TikTok Belum Diisi (${missingTt}) – 10 terbesar (≈${percentTopTt}%):*`,
-      top10Tt.map((s) => `${s.name} (${s.count})`).join(", ")
-    );
-  lines.push(
-    "",
-    `*Proyeksi dampak cepat:* Menutup 70% backlog di Top-10 → proyeksi capaian naik ke IG ≈ ${projectedIg.toFixed(
-      1
-    )}% dan TT ≈ ${projectedTt.toFixed(1)}%.`
-  );
-  const backlogNames = top10Ig.slice(0, 6).map((s) => s.name);
-  const ttBetter = stats
-    .filter((s) => s.ttPct - s.igPct >= 10)
-    .map((s) => s.name);
-  const roleModel = topSatkers;
-  if (backlogNames.length || anomalies.length || ttBetter.length || roleModel.length)
-    lines.push("", "*Catatan per Satker*");
-  if (backlogNames.length)
-    lines.push("", `*Backlog terbesar:* ${backlogNames.join(", ")}.`);
-  if (ttBetter.length)
-    lines.push("", `*TT unggul:* ${ttBetter.join(", ")} (pertahankan).`);
-  if (roleModel.length)
-    lines.push(
-      "",
-      `*Role model:* ${roleModel.join(", ")} — didorong menjadi mentor lintas satker.`
-    );
-  lines.push(
-    "",
-    "_Catatan kaki:_ IG = Instagram; TT = TikTok; backlog = pekerjaan tertunda / User Belum Update data;"
-  );
-return lines.join("\n").trim();
+
+  return rows.map((row) => ({
+    hourLabel: row.hour_label,
+    totalEvents: Number(row.total_events || 0),
+  }));
 }
+
+async function formatExecutiveSummary(clientId, roleFlag = null) {
+  const targetClientId = String(clientId || DITBINMAS_CLIENT_ID).toUpperCase();
+  const effectiveRole = String(roleFlag || targetClientId).trim().toLowerCase();
+  const { startYmd, endYmd } = getPreviousWeekWindow();
+
+  const users = await getUsersSocialByClient(targetClientId, effectiveRole);
+  const totalPersonil = users.length;
+  const totalUsernameUpdated = users.filter((u) => u?.insta || u?.tiktok).length;
+  const persentaseUpdated = totalPersonil
+    ? ((totalUsernameUpdated / totalPersonil) * 100).toFixed(1)
+    : "0.0";
+
+  const postOptions = {
+    periode: "harian",
+    startDate: startYmd,
+    endDate: endYmd,
+    role: effectiveRole,
+    scope: "direktorat",
+  };
+
+  const [
+    totalPostInstagram,
+    totalPostTiktok,
+    likesRows,
+    komentarRows,
+    likesRowsPrev,
+    komentarRowsPrev,
+    hourlyActivity,
+    client,
+  ] = await Promise.all([
+    countInstaPostsByClient(targetClientId, "harian", null, startYmd, endYmd, postOptions),
+    countTiktokPostsByClient(targetClientId, "harian", null, startYmd, endYmd, {
+      role: effectiveRole,
+      scope: "direktorat",
+    }),
+    getRekapLikesByClient(targetClientId, "harian", null, startYmd, endYmd, effectiveRole, {
+      postClientId: null,
+      userClientId: null,
+      userRoleFilter: effectiveRole,
+      includePostRoleFilter: true,
+      postRoleFilterName: effectiveRole,
+      matchLikeClientId: false,
+    }),
+    getRekapKomentarByClient(targetClientId, "harian", null, startYmd, endYmd, effectiveRole, {
+      postClientId: null,
+      userClientId: null,
+      userRoleFilter: effectiveRole,
+      includePostRoleFilter: true,
+      postRoleFilterName: effectiveRole,
+    }),
+    getRekapLikesByClient(targetClientId, "mingguan", startYmd, null, null, effectiveRole, {
+      postClientId: null,
+      userClientId: null,
+      userRoleFilter: effectiveRole,
+      includePostRoleFilter: true,
+      postRoleFilterName: effectiveRole,
+      matchLikeClientId: false,
+    }),
+    getRekapKomentarByClient(targetClientId, "mingguan", startYmd, null, null, effectiveRole, {
+      postClientId: null,
+      userClientId: null,
+      userRoleFilter: effectiveRole,
+      includePostRoleFilter: true,
+      postRoleFilterName: effectiveRole,
+    }),
+    getEngagementHourlyActivity(targetClientId, effectiveRole, startYmd, endYmd),
+    findClientById(targetClientId),
+  ]);
+
+  const totalLikes = (likesRows || []).reduce(
+    (sum, row) => sum + Number(row?.jumlah_likes || 0),
+    0
+  );
+  const totalKomentar = (komentarRows || []).reduce(
+    (sum, row) => sum + Number(row?.jumlah_komentar || 0),
+    0
+  );
+
+  const avgPartisipasiLikes = totalPersonil ? (totalLikes / totalPersonil) * 100 : 0;
+  const avgPartisipasiKomentar = totalPersonil ? (totalKomentar / totalPersonil) * 100 : 0;
+  const avgPartisipasi = ((avgPartisipasiLikes + avgPartisipasiKomentar) / 2).toFixed(1);
+
+  const prevLikes = (likesRowsPrev || []).reduce(
+    (sum, row) => sum + Number(row?.jumlah_likes || 0),
+    0
+  );
+  const prevKomentar = (komentarRowsPrev || []).reduce(
+    (sum, row) => sum + Number(row?.jumlah_komentar || 0),
+    0
+  );
+  const currentRate = totalPersonil
+    ? ((totalLikes + totalKomentar) / (totalPersonil * 2)) * 100
+    : 0;
+  const previousRate = totalPersonil
+    ? ((prevLikes + prevKomentar) / (totalPersonil * 2)) * 100
+    : 0;
+  const trendLabel = getExecutiveSummaryTrendLabel(currentRate, previousRate);
+
+  const sortedHours = [...hourlyActivity].sort((a, b) => b.totalEvents - a.totalEvents);
+  const dominantHours = sortedHours
+    .filter((item) => item.totalEvents > 0)
+    .slice(0, 2)
+    .map((item) => `${item.hourLabel} (${item.totalEvents})`);
+  const lowestHour = sortedHours.length
+    ? sortedHours[sortedHours.length - 1]
+    : { hourLabel: "-", totalEvents: 0 };
+
+  const bucketCounter = {
+    "00.00-05.59 WIB": 0,
+    "06.00-11.59 WIB": 0,
+    "12.00-17.59 WIB": 0,
+    "18.00-23.59 WIB": 0,
+  };
+
+  hourlyActivity.forEach((item) => {
+    const hour = parseHourFromTimeLabel(item.hourLabel);
+    if (hour === null) return;
+    const bucket = mapHourToBucket(hour);
+    bucketCounter[bucket] += item.totalEvents;
+  });
+
+  const heatmapLines = Object.entries(bucketCounter)
+    .sort((a, b) => b[1] - a[1])
+    .map(([bucket, total]) => `• ${bucket}: ${total} aktivitas`);
+
+  const periodLabel = `${formatYmdToIndoLong(startYmd)} s.d. ${formatYmdToIndoLong(endYmd)}`;
+  const clientName = (client?.nama || targetClientId).toUpperCase();
+
+  return [
+    "*EXECUTIVE SUMMARY*",
+    `*Implementasi Sistem CICERO – Minggu Lalu (Senin–Minggu)*`,
+    `*Satuan:* ${clientName}`,
+    `*Periode:* ${periodLabel} (WIB)`,
+    "",
+    "Dalam rangka optimalisasi penguatan citra institusi melalui engagement digital terstruktur, Sistem CICERO telah mengimplementasikan mekanisme pengelolaan personil, distribusi tugas, serta monitoring pelaksanaan likes dan komentar secara terukur.",
+    "",
+    "1️⃣ *Skala Personil Terdata*",
+    `• Total personil terinput: *${totalPersonil.toLocaleString("id-ID")}* personil.`,
+    `• Personil dengan username Instagram/TikTok terupdate: *${totalUsernameUpdated.toLocaleString("id-ID")}* personil (*${persentaseUpdated}%*).`,
+    `• Personil yang masih perlu validasi/update username: *${Math.max(totalPersonil - totalUsernameUpdated, 0).toLocaleString("id-ID")}* personil.`,
+    "",
+    "2️⃣ *Aktivitas Upload Konten*",
+    `• Total post Instagram terunggah: *${Number(totalPostInstagram || 0).toLocaleString("id-ID")}* post.`,
+    `• Total post TikTok terunggah: *${Number(totalPostTiktok || 0).toLocaleString("id-ID")}* post.`,
+    "",
+    "3️⃣ *Pelaksanaan Likes & Komentar*",
+    `• Total likes Instagram tercatat: *${totalLikes.toLocaleString("id-ID")}* aktivitas.`,
+    `• Total komentar TikTok tercatat: *${totalKomentar.toLocaleString("id-ID")}* aktivitas.`,
+    `• Rata-rata partisipasi terhadap personil terdata: *${avgPartisipasi}%*.`,
+    `• Tren kepatuhan dibanding minggu sebelumnya: *${trendLabel}* (minggu ini ${currentRate.toFixed(1)}% vs sebelumnya ${previousRate.toFixed(1)}%).`,
+    "",
+    "4️⃣ *Pola Waktu Pelaksanaan*",
+    dominantHours.length
+      ? `• Jam aktivitas dominan: *${dominantHours.join("; ")}*.`
+      : "• Jam aktivitas dominan: *belum ada aktivitas terekam*.",
+    `• Jam aktivitas terendah: *${lowestHour.hourLabel} (${lowestHour.totalEvents})*.`,
+    "• Peta waktu pelaksanaan likes IG dan komentar TikTok:",
+    ...(heatmapLines.length ? heatmapLines : ["• Data waktu belum tersedia."]),
+    "",
+    "5️⃣ *Kesimpulan Strategis*",
+    "• Struktur data personil telah terbentuk dan dapat dipantau secara terukur.",
+    "• Aktivitas engagement mingguan sudah termonitor dari sisi output konten dan pelaksanaan tugas.",
+    "• Data pola waktu dapat digunakan sebagai dasar reminder terjadwal untuk jam partisipasi rendah.",
+    "• Rekomendasi: lanjutkan validasi username, penguatan reminder jam rendah, dan monitoring kepatuhan per satuan kerja.",
+  ].join("\n");
+}
+
 
 async function formatRekapAllSosmed(
   igNarrative,
@@ -3271,7 +3405,7 @@ export const dirRequestHandlers = {
       "┏━━━━━━━━━━━━ *MENU DIRREQUEST* ━━━━━━━━━━━━\n" +
         "📊 *Rekap Data*\n" +
         "1️⃣ Rekap Kelengkapan data Personil Satker.\n" +
-        "2️⃣ Ringkasan pengisian data personel\n" +
+        "2️⃣ Executive Summary Narative CICERO (minggu sebelumnya)\n" +
         "3️⃣ Rekap data personil\n" +
         "4️⃣ Rekap Matriks Update Satker\n\n" +
         "📅 *Absensi*\n" +
