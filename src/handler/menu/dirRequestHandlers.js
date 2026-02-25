@@ -1573,7 +1573,12 @@ async function getEngagementHourlyActivity(clientId, roleFlag, startDate, endDat
 
   const { rows } = await query(
     `
-    WITH ig_task_shortcodes AS (
+    WITH date_bounds AS (
+      SELECT
+        ($1::date::timestamp AT TIME ZONE 'Asia/Jakarta') AS start_at,
+        (($2::date + INTERVAL '1 day')::timestamp AT TIME ZONE 'Asia/Jakarta') AS end_at
+    ),
+    ig_task_shortcodes AS (
       SELECT DISTINCT ip.shortcode
       FROM insta_post ip
       LEFT JOIN insta_post_roles ipr ON ipr.shortcode = ip.shortcode
@@ -1593,59 +1598,109 @@ async function getEngagementHourlyActivity(clientId, roleFlag, startDate, endDat
           OR LOWER(TRIM(tpr.role_name)) = LOWER($3)
         )
     ),
-    ig_activity_raw AS (
+    ig_in_range AS (
       SELECT
-        liked.username,
-        (il.updated_at AT TIME ZONE 'Asia/Jakarta') AS event_time
-      FROM insta_like il
-      JOIN ig_task_shortcodes tasks ON tasks.shortcode = il.shortcode
-      JOIN LATERAL (
-        SELECT lower(replace(trim(COALESCE(elem->>'username', trim(both '"' FROM elem::text))), '@', '')) AS username
-        FROM jsonb_array_elements(COALESCE(il.likes, '[]'::jsonb)) AS elem
-      ) liked ON TRUE
-      WHERE il.updated_at IS NOT NULL
-        AND (il.updated_at AT TIME ZONE 'Asia/Jakarta')::date BETWEEN $1::date AND $2::date
-        AND liked.username <> ''
-        AND (COALESCE(array_length($4::text[], 1), 0) = 0 OR liked.username = ANY($4::text[]))
+        ila.shortcode,
+        lower(replace(trim(COALESCE(elem->>'username', trim(both '"' FROM elem::text))), '@', '')) AS username,
+        ila.snapshot_window_end
+      FROM insta_like_audit ila
+      JOIN ig_task_shortcodes tasks ON tasks.shortcode = ila.shortcode
+      JOIN date_bounds db ON TRUE
+      JOIN LATERAL jsonb_array_elements(COALESCE(ila.usernames, '[]'::jsonb)) elem ON TRUE
+      WHERE ila.snapshot_window_end >= db.start_at
+        AND ila.snapshot_window_end < db.end_at
+        AND lower(replace(trim(COALESCE(elem->>'username', trim(both '"' FROM elem::text))), '@', '')) <> ''
+        AND (COALESCE(array_length($4::text[], 1), 0) = 0
+          OR lower(replace(trim(COALESCE(elem->>'username', trim(both '"' FROM elem::text))), '@', '')) = ANY($4::text[]))
     ),
-    ig_activity_first_hour AS (
+    ig_before_range_snapshot AS (
+      SELECT DISTINCT ON (ila.shortcode)
+        ila.shortcode,
+        ila.usernames
+      FROM insta_like_audit ila
+      JOIN ig_task_shortcodes tasks ON tasks.shortcode = ila.shortcode
+      JOIN date_bounds db ON TRUE
+      WHERE ila.snapshot_window_end < db.start_at
+      ORDER BY ila.shortcode, ila.snapshot_window_end DESC, ila.captured_at DESC
+    ),
+    ig_before_range AS (
       SELECT
-        username,
-        LPAD(EXTRACT(HOUR FROM MIN(event_time))::text, 2, '0') || ':00' AS hour_label
-      FROM ig_activity_raw
-      GROUP BY username
+        base.shortcode,
+        lower(replace(trim(COALESCE(elem->>'username', trim(both '"' FROM elem::text))), '@', '')) AS username
+      FROM ig_before_range_snapshot base
+      JOIN LATERAL jsonb_array_elements(COALESCE(base.usernames, '[]'::jsonb)) elem ON TRUE
+      WHERE lower(replace(trim(COALESCE(elem->>'username', trim(both '"' FROM elem::text))), '@', '')) <> ''
+    ),
+    ig_first_events AS (
+      SELECT
+        r.shortcode,
+        r.username,
+        MIN(r.snapshot_window_end) AS event_time
+      FROM ig_in_range r
+      LEFT JOIN ig_before_range b
+        ON b.shortcode = r.shortcode
+       AND b.username = r.username
+      WHERE b.username IS NULL
+      GROUP BY r.shortcode, r.username
     ),
     ig_activity AS (
-      SELECT hour_label, COUNT(*)::int AS total_events
-      FROM ig_activity_first_hour
-      GROUP BY hour_label
-    ),
-    tt_activity_raw AS (
       SELECT
-        commenter.username,
-        (tc.updated_at AT TIME ZONE 'Asia/Jakarta') AS event_time
-      FROM tiktok_comment tc
-      JOIN tt_task_video_ids tasks ON tasks.video_id = tc.video_id
-      JOIN LATERAL (
-        SELECT lower(replace(trim(raw_username), '@', '')) AS username
-        FROM jsonb_array_elements_text(COALESCE(tc.comments, '[]'::jsonb)) AS raw(raw_username)
-      ) commenter ON TRUE
-      WHERE tc.updated_at IS NOT NULL
-        AND (tc.updated_at AT TIME ZONE 'Asia/Jakarta')::date BETWEEN $1::date AND $2::date
-        AND commenter.username <> ''
-        AND (COALESCE(array_length($5::text[], 1), 0) = 0 OR commenter.username = ANY($5::text[]))
+        LPAD(EXTRACT(HOUR FROM (event_time AT TIME ZONE 'Asia/Jakarta'))::text, 2, '0') || ':00' AS hour_label,
+        COUNT(*)::int AS total_events
+      FROM ig_first_events
+      GROUP BY 1
     ),
-    tt_activity_first_hour AS (
+    tt_in_range AS (
       SELECT
-        username,
-        LPAD(EXTRACT(HOUR FROM MIN(event_time))::text, 2, '0') || ':00' AS hour_label
-      FROM tt_activity_raw
-      GROUP BY username
+        tca.video_id,
+        lower(replace(trim(COALESCE(elem->>'username', trim(both '"' FROM elem::text), elem::text)), '@', '')) AS username,
+        tca.snapshot_window_end
+      FROM tiktok_comment_audit tca
+      JOIN tt_task_video_ids tasks ON tasks.video_id = tca.video_id
+      JOIN date_bounds db ON TRUE
+      JOIN LATERAL jsonb_array_elements(COALESCE(tca.usernames, '[]'::jsonb)) elem ON TRUE
+      WHERE tca.snapshot_window_end >= db.start_at
+        AND tca.snapshot_window_end < db.end_at
+        AND lower(replace(trim(COALESCE(elem->>'username', trim(both '"' FROM elem::text), elem::text)), '@', '')) <> ''
+        AND (COALESCE(array_length($5::text[], 1), 0) = 0
+          OR lower(replace(trim(COALESCE(elem->>'username', trim(both '"' FROM elem::text), elem::text)), '@', '')) = ANY($5::text[]))
+    ),
+    tt_before_range_snapshot AS (
+      SELECT DISTINCT ON (tca.video_id)
+        tca.video_id,
+        tca.usernames
+      FROM tiktok_comment_audit tca
+      JOIN tt_task_video_ids tasks ON tasks.video_id = tca.video_id
+      JOIN date_bounds db ON TRUE
+      WHERE tca.snapshot_window_end < db.start_at
+      ORDER BY tca.video_id, tca.snapshot_window_end DESC, tca.captured_at DESC
+    ),
+    tt_before_range AS (
+      SELECT
+        base.video_id,
+        lower(replace(trim(COALESCE(elem->>'username', trim(both '"' FROM elem::text), elem::text)), '@', '')) AS username
+      FROM tt_before_range_snapshot base
+      JOIN LATERAL jsonb_array_elements(COALESCE(base.usernames, '[]'::jsonb)) elem ON TRUE
+      WHERE lower(replace(trim(COALESCE(elem->>'username', trim(both '"' FROM elem::text), elem::text)), '@', '')) <> ''
+    ),
+    tt_first_events AS (
+      SELECT
+        r.video_id,
+        r.username,
+        MIN(r.snapshot_window_end) AS event_time
+      FROM tt_in_range r
+      LEFT JOIN tt_before_range b
+        ON b.video_id = r.video_id
+       AND b.username = r.username
+      WHERE b.username IS NULL
+      GROUP BY r.video_id, r.username
     ),
     tt_activity AS (
-      SELECT hour_label, COUNT(*)::int AS total_events
-      FROM tt_activity_first_hour
-      GROUP BY hour_label
+      SELECT
+        LPAD(EXTRACT(HOUR FROM (event_time AT TIME ZONE 'Asia/Jakarta'))::text, 2, '0') || ':00' AS hour_label,
+        COUNT(*)::int AS total_events
+      FROM tt_first_events
+      GROUP BY 1
     ),
     merged AS (
       SELECT hour_label, total_events FROM ig_activity
@@ -1874,7 +1929,23 @@ async function formatExecutiveSummary(clientId, roleFlag = null, options = {}) {
     : 0;
   const trendLabel = getExecutiveSummaryTrendLabel(currentRate, previousRate);
 
-  const sortedHours = [...hourlyActivity].sort((a, b) => b.totalEvents - a.totalEvents);
+  const hourlyActivityMap = new Map(
+    Array.from({ length: 24 }, (_, hour) => [hour, 0])
+  );
+  hourlyActivity.forEach((item) => {
+    const hourNumber = Number(String(item.hourLabel || "").split(":")[0]);
+    if (!Number.isFinite(hourNumber)) return;
+    if (hourNumber < 0 || hourNumber > 23) return;
+    hourlyActivityMap.set(hourNumber, Number(item.totalEvents || 0));
+  });
+
+  const normalizedHourlyActivity = Array.from({ length: 24 }, (_, hour) => ({
+    hourNumber: hour,
+    hourLabel: `${String(hour).padStart(2, "0")}:00`,
+    totalEvents: Number(hourlyActivityMap.get(hour) || 0),
+  }));
+
+  const sortedHours = [...normalizedHourlyActivity].sort((a, b) => b.totalEvents - a.totalEvents || a.hourNumber - b.hourNumber);
   const dominantHours = sortedHours
     .filter((item) => item.totalEvents > 0)
     .slice(0, 2)
@@ -1882,27 +1953,13 @@ async function formatExecutiveSummary(clientId, roleFlag = null, options = {}) {
   const lowestHour = sortedHours.length
     ? sortedHours[sortedHours.length - 1]
     : { hourLabel: "-", totalEvents: 0 };
-  const hourlyActivityMap = new Map();
-  hourlyActivity.forEach((item) => {
-    const hourNumber = Number(String(item.hourLabel || "").split(":")[0]);
-    if (!Number.isFinite(hourNumber)) return;
-    if (hourNumber < 0 || hourNumber > 22) return;
-    hourlyActivityMap.set(hourNumber, Number(item.totalEvents || 0));
-  });
-
-  const firstActiveHour = [...hourlyActivityMap.entries()]
-    .filter(([, total]) => total > 0)
-    .map(([hour]) => hour)
-    .sort((a, b) => a - b)[0];
-
-  const hourlyActivityLines = Number.isFinite(firstActiveHour)
-    ? Array.from({ length: 23 - firstActiveHour }, (_, index) => firstActiveHour + index)
-      .map((startHour) => {
-        const endHour = startHour + 1;
-        const totalEvents = Number(hourlyActivityMap.get(startHour) || 0);
-        return `• ${String(startHour).padStart(2, "0")}.00-${String(endHour).padStart(2, "0")}.00 WIB: ${totalEvents} aktivitas`;
-      })
-    : [];
+  const hourlyActivityLines = normalizedHourlyActivity
+    .filter((item) => item.totalEvents > 0)
+    .map((item) => {
+      const startHour = item.hourNumber;
+      const endHour = (startHour + 1) % 24;
+      return `• ${String(startHour).padStart(2, "0")}.00-${String(endHour).padStart(2, "0")}.00 WIB: ${item.totalEvents} aktivitas`;
+    });
 
   const activityCounter = {
     instagram: new Map(),
