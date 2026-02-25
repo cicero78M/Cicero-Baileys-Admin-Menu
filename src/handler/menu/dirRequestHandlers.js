@@ -1594,11 +1594,26 @@ async function formatExecutiveSummary(clientId, roleFlag = null) {
     findClientById(targetClientId),
   ]);
 
-  const totalLikes = (likesRows || []).reduce(
-    (sum, row) => sum + Number(row?.jumlah_likes || 0),
+  const normalizeRecapRows = (value) => {
+    if (Array.isArray(value)) {
+      return value;
+    }
+    if (value && Array.isArray(value.rows)) {
+      return value.rows;
+    }
+    return [];
+  };
+
+  const normalizedLikesRows = normalizeRecapRows(likesRows);
+  const normalizedKomentarRows = normalizeRecapRows(komentarRows);
+  const normalizedLikesRowsPrev = normalizeRecapRows(likesRowsPrev);
+  const normalizedKomentarRowsPrev = normalizeRecapRows(komentarRowsPrev);
+
+  const totalLikes = normalizedLikesRows.reduce(
+    (sum, row) => sum + Number(row?.jumlah_likes || row?.jumlah_like || 0),
     0
   );
-  const totalKomentar = (komentarRows || []).reduce(
+  const totalKomentar = normalizedKomentarRows.reduce(
     (sum, row) => sum + Number(row?.jumlah_komentar || 0),
     0
   );
@@ -1607,11 +1622,11 @@ async function formatExecutiveSummary(clientId, roleFlag = null) {
   const avgPartisipasiKomentar = totalPersonil ? (totalKomentar / totalPersonil) * 100 : 0;
   const avgPartisipasi = ((avgPartisipasiLikes + avgPartisipasiKomentar) / 2).toFixed(1);
 
-  const prevLikes = (likesRowsPrev || []).reduce(
-    (sum, row) => sum + Number(row?.jumlah_likes || 0),
+  const prevLikes = normalizedLikesRowsPrev.reduce(
+    (sum, row) => sum + Number(row?.jumlah_likes || row?.jumlah_like || 0),
     0
   );
-  const prevKomentar = (komentarRowsPrev || []).reduce(
+  const prevKomentar = normalizedKomentarRowsPrev.reduce(
     (sum, row) => sum + Number(row?.jumlah_komentar || 0),
     0
   );
