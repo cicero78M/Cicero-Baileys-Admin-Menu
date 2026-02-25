@@ -179,6 +179,29 @@ const KASATKER_REPORT_PERIOD_MAP = {
   },
 };
 
+const EXECUTIVE_SUMMARY_PERIOD_MAP = {
+  "1": {
+    period: "selected_month",
+    description: "Pilihan bulan (format YYYY-MM)",
+  },
+  "2": {
+    period: "this_week",
+    description: "Minggu ini (Senin - hari ini)",
+  },
+  "3": {
+    period: "last_week",
+    description: "Minggu sebelumnya (Senin - Minggu)",
+  },
+  "4": {
+    period: "today",
+    description: "Hari ini",
+  },
+  "5": {
+    period: "selected_date",
+    description: "Pilihan tanggal (format YYYY-MM-DD)",
+  },
+};
+
 const DIGIT_EMOJI = {
   "0": "0️⃣",
   "1": "1️⃣",
@@ -230,6 +253,8 @@ const JAKARTA_DATE_FORMATTER = new Intl.DateTimeFormat("en-CA", {
 const getJakartaYmd = (value = new Date()) => JAKARTA_DATE_FORMATTER.format(value);
 
 const isValidYmd = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || "").trim());
+
+const isValidYm = (value) => /^\d{4}-\d{2}$/.test(String(value || "").trim());
 
 const getJakartaDayDateLabel = () => {
   const now = new Date();
@@ -294,6 +319,26 @@ const KASATKER_REPORT_MENU_TEXT = appendSubmenuBackInstruction(
       .map(([key, option]) => `${DIGIT_EMOJI[key] || key} ${option.description}`)
       .join("\n") +
     "\n\nBalas angka pilihan atau ketik *batal* untuk kembali."
+);
+
+const EXECUTIVE_SUMMARY_MENU_TEXT = appendSubmenuBackInstruction(
+  "Silakan pilih periode Executive Summary:\n" +
+    Object.entries(EXECUTIVE_SUMMARY_PERIOD_MAP)
+      .map(([key, option]) => `${DIGIT_EMOJI[key] || key} ${option.description}`)
+      .join("\n") +
+    "\n\nBalas angka pilihan atau ketik *batal* untuk kembali."
+);
+
+const EXECUTIVE_SUMMARY_MONTH_PROMPT = appendSubmenuBackInstruction(
+  "Masukkan bulan laporan Executive Summary dengan format *YYYY-MM*\n" +
+    "Contoh: *2026-01*\n\n" +
+    "Ketik *batal* untuk kembali ke pilihan periode."
+);
+
+const EXECUTIVE_SUMMARY_DATE_PROMPT = appendSubmenuBackInstruction(
+  "Masukkan tanggal laporan Executive Summary dengan format *YYYY-MM-DD*\n" +
+    "Contoh: *2026-01-31*\n\n" +
+    "Ketik *batal* untuk kembali ke pilihan periode."
 );
 
 const KASAT_BINMAS_LIKES_PERIOD_MAP = {
@@ -1422,6 +1467,94 @@ const getPreviousWeekWindow = (referenceDate = new Date()) => {
   };
 };
 
+
+const getCurrentWeekWindow = (referenceDate = new Date()) => {
+  const now = new Date(referenceDate);
+  const jakartaNowText = now.toLocaleString("en-US", {
+    timeZone: "Asia/Jakarta",
+    hour12: false,
+  });
+  const jakartaNow = new Date(jakartaNowText);
+  const day = jakartaNow.getDay();
+  const mondayOffset = day === 0 ? -6 : 1 - day;
+  const thisWeekMonday = new Date(jakartaNow);
+  thisWeekMonday.setHours(0, 0, 0, 0);
+  thisWeekMonday.setDate(jakartaNow.getDate() + mondayOffset);
+
+  return {
+    startYmd: getJakartaYmd(thisWeekMonday),
+    endYmd: getJakartaYmd(jakartaNow),
+  };
+};
+
+const getExecutiveSummaryWindow = (period, rawValue = null, referenceDate = new Date()) => {
+  if (period === "last_week") {
+    return {
+      ...getPreviousWeekWindow(referenceDate),
+      periodText: "Minggu Lalu (Senin–Minggu)",
+    };
+  }
+
+  if (period === "this_week") {
+    return {
+      ...getCurrentWeekWindow(referenceDate),
+      periodText: "Minggu Ini (Senin–Hari Ini)",
+    };
+  }
+
+  if (period === "today") {
+    const todayYmd = getJakartaYmd(referenceDate);
+    return {
+      startYmd: todayYmd,
+      endYmd: todayYmd,
+      periodText: "Hari Ini",
+    };
+  }
+
+  if (period === "selected_date") {
+    const normalizedDate = String(rawValue || "").trim();
+    if (!isValidYmd(normalizedDate)) {
+      throw new Error("❌ Format tanggal tidak valid. Gunakan format YYYY-MM-DD.");
+    }
+
+    return {
+      startYmd: normalizedDate,
+      endYmd: normalizedDate,
+      periodText: `Tanggal ${formatYmdToIndoLong(normalizedDate)}`,
+    };
+  }
+
+  if (period === "selected_month") {
+    const normalizedMonth = String(rawValue || "").trim();
+    if (!isValidYm(normalizedMonth)) {
+      throw new Error("❌ Format bulan tidak valid. Gunakan format YYYY-MM.");
+    }
+
+    const [yearText, monthText] = normalizedMonth.split("-");
+    const year = Number(yearText);
+    const month = Number(monthText);
+    if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
+      throw new Error("❌ Bulan tidak valid. Gunakan rentang bulan 01 sampai 12.");
+    }
+
+    const startYmd = `${yearText}-${monthText}-01`;
+    const endDate = new Date(Date.UTC(year, month, 0, 0, 0, 0));
+    const endYmd = getJakartaYmd(endDate);
+
+    return {
+      startYmd,
+      endYmd,
+      periodText: `Bulan ${endDate.toLocaleDateString("id-ID", {
+        timeZone: "Asia/Jakarta",
+        month: "long",
+        year: "numeric",
+      })}`,
+    };
+  }
+
+  throw new Error("❌ Periode Executive Summary tidak dikenali.");
+};
+
 const getExecutiveSummaryTrendLabel = (currentRate, previousRate) => {
   const diff = currentRate - previousRate;
   if (diff >= 5) return "MENINGKAT";
@@ -1664,10 +1797,11 @@ async function getExecutiveSummaryActivityTotals(clientId, roleFlag, startDate, 
   };
 }
 
-async function formatExecutiveSummary(clientId, roleFlag = null) {
+async function formatExecutiveSummary(clientId, roleFlag = null, options = {}) {
   const targetClientId = String(clientId || DITBINMAS_CLIENT_ID).toUpperCase();
   const effectiveRole = String(roleFlag || targetClientId).trim().toLowerCase();
-  const { startYmd, endYmd } = getPreviousWeekWindow();
+  const { period = "last_week", value = null } = options || {};
+  const { startYmd, endYmd, periodText } = getExecutiveSummaryWindow(period, value);
 
   const users = await getUsersSocialByClient(targetClientId, effectiveRole);
   const totalPersonil = users.length;
@@ -1829,7 +1963,7 @@ async function formatExecutiveSummary(clientId, roleFlag = null) {
 
   return [
     "*EXECUTIVE SUMMARY*",
-    `*Implementasi Sistem CICERO – Minggu Lalu (Senin–Minggu)*`,
+    `*Implementasi Sistem CICERO – ${periodText}*`,
     `*Satuan:* ${clientName}`,
     `*Periode:* ${periodLabel} (WIB)`,
     "",
@@ -2567,7 +2701,7 @@ async function performAction(
       break;
     }
     case "2": {
-      msg = await formatExecutiveSummary(clientId, roleFlag);
+      msg = await formatExecutiveSummary(clientId, roleFlag, context.executiveSummaryOptions);
       break;
     }
     case "4": {
@@ -3840,6 +3974,12 @@ export const dirRequestHandlers = {
     }
     const taskClientId = session.dir_client_id || userClientId;
 
+    if (choice === "2") {
+      session.step = "choose_executive_summary_period";
+      await waClient.sendMessage(chatId, EXECUTIVE_SUMMARY_MENU_TEXT);
+      return;
+    }
+
     if (choice === "3") {
       session.step = "choose_rekap_personil_category";
       await waClient.sendMessage(chatId, REKAP_PERSONIL_MENU_TEXT);
@@ -4044,6 +4184,142 @@ export const dirRequestHandlers = {
     await dirRequestHandlers.main(session, chatId, "", waClient);
   },
 
+
+  async choose_executive_summary_period(session, chatId, text, waClient) {
+    const choice = String(text || "").trim().toLowerCase();
+
+    if (!choice) {
+      await waClient.sendMessage(chatId, EXECUTIVE_SUMMARY_MENU_TEXT);
+      return;
+    }
+
+    if (choice === "batal") {
+      session.step = "main";
+      await dirRequestHandlers.main(session, chatId, "", waClient);
+      return;
+    }
+
+    const selectedPeriod = EXECUTIVE_SUMMARY_PERIOD_MAP[choice];
+    if (!selectedPeriod) {
+      await waClient.sendMessage(chatId, "❌ Pilihan periode tidak valid.");
+      await waClient.sendMessage(chatId, EXECUTIVE_SUMMARY_MENU_TEXT);
+      return;
+    }
+
+    if (selectedPeriod.period === "selected_month") {
+      session.executiveSummaryPeriod = selectedPeriod.period;
+      session.step = "input_executive_summary_month";
+      await waClient.sendMessage(chatId, EXECUTIVE_SUMMARY_MONTH_PROMPT);
+      return;
+    }
+
+    if (selectedPeriod.period === "selected_date") {
+      session.executiveSummaryPeriod = selectedPeriod.period;
+      session.step = "input_executive_summary_date";
+      await waClient.sendMessage(chatId, EXECUTIVE_SUMMARY_DATE_PROMPT);
+      return;
+    }
+
+    const targetClientId = session.dir_client_id || session.selectedClientId || DITBINMAS_CLIENT_ID;
+    await performAction(
+      "2",
+      targetClientId,
+      waClient,
+      chatId,
+      session.role,
+      session.selectedClientId,
+      {
+        username: session.username || session.user?.username,
+        executiveSummaryOptions: { period: selectedPeriod.period },
+      }
+    );
+    session.step = "main";
+    await dirRequestHandlers.main(session, chatId, "", waClient);
+  },
+
+  async input_executive_summary_month(session, chatId, text, waClient) {
+    const input = String(text || "").trim();
+
+    if (!input) {
+      await waClient.sendMessage(chatId, EXECUTIVE_SUMMARY_MONTH_PROMPT);
+      return;
+    }
+
+    if (input.toLowerCase() === "batal") {
+      session.step = "choose_executive_summary_period";
+      await waClient.sendMessage(chatId, EXECUTIVE_SUMMARY_MENU_TEXT);
+      return;
+    }
+
+    if (!isValidYm(input)) {
+      await waClient.sendMessage(chatId, "❌ Format bulan tidak valid. Gunakan format YYYY-MM.");
+      await waClient.sendMessage(chatId, EXECUTIVE_SUMMARY_MONTH_PROMPT);
+      return;
+    }
+
+    const [, monthText] = input.split("-");
+    const month = Number(monthText);
+    if (!Number.isInteger(month) || month < 1 || month > 12) {
+      await waClient.sendMessage(chatId, "❌ Bulan tidak valid. Gunakan rentang bulan 01 sampai 12.");
+      await waClient.sendMessage(chatId, EXECUTIVE_SUMMARY_MONTH_PROMPT);
+      return;
+    }
+
+    const targetClientId = session.dir_client_id || session.selectedClientId || DITBINMAS_CLIENT_ID;
+    await performAction(
+      "2",
+      targetClientId,
+      waClient,
+      chatId,
+      session.role,
+      session.selectedClientId,
+      {
+        username: session.username || session.user?.username,
+        executiveSummaryOptions: { period: "selected_month", value: input },
+      }
+    );
+
+    session.step = "main";
+    await dirRequestHandlers.main(session, chatId, "", waClient);
+  },
+
+  async input_executive_summary_date(session, chatId, text, waClient) {
+    const input = String(text || "").trim();
+
+    if (!input) {
+      await waClient.sendMessage(chatId, EXECUTIVE_SUMMARY_DATE_PROMPT);
+      return;
+    }
+
+    if (input.toLowerCase() === "batal") {
+      session.step = "choose_executive_summary_period";
+      await waClient.sendMessage(chatId, EXECUTIVE_SUMMARY_MENU_TEXT);
+      return;
+    }
+
+    if (!isValidYmd(input)) {
+      await waClient.sendMessage(chatId, "❌ Format tanggal tidak valid. Gunakan format YYYY-MM-DD.");
+      await waClient.sendMessage(chatId, EXECUTIVE_SUMMARY_DATE_PROMPT);
+      return;
+    }
+
+    const targetClientId = session.dir_client_id || session.selectedClientId || DITBINMAS_CLIENT_ID;
+    await performAction(
+      "2",
+      targetClientId,
+      waClient,
+      chatId,
+      session.role,
+      session.selectedClientId,
+      {
+        username: session.username || session.user?.username,
+        executiveSummaryOptions: { period: "selected_date", value: input },
+      }
+    );
+
+    session.step = "main";
+    await dirRequestHandlers.main(session, chatId, "", waClient);
+  },
 
   async dirrequest_input_post_manual_prompt(session, chatId, text, waClient) {
     const input = (text || "").trim();
