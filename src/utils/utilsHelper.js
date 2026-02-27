@@ -498,6 +498,36 @@ function normalizeDivisionName(value) {
 }
 
 /**
+ * Filter users by Sat Intel/Sat Intelkam division based on SATIK switch mode.
+ *
+ * @param {Array} users - Array of user objects.
+ * @param {boolean} applySatikFilter - Flag switch SATIK pada client.
+ * @param {string} mode - "exclude" untuk buang sat intel/intelkam, "include_only" untuk hanya sat intel/intelkam.
+ * @returns {Array} Filtered array of users.
+ */
+export function filterUsersBySatikDivision(users, applySatikFilter = false, mode = "exclude") {
+  if (!Array.isArray(users)) return [];
+  if (applySatikFilter !== true) return users;
+
+  const excludedDivisions = new Set([
+    normalizeDivisionName("sat intel"),
+    normalizeDivisionName("satintel"),
+    normalizeDivisionName("sat intelkam"),
+    normalizeDivisionName("satintelkam"),
+  ]);
+
+  return users.filter((u) => {
+    const satfung = normalizeDivisionName(u?.divisi);
+    const isSatikDivision = excludedDivisions.has(satfung);
+    if (mode === "include_only") {
+      return isSatikDivision;
+    }
+    return !isSatikDivision;
+  });
+}
+
+
+/**
  * Filter user attendance data untuk client bertipe direktorat.
  *
  * Saat switch SATIK aktif, personel satfung/divisi Sat Intel dan Sat Intelkam
@@ -514,20 +544,10 @@ function normalizeDivisionName(value) {
 export function filterAttendanceUsers(users, clientType, applySatikFilter = false) {
   if (!Array.isArray(users)) return [];
 
-  const excludedDivisions = new Set([
-    normalizeDivisionName("sat intel"),
-    normalizeDivisionName("satintel"),
-    normalizeDivisionName("sat intelkam"),
-    normalizeDivisionName("satintelkam"),
-  ]);
+  // Only filter if client is direktorat type and SATIK switch is enabled
+  if (clientType?.toLowerCase() !== "direktorat" || applySatikFilter !== true) {
+    return users;
+  }
 
-  return users.filter((u) => {
-    // Only filter if client is direktorat type and SATIK switch is enabled
-    if (clientType?.toLowerCase() !== "direktorat" || applySatikFilter !== true) {
-      return true;
-    }
-
-    const satfung = normalizeDivisionName(u.divisi);
-    return !excludedDivisions.has(satfung);
-  });
+  return filterUsersBySatikDivision(users, true, "exclude");
 }
