@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@hapi/boom": "^10.0.1",
+    "@redis/client": "^1.6.1",
     "@whiskeysockets/baileys": "^7.0.0-rc.9",
     "amqplib": "^0.10.8",
     "axios": "^1.6.0",
