@@ -623,6 +623,8 @@ const normalizeSocialUsername = (value) =>
 
 const uniq = (items) => [...new Set(items.filter(Boolean))];
 
+const isSatikEnabledClient = (client) => client?.switch_satik === true;
+
 const formatCaptionPreview = (caption) => {
   const normalized = sanitizeManualCaption(caption);
   if (!normalized || normalized === "-") {
@@ -696,7 +698,7 @@ const buildPolresMapForDirektorat = async (clientId, roleFlag = null) => {
   for (const cid of mergedIds) {
     const client = await findClientById(cid);
     const clientType = client?.client_type?.toLowerCase();
-    const filteredUsers = filterAttendanceUsers(usersByClient.get(cid) || [], clientType);
+    const filteredUsers = filterAttendanceUsers(usersByClient.get(cid) || [], clientType, isSatikEnabledClient(client));
     let instagramFilled = 0;
     let tiktokFilled = 0;
 
@@ -1204,7 +1206,7 @@ async function formatRekapDataPersonil(clientId, category = "all") {
   // Untuk client bertipe direktorat, menu ini wajib murni client_id terpilih
   // (bukan berdasarkan role lintas client ORG).
   const normalizedTargetClientId = targetClientId.toLowerCase();
-  const users = filterAttendanceUsers(allUsers, clientType).filter(
+  const users = filterAttendanceUsers(allUsers, clientType, isSatikEnabledClient(client)).filter(
     (user) =>
       String(user.client_id || "").trim().toLowerCase() === normalizedTargetClientId &&
       user.status === true
