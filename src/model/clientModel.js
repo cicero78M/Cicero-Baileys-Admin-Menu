@@ -305,6 +305,7 @@ export const create = async (client) => {
     "client_level",
     "tiktok_secuid",
     "client_super",
+    "switch_satik",
   ];
   const values = [
     client.client_id,
@@ -322,7 +323,8 @@ export const create = async (client) => {
     ...(includeParentClientId ? [client.parent_client_id || null] : []),
     client.client_level || null,
     client.tiktok_secuid || '',
-    client.client_super || ''
+    client.client_super || '',
+    client.switch_satik ?? false,
   ];
   const placeholders = columns.map((_, index) => `$${index + 1}`).join(", ");
   const q = `
@@ -361,6 +363,7 @@ export const update = async (client_id, clientData) => {
     { column: "client_level", value: merged.client_level || null },
     { column: "tiktok_secuid", value: merged.tiktok_secuid || "" },
     { column: "client_super", value: merged.client_super || "" },
+    { column: "switch_satik", value: merged.switch_satik ?? false },
   ];
   const setClause = updates
     .map((updateItem, index) => `${updateItem.column} = $${index + 2}`)
