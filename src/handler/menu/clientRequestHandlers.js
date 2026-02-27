@@ -177,6 +177,7 @@ const CLIENT_UPDATE_FIELD_GROUPS = [
       { key: "client_insta_status", label: "Status IG Aktif (true/false)" },
       { key: "client_tiktok_status", label: "Status TikTok Aktif (true/false)" },
       { key: "client_amplify_status", label: "Status Amplifikasi (true/false)" },
+      { key: "switch_satik", label: "Switch SATIK (true/false)" },
     ],
   },
 ];
