@@ -498,17 +498,20 @@ function normalizeDivisionName(value) {
 }
 
 /**
- * Filter user attendance data untuk client bertipe direktorat dengan
- * mengecualikan personel satfung/divisi Sat Intel dan Sat Intelkam.
+ * Filter user attendance data untuk client bertipe direktorat.
+ *
+ * Saat switch SATIK aktif, personel satfung/divisi Sat Intel dan Sat Intelkam
+ * dikecualikan dari perhitungan attendance.
  *
  * Pengecualian hanya berlaku untuk `clientType === "direktorat"` agar perilaku
  * client non-direktorat tidak berubah.
  *
  * @param {Array} users - Array of user objects.
  * @param {string} clientType - Type of client (contoh: "direktorat", "org").
+ * @param {boolean} applySatikFilter - Flag switch SATIK pada client.
  * @returns {Array} Filtered array of users.
  */
-export function filterAttendanceUsers(users, clientType) {
+export function filterAttendanceUsers(users, clientType, applySatikFilter = false) {
   if (!Array.isArray(users)) return [];
 
   const excludedDivisions = new Set([
@@ -519,8 +522,8 @@ export function filterAttendanceUsers(users, clientType) {
   ]);
 
   return users.filter((u) => {
-    // Only filter if client is direktorat type
-    if (clientType?.toLowerCase() !== "direktorat") {
+    // Only filter if client is direktorat type and SATIK switch is enabled
+    if (clientType?.toLowerCase() !== "direktorat" || applySatikFilter !== true) {
       return true;
     }
 
