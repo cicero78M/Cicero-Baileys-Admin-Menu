@@ -73,7 +73,7 @@ async function shouldApplySatikFilter({
   targetClientId,
 }) {
   if (scope !== 'org') return false;
-  if (!DIREKTORAT_ROLES.includes(role)) return false;
+  if (role !== 'ditintelkam') return false;
   if (!targetClientId) return false;
 
   const targetClient = await findClientById(targetClientId);
