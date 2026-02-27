@@ -199,6 +199,7 @@ export function formatClientInfo(client) {
     `TikTok          : ${client.client_tiktok ? "@" + client.client_tiktok : "-"}`,
     `TikTok Aktif    : ${client.client_tiktok_status ? "✅ Aktif" : "❌ Tidak aktif"}`,
     `Amplifikasi     : ${client.client_amplify_status ? "✅ Aktif" : "❌ Tidak aktif"}`,
+    `Switch SATIK    : ${client.switch_satik ? "✅ Aktif" : "❌ Tidak aktif"}`,
     `Operator WA     : ${client.client_operator || "-"}`,
     `Group WA        : ${client.client_group || "-"}`,
     `Super Admin     : ${client.client_super || "-"}`,

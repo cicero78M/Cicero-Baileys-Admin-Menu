@@ -16,7 +16,8 @@ CREATE TABLE clients (
   parent_client_id VARCHAR REFERENCES clients(client_id),
   client_level VARCHAR,
   tiktok_secuid VARCHAR,
-  client_super VARCHAR
+  client_super VARCHAR,
+  switch_satik BOOLEAN DEFAULT FALSE
 );
 
 CREATE INDEX IF NOT EXISTS idx_clients_regional_id ON clients (regional_id);
