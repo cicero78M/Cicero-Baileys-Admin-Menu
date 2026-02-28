@@ -247,6 +247,47 @@ describe('Instagram Jajaran Attendance', () => {
 
     warnSpy.mockRestore();
   });
+
+  test('chakranarayana jajaran SATIK keeps direktorat unfiltered and filters polres to sat intel only (Instagram)', async () => {
+    mockFindClientById
+      .mockResolvedValueOnce({
+        client_id: 'DITINTELKAM',
+        nama: 'Direktorat Intelkam',
+        client_type: 'direktorat',
+        switch_satik: true,
+      })
+      .mockResolvedValueOnce({
+        client_id: 'DITINTELKAM',
+        nama: 'Direktorat Intelkam',
+        client_type: 'direktorat',
+      })
+      .mockResolvedValueOnce({
+        client_id: 'POLRES01',
+        nama: 'Polres 01',
+        client_type: 'org',
+      });
+
+    mockGetShortcodesTodayByClient.mockResolvedValueOnce(['sc1']);
+    mockGetLikesSets.mockResolvedValueOnce([new Set(['intel-a'])]);
+    mockGetClientsByRole.mockResolvedValueOnce(['POLRES01']);
+    mockGetUsersByDirektorat.mockResolvedValueOnce([
+      { user_id: 'd1', client_id: 'DITINTELKAM', insta: '@intel-a', status: true, divisi: 'Bag Ops' },
+      { user_id: 'd2', client_id: 'DITINTELKAM', insta: '@intel-b', status: true, divisi: 'Sat Intelkam' },
+      { user_id: 'o1', client_id: 'POLRES01', insta: '@intel-a', status: true, divisi: 'Sat Intel' },
+      { user_id: 'o2', client_id: 'POLRES01', insta: '@nonsat', status: true, divisi: 'Bag Ops' },
+    ]);
+
+    const result = await collectInstagramJajaranAttendance('DITINTELKAM', 'ditintelkam', {
+      menuName: 'chakranarayana',
+      chakranarayanaSelectedGroup: 'jajaran',
+    });
+
+    const dit = result.reportEntries.find((e) => e.clientId === 'DITINTELKAM');
+    const polres = result.reportEntries.find((e) => e.clientId === 'POLRES01');
+    expect(dit.totalPersonil).toBe(2);
+    expect(polres.totalPersonil).toBe(1);
+  });
+
   test('calculates execution percentage correctly', async () => {
     mockFindClientById
       .mockResolvedValueOnce({
@@ -322,6 +363,48 @@ describe('TikTok Jajaran Attendance', () => {
     await expect(
       collectTiktokJajaranAttendance('DITBINMAS', null)
     ).rejects.toThrow('Tidak ada konten pada akun Official TikTok');
+  });
+
+
+  test('chakranarayana jajaran SATIK keeps direktorat unfiltered and filters polres to sat intel only (TikTok)', async () => {
+    mockFindClientById
+      .mockResolvedValueOnce({
+        client_id: 'DITINTELKAM',
+        nama: 'Direktorat Intelkam',
+        client_type: 'direktorat',
+        switch_satik: true,
+      })
+      .mockResolvedValueOnce({
+        client_id: 'DITINTELKAM',
+        nama: 'Direktorat Intelkam',
+        client_type: 'direktorat',
+      })
+      .mockResolvedValueOnce({
+        client_id: 'POLRES01',
+        nama: 'Polres 01',
+        client_type: 'org',
+      });
+
+    mockGetPostsTodayByClient.mockResolvedValueOnce([{ video_id: 'v1', link: 'https://tiktok.com/v1' }]);
+    mockGetCommentsByVideoId.mockResolvedValueOnce({ comments: [{ user: { unique_id: 'intel-a' } }] });
+    mockExtractUsernamesFromComments.mockReturnValue(['intel-a']);
+    mockGetClientsByRole.mockResolvedValueOnce(['POLRES01']);
+    mockGetUsersByDirektorat.mockResolvedValueOnce([
+      { user_id: 'd1', client_id: 'DITINTELKAM', tiktok: 'intel-a', status: true, divisi: 'Bag Ops' },
+      { user_id: 'd2', client_id: 'DITINTELKAM', tiktok: 'intel-b', status: true, divisi: 'Sat Intelkam' },
+      { user_id: 'o1', client_id: 'POLRES01', tiktok: 'intel-a', status: true, divisi: 'Sat Intel' },
+      { user_id: 'o2', client_id: 'POLRES01', tiktok: 'nonsat', status: true, divisi: 'Bag Ops' },
+    ]);
+
+    const result = await collectTiktokJajaranAttendance('DITINTELKAM', 'ditintelkam', {
+      menuName: 'chakranarayana',
+      chakranarayanaSelectedGroup: 'jajaran',
+    });
+
+    const dit = result.reportEntries.find((e) => e.clientId === 'DITINTELKAM');
+    const polres = result.reportEntries.find((e) => e.clientId === 'POLRES01');
+    expect(dit.totalPersonil).toBe(2);
+    expect(polres.totalPersonil).toBe(1);
   });
 
   test('collects and sorts data correctly', async () => {

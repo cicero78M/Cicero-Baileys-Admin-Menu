@@ -623,6 +623,13 @@ const normalizeSocialUsername = (value) =>
 
 const uniq = (items) => [...new Set(items.filter(Boolean))];
 
+const isSatikEnabledClient = (client) => client?.switch_satik === true;
+
+const isSatIntelkamDivision = (division) => {
+  const normalized = String(division || "").toLowerCase().trim().replace(/\s+/g, " ");
+  return normalized === "sat intel" || normalized === "satintel" || normalized === "sat intelkam" || normalized === "satintelkam";
+};
+
 const formatCaptionPreview = (caption) => {
   const normalized = sanitizeManualCaption(caption);
   if (!normalized || normalized === "-") {
@@ -672,12 +679,17 @@ const enrichTiktokPerpostOption = async (post, index) => {
   };
 };
 
-const buildPolresMapForDirektorat = async (clientId, roleFlag = null) => {
+const buildPolresMapForDirektorat = async (clientId, roleFlag = null, options = {}) => {
   const normalizedClientId = String(clientId || "").toUpperCase();
   const expectedRole = normalizedClientId.toLowerCase();
   const providedRole = String(roleFlag || "").trim().toLowerCase();
   const roleName = providedRole && providedRole === expectedRole ? providedRole : expectedRole;
   const polresIds = await getClientsByRole(roleName);
+  const selectedDirektorat = await findClientById(normalizedClientId);
+  const applyChakranarayanaJajaranSatikFilter =
+    options?.menuName === "chakranarayana" &&
+    options?.chakranarayanaSelectedGroup === "jajaran" &&
+    isSatikEnabledClient(selectedDirektorat);
 
   const mergedIds = uniq([normalizedClientId, ...polresIds.map((id) => String(id || "").toUpperCase())]);
   const users = await getUsersByDirektorat(roleName, mergedIds);
@@ -696,7 +708,15 @@ const buildPolresMapForDirektorat = async (clientId, roleFlag = null) => {
   for (const cid of mergedIds) {
     const client = await findClientById(cid);
     const clientType = client?.client_type?.toLowerCase();
-    const filteredUsers = filterAttendanceUsers(usersByClient.get(cid) || [], clientType);
+    const filteredUsers = filterAttendanceUsers(usersByClient.get(cid) || [], clientType, isSatikEnabledClient(client)).filter((user) => {
+      if (!applyChakranarayanaJajaranSatikFilter) {
+        return true;
+      }
+      if (String(cid || "").toUpperCase() === normalizedClientId) {
+        return true;
+      }
+      return isSatIntelkamDivision(user?.divisi);
+    });
     let instagramFilled = 0;
     let tiktokFilled = 0;
 
@@ -732,7 +752,7 @@ const buildPolresMapForDirektorat = async (clientId, roleFlag = null) => {
   return { mergedIds, usernameToClient, expectedByClient, userStatsByClient };
 };
 
-async function formatRekapUserData(clientId, roleFlag = null) {
+async function formatRekapUserData(clientId, roleFlag = null, options = {}) {
   const directorateRoles = ["ditbinmas", "ditlantas", "bidhumas"];
   const client = await findClientById(clientId);
   const normalizedRoleFlag = roleFlag?.toLowerCase();
@@ -747,6 +767,9 @@ async function formatRekapUserData(clientId, roleFlag = null) {
     ? normalizedRoleFlag
     : null;
   const users = await getUsersSocialByClient(clientId, filterRole);
+  const isChakranarayanaJajaranView =
+    options?.menuName === "chakranarayana" &&
+    options?.chakranarayanaSelectedGroup === "jajaran";
   const salam = getGreeting();
   const now = new Date();
   const hari = now.toLocaleDateString("id-ID", { weekday: "long" });
@@ -766,14 +789,6 @@ async function formatRekapUserData(clientId, roleFlag = null) {
     directorateRoles.includes(roleFlag?.toLowerCase());
   if (isDirektoratView) {
     const groups = {};
-    users.forEach((u) => {
-      const cid = (u.client_id || "").toLowerCase();
-      if (!groups[cid]) groups[cid] = { total: 0, insta: 0, tiktok: 0, complete: 0 };
-      groups[cid].total++;
-      if (u.insta) groups[cid].insta++;
-      if (u.tiktok) groups[cid].tiktok++;
-      if (u.insta && u.tiktok) groups[cid].complete++;
-    });
 
     const roleName = (filterRole || clientId).toLowerCase();
     const polresIds = (await getClientsByRole(roleName)) || [];
@@ -782,6 +797,30 @@ async function formatRekapUserData(clientId, roleFlag = null) {
     // Fetch all ORG clients (active + inactive)
     const allOrgClients = (await findAllClientsByType("org")) || [];
     const allOrgClientIds = allOrgClients.map((c) => c.client_id.toLowerCase());
+    const applyChakranarayanaJajaranSatikFilter =
+      isChakranarayanaJajaranView && isSatikEnabledClient(client);
+
+    const scopedUsers = users.filter((user) => {
+      if (!applyChakranarayanaJajaranSatikFilter) {
+        return true;
+      }
+
+      const rowClientId = String(user?.client_id || "").toLowerCase();
+      if (rowClientId === clientIdLower) {
+        return true;
+      }
+
+      return isSatIntelkamDivision(user?.divisi);
+    });
+
+    scopedUsers.forEach((u) => {
+      const cid = (u.client_id || "").toLowerCase();
+      if (!groups[cid]) groups[cid] = { total: 0, insta: 0, tiktok: 0, complete: 0 };
+      groups[cid].total++;
+      if (u.insta) groups[cid].insta++;
+      if (u.tiktok) groups[cid].tiktok++;
+      if (u.insta && u.tiktok) groups[cid].complete++;
+    });
 
     const seen = new Set();
     const allIds = [];
@@ -1204,7 +1243,7 @@ async function formatRekapDataPersonil(clientId, category = "all") {
   // Untuk client bertipe direktorat, menu ini wajib murni client_id terpilih
   // (bukan berdasarkan role lintas client ORG).
   const normalizedTargetClientId = targetClientId.toLowerCase();
-  const users = filterAttendanceUsers(allUsers, clientType).filter(
+  const users = filterAttendanceUsers(allUsers, clientType, isSatikEnabledClient(client)).filter(
     (user) =>
       String(user.client_id || "").trim().toLowerCase() === normalizedTargetClientId &&
       user.status === true
@@ -2757,7 +2796,10 @@ async function performAction(
   const normalizedRoleFlag = (roleFlag || attendanceClientId).toLowerCase();
   switch (action) {
     case "1": {
-      msg = await formatRekapUserData(clientId, roleFlag);
+      msg = await formatRekapUserData(clientId, roleFlag, {
+        menuName: context.menuName,
+        chakranarayanaSelectedGroup: context.chakranarayanaSelectedGroup,
+      });
       break;
     }
     case "2": {
@@ -4238,7 +4280,11 @@ export const dirRequestHandlers = {
       chatId,
       session.role,
       userClientId,
-      { username: session.username || session.user?.username }
+      {
+        username: session.username || session.user?.username,
+        menuName: session.menu,
+        chakranarayanaSelectedGroup: session.chakranarayanaSelectedGroup,
+      }
     );
     session.step = "main";
     await dirRequestHandlers.main(session, chatId, "", waClient);
@@ -5581,7 +5627,10 @@ export const dirRequestHandlers = {
     try {
       await waClient.sendMessage(chatId, "⏳ Sedang mengumpulkan data absensi Instagram jajaran...");
       
-      const data = await collectInstagramJajaranAttendance(targetClientId, roleFlag);
+      const data = await collectInstagramJajaranAttendance(targetClientId, roleFlag, {
+        menuName: session.menu,
+        chakranarayanaSelectedGroup: session.chakranarayanaSelectedGroup,
+      });
       const report = formatInstagramJajaranReport(data);
       
       await waClient.sendMessage(chatId, report);
@@ -5602,7 +5651,10 @@ export const dirRequestHandlers = {
     try {
       await waClient.sendMessage(chatId, "⏳ Sedang mengumpulkan data absensi TikTok jajaran...");
       
-      const data = await collectTiktokJajaranAttendance(targetClientId, roleFlag);
+      const data = await collectTiktokJajaranAttendance(targetClientId, roleFlag, {
+        menuName: session.menu,
+        chakranarayanaSelectedGroup: session.chakranarayanaSelectedGroup,
+      });
       const report = formatTiktokJajaranReport(data);
       
       await waClient.sendMessage(chatId, report);
@@ -5795,7 +5847,11 @@ export const dirRequestHandlers = {
   ) {
     const { mergedIds, usernameToClient, expectedByClient, userStatsByClient } = await buildPolresMapForDirektorat(
       targetClientId,
-      roleFlag
+      roleFlag,
+      {
+        menuName: session.menu,
+        chakranarayanaSelectedGroup: session.chakranarayanaSelectedGroup,
+      }
     );
     const presentByClient = new Map();
     mergedIds.forEach((cid) => presentByClient.set(cid, new Set()));

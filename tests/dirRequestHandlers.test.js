@@ -642,6 +642,47 @@ test('formatRekapUserData includes all ORG clients regardless of getClientsByRol
   jest.useRealTimers();
 });
 
+
+test('formatRekapUserData chakranarayana jajaran filters all polres to sat intel when direktorat switch_satik aktif', async () => {
+  jest.useFakeTimers();
+  jest.setSystemTime(new Date('2025-08-27T16:06:00Z'));
+
+  mockGetUsersSocialByClient.mockResolvedValue([
+    { client_id: 'DITINTELKAM', divisi: 'Bag Ops', insta: 'ig0', tiktok: 'tt0' },
+    { client_id: 'DITINTELKAM', divisi: 'Sat Intelkam', insta: 'ig00', tiktok: null },
+    { client_id: 'POLRES_A', divisi: 'Sat Intelkam', insta: 'ig1', tiktok: 'tt1' },
+    { client_id: 'POLRES_A', divisi: 'Bag Ops', insta: 'ig2', tiktok: 'tt2' },
+    { client_id: 'POLRES_B', divisi: 'Sat Intel', insta: 'ig3', tiktok: null },
+    { client_id: 'POLRES_B', divisi: 'Sat Reskrim', insta: null, tiktok: null },
+  ]);
+  mockGetClientsByRole.mockResolvedValue(['polres_a', 'polres_b']);
+  mockFindAllClientsByType.mockResolvedValue([
+    { client_id: 'POLRES_A', client_type: 'org' },
+    { client_id: 'POLRES_B', client_type: 'org' },
+  ]);
+  mockFindClientById.mockImplementation(async (cid) => ({
+    ditintelkam: { nama: 'DIT INTELKAM', client_type: 'direktorat', switch_satik: true },
+    polres_a: { nama: 'POLRES A', client_type: 'org' },
+    polres_b: { nama: 'POLRES B', client_type: 'org' },
+  })[cid.toLowerCase()]);
+
+  const msg = await formatRekapUserData('DITINTELKAM', 'ditintelkam', {
+    menuName: 'chakranarayana',
+    chakranarayanaSelectedGroup: 'jajaran',
+  });
+
+  expect(msg).toContain('1. DIT INTELKAM');
+  expect(msg).toContain('2. POLRES A');
+  expect(msg).toContain('3. POLRES B');
+  expect(msg).toContain('DIT INTELKAM\n\nJumlah Total Personil : 2');
+  expect(msg).toContain('POLRES A\n\nJumlah Total Personil : 1');
+  expect(msg).toContain('POLRES B\n\nJumlah Total Personil : 1');
+  expect(msg).not.toContain('POLRES A\n\nJumlah Total Personil : 2');
+  expect(msg).not.toContain('POLRES B\n\nJumlah Total Personil : 2');
+
+  jest.useRealTimers();
+});
+
 test('formatRekapUserData orders users by rank', async () => {
   mockFindClientById.mockResolvedValue({ client_type: 'org', nama: 'POLRES A' });
   mockGetUsersSocialByClient.mockResolvedValue([

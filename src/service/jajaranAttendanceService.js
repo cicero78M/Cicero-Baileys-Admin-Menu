@@ -9,11 +9,30 @@ import { filterAttendanceUsers } from "../utils/utilsHelper.js";
 import { getOperationalAttendanceDate, formatOperationalDateLabel } from "../utils/attendanceOperationalDate.js";
 import { formatJakartaDisplayDate, formatJakartaDisplayTime } from "../utils/dateJakarta.js";
 
+
+const isSatIntelkamDivision = (division) => {
+  const normalized = String(division || "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, " ");
+  return (
+    normalized === "sat intel" ||
+    normalized === "satintel" ||
+    normalized === "sat intelkam" ||
+    normalized === "satintelkam"
+  );
+};
+
+const shouldApplyChakranarayanaJajaranSatikFilter = (options, client) =>
+  options?.menuName === "chakranarayana" &&
+  options?.chakranarayanaSelectedGroup === "jajaran" &&
+  client?.switch_satik === true;
+
 /**
  * Collect Instagram jajaran attendance data
  * Groups by client/polres with detailed stats
  */
-export async function collectInstagramJajaranAttendance(clientId, roleFlag = null) {
+export async function collectInstagramJajaranAttendance(clientId, roleFlag = null, options = {}) {
   const { hari, tanggal, jam, operationalDate } = getOperationalAttendanceDate();
   const tanggalOperasionalLabel = formatOperationalDateLabel(operationalDate);
 
@@ -32,6 +51,9 @@ export async function collectInstagramJajaranAttendance(clientId, roleFlag = nul
       `❌ Absensi Instagram Jajaran hanya tersedia untuk client bertipe Direktorat. (${clientName})`
     );
   }
+
+  const applyChakranarayanaJajaranSatikFilter =
+    shouldApplyChakranarayanaJajaranSatikFilter(options, client);
 
   let personilScopeRole = expectedDirektoratRole;
   if (normalizedRoleFlag) {
@@ -125,7 +147,11 @@ export async function collectInstagramJajaranAttendance(clientId, roleFlag = nul
     const cidClientType = cidClient?.client_type?.toLowerCase();
     
     const allUsersForClient = usersByClient[cid] || [];
-    const users = filterAttendanceUsers(allUsersForClient, cidClientType);
+    const users = filterAttendanceUsers(allUsersForClient, cidClientType).filter((user) => {
+      if (!applyChakranarayanaJajaranSatikFilter) return true;
+      if (String(cid || "").toUpperCase() === normalizedClientId) return true;
+      return isSatIntelkamDivision(user?.divisi);
+    });
     
     if (users.length === 0 && cid !== normalizedClientId) {
       // Skip empty clients except for the main direktorat client
@@ -221,7 +247,7 @@ export async function collectInstagramJajaranAttendance(clientId, roleFlag = nul
  * Catatan timezone: gunakan util dateJakarta agar tanggal/jam report konsisten WIB
  * untuk kebutuhan troubleshooting lintas environment server.
  */
-export async function collectTiktokJajaranAttendance(clientId, roleFlag = null) {
+export async function collectTiktokJajaranAttendance(clientId, roleFlag = null, options = {}) {
   const now = new Date();
   const { hari } = getOperationalAttendanceDate(now);
   const tanggal = formatJakartaDisplayDate(now);
@@ -241,6 +267,9 @@ export async function collectTiktokJajaranAttendance(clientId, roleFlag = null) 
       `❌ Absensi TikTok Jajaran hanya tersedia untuk client bertipe Direktorat. (${clientName})`
     );
   }
+
+  const applyChakranarayanaJajaranSatikFilter =
+    shouldApplyChakranarayanaJajaranSatikFilter(options, client);
 
   // Get TikTok posts for today
   let posts;
@@ -314,7 +343,11 @@ export async function collectTiktokJajaranAttendance(clientId, roleFlag = null) 
     const cidClientType = cidClient?.client_type?.toLowerCase();
     
     const allUsersForClient = usersByClient[cid] || [];
-    const users = filterAttendanceUsers(allUsersForClient, cidClientType);
+    const users = filterAttendanceUsers(allUsersForClient, cidClientType).filter((user) => {
+      if (!applyChakranarayanaJajaranSatikFilter) return true;
+      if (String(cid || "").toUpperCase() === normalizedClientId) return true;
+      return isSatIntelkamDivision(user?.divisi);
+    });
     
     if (users.length === 0 && cid !== normalizedClientId) {
       // Skip empty clients except for the main direktorat client
