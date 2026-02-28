@@ -648,6 +648,8 @@ test('formatRekapUserData chakranarayana jajaran filters all polres to sat intel
   jest.setSystemTime(new Date('2025-08-27T16:06:00Z'));
 
   mockGetUsersSocialByClient.mockResolvedValue([
+    { client_id: 'DITINTELKAM', divisi: 'Bag Ops', insta: 'ig0', tiktok: 'tt0' },
+    { client_id: 'DITINTELKAM', divisi: 'Sat Intelkam', insta: 'ig00', tiktok: null },
     { client_id: 'POLRES_A', divisi: 'Sat Intelkam', insta: 'ig1', tiktok: 'tt1' },
     { client_id: 'POLRES_A', divisi: 'Bag Ops', insta: 'ig2', tiktok: 'tt2' },
     { client_id: 'POLRES_B', divisi: 'Sat Intel', insta: 'ig3', tiktok: null },
@@ -672,9 +674,11 @@ test('formatRekapUserData chakranarayana jajaran filters all polres to sat intel
   expect(msg).toContain('1. DIT INTELKAM');
   expect(msg).toContain('2. POLRES A');
   expect(msg).toContain('3. POLRES B');
+  expect(msg).toContain('DIT INTELKAM\n\nJumlah Total Personil : 2');
   expect(msg).toContain('POLRES A\n\nJumlah Total Personil : 1');
   expect(msg).toContain('POLRES B\n\nJumlah Total Personil : 1');
-  expect(msg).not.toContain('Jumlah Total Personil : 2');
+  expect(msg).not.toContain('POLRES A\n\nJumlah Total Personil : 2');
+  expect(msg).not.toContain('POLRES B\n\nJumlah Total Personil : 2');
 
   jest.useRealTimers();
 });

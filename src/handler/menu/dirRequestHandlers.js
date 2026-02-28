@@ -791,6 +791,12 @@ async function formatRekapUserData(clientId, roleFlag = null, options = {}) {
       if (!applyChakranarayanaJajaranSatikFilter) {
         return true;
       }
+
+      const rowClientId = String(user?.client_id || "").toLowerCase();
+      if (rowClientId === clientIdLower) {
+        return true;
+      }
+
       return isSatIntelkamDivision(user?.divisi);
     });
 
