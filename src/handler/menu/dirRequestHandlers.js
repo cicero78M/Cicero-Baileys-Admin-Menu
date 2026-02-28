@@ -784,24 +784,13 @@ async function formatRekapUserData(clientId, roleFlag = null, options = {}) {
     // Fetch all ORG clients (active + inactive)
     const allOrgClients = (await findAllClientsByType("org")) || [];
     const allOrgClientIds = allOrgClients.map((c) => c.client_id.toLowerCase());
-    const orgSatikMap = new Map(
-      allOrgClients.map((orgClient) => [
-        String(orgClient?.client_id || "").toLowerCase(),
-        orgClient?.switch_satik === true,
-      ])
-    );
+    const applyChakranarayanaJajaranSatikFilter =
+      isChakranarayanaJajaranView && isSatikEnabledClient(client);
 
     const scopedUsers = users.filter((user) => {
-      if (!isChakranarayanaJajaranView) {
+      if (!applyChakranarayanaJajaranSatikFilter) {
         return true;
       }
-
-      const orgClientId = String(user?.client_id || "").toLowerCase();
-      const applySatikFilter = orgSatikMap.get(orgClientId) === true;
-      if (!applySatikFilter) {
-        return true;
-      }
-
       return isSatIntelkamDivision(user?.divisi);
     });
 
