@@ -498,18 +498,16 @@ function normalizeDivisionName(value) {
 }
 
 /**
- * Filter user attendance data untuk client bertipe direktorat dengan
- * mengecualikan personel satfung/divisi Sat Intel dan Sat Intelkam.
- *
- * Pengecualian hanya berlaku untuk `clientType === "direktorat"` agar perilaku
- * client non-direktorat tidak berubah.
+ * Filter users by Sat Intel/Sat Intelkam division based on SATIK switch mode.
  *
  * @param {Array} users - Array of user objects.
- * @param {string} clientType - Type of client (contoh: "direktorat", "org").
+ * @param {boolean} applySatikFilter - Flag switch SATIK pada client.
+ * @param {string} mode - "exclude" untuk buang sat intel/intelkam, "include_only" untuk hanya sat intel/intelkam.
  * @returns {Array} Filtered array of users.
  */
-export function filterAttendanceUsers(users, clientType) {
+export function filterUsersBySatikDivision(users, applySatikFilter = false, mode = "exclude") {
   if (!Array.isArray(users)) return [];
+  if (applySatikFilter !== true) return users;
 
   const excludedDivisions = new Set([
     normalizeDivisionName("sat intel"),
@@ -519,12 +517,37 @@ export function filterAttendanceUsers(users, clientType) {
   ]);
 
   return users.filter((u) => {
-    // Only filter if client is direktorat type
-    if (clientType?.toLowerCase() !== "direktorat") {
-      return true;
+    const satfung = normalizeDivisionName(u?.divisi);
+    const isSatikDivision = excludedDivisions.has(satfung);
+    if (mode === "include_only") {
+      return isSatikDivision;
     }
-
-    const satfung = normalizeDivisionName(u.divisi);
-    return !excludedDivisions.has(satfung);
+    return !isSatikDivision;
   });
+}
+
+
+/**
+ * Filter user attendance data untuk client bertipe direktorat.
+ *
+ * Saat switch SATIK aktif, personel satfung/divisi Sat Intel dan Sat Intelkam
+ * dikecualikan dari perhitungan attendance.
+ *
+ * Pengecualian hanya berlaku untuk `clientType === "direktorat"` agar perilaku
+ * client non-direktorat tidak berubah.
+ *
+ * @param {Array} users - Array of user objects.
+ * @param {string} clientType - Type of client (contoh: "direktorat", "org").
+ * @param {boolean} applySatikFilter - Flag switch SATIK pada client.
+ * @returns {Array} Filtered array of users.
+ */
+export function filterAttendanceUsers(users, clientType, applySatikFilter = false) {
+  if (!Array.isArray(users)) return [];
+
+  // Only filter if client is direktorat type and SATIK switch is enabled
+  if (clientType?.toLowerCase() !== "direktorat" || applySatikFilter !== true) {
+    return users;
+  }
+
+  return filterUsersBySatikDivision(users, true, "exclude");
 }
