@@ -679,12 +679,17 @@ const enrichTiktokPerpostOption = async (post, index) => {
   };
 };
 
-const buildPolresMapForDirektorat = async (clientId, roleFlag = null) => {
+const buildPolresMapForDirektorat = async (clientId, roleFlag = null, options = {}) => {
   const normalizedClientId = String(clientId || "").toUpperCase();
   const expectedRole = normalizedClientId.toLowerCase();
   const providedRole = String(roleFlag || "").trim().toLowerCase();
   const roleName = providedRole && providedRole === expectedRole ? providedRole : expectedRole;
   const polresIds = await getClientsByRole(roleName);
+  const selectedDirektorat = await findClientById(normalizedClientId);
+  const applyChakranarayanaJajaranSatikFilter =
+    options?.menuName === "chakranarayana" &&
+    options?.chakranarayanaSelectedGroup === "jajaran" &&
+    isSatikEnabledClient(selectedDirektorat);
 
   const mergedIds = uniq([normalizedClientId, ...polresIds.map((id) => String(id || "").toUpperCase())]);
   const users = await getUsersByDirektorat(roleName, mergedIds);
@@ -703,7 +708,15 @@ const buildPolresMapForDirektorat = async (clientId, roleFlag = null) => {
   for (const cid of mergedIds) {
     const client = await findClientById(cid);
     const clientType = client?.client_type?.toLowerCase();
-    const filteredUsers = filterAttendanceUsers(usersByClient.get(cid) || [], clientType, isSatikEnabledClient(client));
+    const filteredUsers = filterAttendanceUsers(usersByClient.get(cid) || [], clientType, isSatikEnabledClient(client)).filter((user) => {
+      if (!applyChakranarayanaJajaranSatikFilter) {
+        return true;
+      }
+      if (String(cid || "").toUpperCase() === normalizedClientId) {
+        return true;
+      }
+      return isSatIntelkamDivision(user?.divisi);
+    });
     let instagramFilled = 0;
     let tiktokFilled = 0;
 
@@ -5614,7 +5627,10 @@ export const dirRequestHandlers = {
     try {
       await waClient.sendMessage(chatId, "⏳ Sedang mengumpulkan data absensi Instagram jajaran...");
       
-      const data = await collectInstagramJajaranAttendance(targetClientId, roleFlag);
+      const data = await collectInstagramJajaranAttendance(targetClientId, roleFlag, {
+        menuName: session.menu,
+        chakranarayanaSelectedGroup: session.chakranarayanaSelectedGroup,
+      });
       const report = formatInstagramJajaranReport(data);
       
       await waClient.sendMessage(chatId, report);
@@ -5635,7 +5651,10 @@ export const dirRequestHandlers = {
     try {
       await waClient.sendMessage(chatId, "⏳ Sedang mengumpulkan data absensi TikTok jajaran...");
       
-      const data = await collectTiktokJajaranAttendance(targetClientId, roleFlag);
+      const data = await collectTiktokJajaranAttendance(targetClientId, roleFlag, {
+        menuName: session.menu,
+        chakranarayanaSelectedGroup: session.chakranarayanaSelectedGroup,
+      });
       const report = formatTiktokJajaranReport(data);
       
       await waClient.sendMessage(chatId, report);
@@ -5828,7 +5847,11 @@ export const dirRequestHandlers = {
   ) {
     const { mergedIds, usernameToClient, expectedByClient, userStatsByClient } = await buildPolresMapForDirektorat(
       targetClientId,
-      roleFlag
+      roleFlag,
+      {
+        menuName: session.menu,
+        chakranarayanaSelectedGroup: session.chakranarayanaSelectedGroup,
+      }
     );
     const presentByClient = new Map();
     mergedIds.forEach((cid) => presentByClient.set(cid, new Set()));
