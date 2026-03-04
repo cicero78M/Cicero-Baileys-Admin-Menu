@@ -392,14 +392,34 @@ test('chakranarayana submenu menampilkan pilihan direktorat dan jajaran', async 
   expect(waClient.sendMessage).toHaveBeenCalledWith('123', expect.stringContaining('2️⃣ Jajaran'));
 });
 
-test('chakranarayana submenu direktorat memetakan menu terurut', async () => {
-  const session = { menu: 'chakranarayana', step: 'chakranarayana_choose_submenu' };
+test('chakranarayana submenu direktorat menyembunyikan menu 22 saat switch_satik nonaktif', async () => {
+  const session = {
+    menu: 'chakranarayana',
+    step: 'chakranarayana_choose_submenu',
+    selectedClientId: 'DITINTELKAM',
+  };
   const waClient = { sendMessage: jest.fn() };
+  mockFindClientById.mockResolvedValue({ client_type: 'direktorat', nama: 'DIT INTELKAM', switch_satik: false });
 
   await dirRequestHandlers.chakranarayana_choose_submenu(session, '123', '1', waClient);
 
-  expect(session.chakranarayanaMenuMap).toEqual(['3', '6', '9', '46', '47', '50', '51', '53']);
-  expect(session.allowedDirrequestMenuChoices).toEqual(['3', '6', '9', '46', '47', '50', '51', '53']);
+  expect(session.chakranarayanaMenuMap).toEqual(['2', '3', '6', '9', '46', '53', '54']);
+  expect(session.chakranarayanaMenuMap).not.toContain('22');
+});
+
+test('chakranarayana submenu direktorat memetakan menu terurut', async () => {
+  const session = {
+    menu: 'chakranarayana',
+    step: 'chakranarayana_choose_submenu',
+    selectedClientId: 'DITINTELKAM',
+  };
+  const waClient = { sendMessage: jest.fn() };
+  mockFindClientById.mockResolvedValue({ client_type: 'direktorat', nama: 'DIT INTELKAM', switch_satik: true });
+
+  await dirRequestHandlers.chakranarayana_choose_submenu(session, '123', '1', waClient);
+
+  expect(session.chakranarayanaMenuMap).toEqual(['2', '3', '6', '9', '22', '46', '53', '54']);
+  expect(session.allowedDirrequestMenuChoices).toEqual(['2', '3', '6', '9', '22', '46', '53', '54']);
   expect(session.step).toBe('chakranarayana_choose_menu');
 });
 
@@ -407,15 +427,15 @@ test('chakranarayana choose menu meneruskan pilihan ke nomor dirrequest asli', a
   const session = {
     menu: 'chakranarayana',
     step: 'chakranarayana_choose_menu',
-    chakranarayanaMenuMap: ['3', '6', '9', '46', '47', '50', '51', '53'],
-    allowedDirrequestMenuChoices: ['3', '6', '9', '46', '47', '50', '51', '53'],
+    chakranarayanaMenuMap: ['2', '3', '6', '9', '22', '46', '53', '54'],
+    allowedDirrequestMenuChoices: ['2', '3', '6', '9', '22', '46', '53', '54'],
   };
   const waClient = { sendMessage: jest.fn() };
   const chooseMenuSpy = jest.spyOn(dirRequestHandlers, 'choose_menu').mockResolvedValue();
 
   await dirRequestHandlers.chakranarayana_choose_menu(session, '123', '4', waClient);
 
-  expect(chooseMenuSpy).toHaveBeenCalledWith(session, '123', '46', waClient);
+  expect(chooseMenuSpy).toHaveBeenCalledWith(session, '123', '9', waClient);
   chooseMenuSpy.mockRestore();
 });
 
@@ -425,8 +445,8 @@ test('main menampilkan menu chakranarayana aktif pada akhir sesi', async () => {
     menu: 'chakranarayana',
     step: 'main',
     chakranarayanaSelectedGroup: 'direktorat',
-    chakranarayanaMenuMap: ['3', '6', '9', '46', '47', '50', '51', '53'],
-    allowedDirrequestMenuChoices: ['3', '6', '9', '46', '47', '50', '51', '53'],
+    chakranarayanaMenuMap: ['2', '3', '6', '9', '22', '46', '53', '54'],
+    allowedDirrequestMenuChoices: ['2', '3', '6', '9', '22', '46', '53', '54'],
   };
   const waClient = { sendMessage: jest.fn() };
 
@@ -436,7 +456,8 @@ test('main menampilkan menu chakranarayana aktif pada akhir sesi', async () => {
   const msg = waClient.sendMessage.mock.calls[0][1];
   expect(msg).toContain('Menu Chakranarayana - Direktorat');
   expect(msg).not.toContain('Client: *');
-  expect(msg).toContain('1️⃣ Rekap data personil *(dirrequest 3)*');
+  expect(msg).toContain('1️⃣ Executive Summary Narative CICERO');
+  expect(msg).toContain('5️⃣ Rekap ranking engagement jajaran');
 });
 
 test('choose_menu menolak pilihan di luar whitelist chakranarayana', async () => {
