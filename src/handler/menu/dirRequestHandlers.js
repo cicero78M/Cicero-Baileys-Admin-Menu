@@ -216,7 +216,7 @@ const DIGIT_EMOJI = {
 };
 
 const CHAKRANARAYANA_MENU_GROUPS = {
-  direktorat: ["2", "3", "6", "9", "46", "53", "54"],
+  direktorat: ["2", "3", "6", "9", "22", "46", "53", "54"],
   jajaran: ["1", "48", "49", "55", "56"],
 };
 
@@ -226,6 +226,7 @@ const CHAKRANARAYANA_MENU_LABELS = {
   "3": "Rekap data personil",
   "6": "Absensi like Direktorat/Bidang Simple",
   "9": "Absensi komentar Direktorat/Bidang Simple",
+  "22": "Rekap ranking engagement jajaran",
   "46": "Input post manual (IG/TikTok)",
   "47": "Input TikTok post manual",
   "48": "Absensi Instagram Jajaran",
@@ -268,8 +269,10 @@ const getJakartaDayDateLabel = () => {
   return `${hari}, ${tanggal}`;
 };
 
-const getChakranarayanaMenuText = (groupKey, groupLabel) => {
-  const menuCodes = CHAKRANARAYANA_MENU_GROUPS[groupKey] || [];
+const getChakranarayanaMenuText = (groupKey, groupLabel, menuCodesOverride = null) => {
+  const menuCodes = Array.isArray(menuCodesOverride)
+    ? menuCodesOverride
+    : CHAKRANARAYANA_MENU_GROUPS[groupKey] || [];
   const orderedMenuCodes = [...menuCodes].sort((a, b) => Number(a) - Number(b));
 
   const list = orderedMenuCodes
@@ -302,7 +305,31 @@ const getChakranarayanaActiveMenuText = (session) => {
         ? "Jajaran"
         : selectedGroup;
 
-  return getChakranarayanaMenuText(selectedGroup, groupLabel);
+  return getChakranarayanaMenuText(selectedGroup, groupLabel, session.chakranarayanaMenuMap);
+};
+
+const resolveChakranarayanaMenuCodes = async (session, selectedGroup) => {
+  const baseMenuCodes = CHAKRANARAYANA_MENU_GROUPS[selectedGroup] || [];
+  if (selectedGroup !== "direktorat") {
+    return baseMenuCodes;
+  }
+
+  const selectedClientId = String(
+    session?.selectedClientId || session?.dir_client_id || session?.clientNameId || ""
+  )
+    .trim()
+    .toUpperCase();
+
+  if (!selectedClientId) {
+    return baseMenuCodes.filter((menuCode) => menuCode !== "22");
+  }
+
+  const selectedClient = await findClientById(selectedClientId);
+  if (!isSatikEnabledClient(selectedClient)) {
+    return baseMenuCodes.filter((menuCode) => menuCode !== "22");
+  }
+
+  return baseMenuCodes;
 };
 
 const ENGAGEMENT_RECAP_MENU_TEXT = appendSubmenuBackInstruction(
@@ -3731,7 +3758,7 @@ export const dirRequestHandlers = {
       return;
     }
 
-    const menuCodes = CHAKRANARAYANA_MENU_GROUPS[selectedGroup] || [];
+    const menuCodes = await resolveChakranarayanaMenuCodes(session, selectedGroup);
     const orderedMenuCodes = [...menuCodes].sort((a, b) => Number(a) - Number(b));
     session.chakranarayanaMenuMap = orderedMenuCodes;
     session.chakranarayanaSelectedGroup = selectedGroup;
