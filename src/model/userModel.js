@@ -138,7 +138,7 @@ async function buildClientFilter(
   let clientType = clientTypeParam;
   if (!clientType) {
     const { rows } = await query(
-      'SELECT client_type FROM clients WHERE client_id = $1',
+      'SELECT client_type FROM clients WHERE LOWER(client_id) = LOWER($1)',
       [clientId]
     );
     clientType = rows[0]?.client_type?.toLowerCase();
@@ -389,7 +389,7 @@ export async function getUsersMissingDataByClient(clientId, roleFilter = null) {
 // Ambil seluruh user aktif beserta data sosial
 export async function getUsersSocialByClient(clientId, roleFilter = null) {
   const { rows } = await query(
-    'SELECT client_type FROM clients WHERE client_id = $1',
+    'SELECT client_type FROM clients WHERE LOWER(client_id) = LOWER($1)',
     [clientId]
   );
   const clientType = rows[0]?.client_type?.toLowerCase();
