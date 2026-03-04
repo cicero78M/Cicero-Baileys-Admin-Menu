@@ -4383,6 +4383,8 @@ export const dirRequestHandlers = {
       session.selectedClientId,
       {
         username: session.username || session.user?.username,
+        menuName: session.menu,
+        chakranarayanaSelectedGroup: session.chakranarayanaSelectedGroup,
         executiveSummaryOptions: { period: selectedPeriod.period },
       }
     );
@@ -4428,6 +4430,8 @@ export const dirRequestHandlers = {
       session.selectedClientId,
       {
         username: session.username || session.user?.username,
+        menuName: session.menu,
+        chakranarayanaSelectedGroup: session.chakranarayanaSelectedGroup,
         executiveSummaryOptions: { period: "selected_month", value: input },
       }
     );
@@ -4466,6 +4470,8 @@ export const dirRequestHandlers = {
       session.selectedClientId,
       {
         username: session.username || session.user?.username,
+        menuName: session.menu,
+        chakranarayanaSelectedGroup: session.chakranarayanaSelectedGroup,
         executiveSummaryOptions: { period: "selected_date", value: input },
       }
     );
