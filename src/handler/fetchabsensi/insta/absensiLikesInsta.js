@@ -7,6 +7,7 @@ import {
   formatNama,
   groupUsersByDivisionStatus,
   filterAttendanceUsers,
+  filterUsersBySatikDivision,
 } from "../../../utils/utilsHelper.js";
 import { findClientById } from "../../../service/clientService.js";
 import {
@@ -37,6 +38,10 @@ function getFilteredSimpleLikesUsers(allUsers, targetClientId, clientType) {
 
 export async function collectLikesRecap(clientId, opts = {}) {
   const roleName = String(clientId || "").toLowerCase();
+  const isChakranarayanaMenu5Scope = opts?.userScope === "chakranarayana_menu5_user_flow";
+  const targetClientId = String(opts?.targetClientId || "")
+    .trim()
+    .toUpperCase();
   let shortcodes;
   try {
     shortcodes = await getShortcodesTodayByClient(clientId);
@@ -63,6 +68,39 @@ export async function collectLikesRecap(clientId, opts = {}) {
     console.error(error);
     return "Maaf, gagal mengelompokkan pengguna.";
   }
+
+  if (isChakranarayanaMenu5Scope && targetClientId) {
+    const scopedPolresIds = [];
+    const scopedUsersByClient = {};
+
+    for (const cid of polresIds) {
+      const normalizedCid = String(cid || "").toUpperCase();
+      if (!normalizedCid) continue;
+
+      const { clientType } = await getClientInfo(normalizedCid);
+      const normalizedClientType = String(clientType || "").toLowerCase();
+
+      if (
+        normalizedClientType === "direktorat" &&
+        normalizedCid !== targetClientId
+      ) {
+        continue;
+      }
+
+      const rawUsers = usersByClient[normalizedCid] || [];
+      const scopedUsers =
+        normalizedClientType === "org"
+          ? filterUsersBySatikDivision(rawUsers, true, "include_only")
+          : rawUsers;
+
+      scopedPolresIds.push(normalizedCid);
+      scopedUsersByClient[normalizedCid] = scopedUsers;
+    }
+
+    polresIds = scopedPolresIds;
+    usersByClient = scopedUsersByClient;
+  }
+
   const recap = {};
   for (const cid of polresIds) {
     const { nama: clientName } = await getClientInfo(cid);
