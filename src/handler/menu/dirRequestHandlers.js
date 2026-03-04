@@ -31,7 +31,13 @@ import {
 } from "../fetchabsensi/tiktok/absensiKomentarTiktok.js";
 import { absensiRegistrasiDashboardDirektorat } from "../fetchabsensi/dashboard/absensiRegistrasiDashboardDirektorat.js";
 import { findClientById, findAllClientsByType } from "../../service/clientService.js";
-import { getGreeting, sortDivisionKeys, formatNama, filterAttendanceUsers } from "../../utils/utilsHelper.js";
+import {
+  getGreeting,
+  sortDivisionKeys,
+  formatNama,
+  filterAttendanceUsers,
+  filterUsersBySatikDivision,
+} from "../../utils/utilsHelper.js";
 import { sendWAFile, safeSendMessage, sendWithClientFallback } from "../../utils/waHelper.js";
 import { writeFile, mkdir, readFile, unlink, stat } from "fs/promises";
 import { join, basename } from "path";
@@ -1925,8 +1931,17 @@ async function formatExecutiveSummary(clientId, roleFlag = null, options = {}) {
   const effectiveRole = String(roleFlag || targetClientId).trim().toLowerCase();
   const { period = "last_week", value = null } = options || {};
   const { startYmd, endYmd, periodText } = getExecutiveSummaryWindow(period, value);
+  const client = await findClientById(targetClientId);
+  const applyChakranarayanaDirektoratSatikFilter =
+    options?.menuName === "chakranarayana" &&
+    options?.chakranarayanaSelectedGroup === "direktorat" &&
+    client?.client_type?.toLowerCase() === "org" &&
+    isSatikEnabledClient(client);
 
-  const users = await getUsersSocialByClient(targetClientId, effectiveRole);
+  const allUsers = await getUsersSocialByClient(targetClientId, effectiveRole);
+  const users = applyChakranarayanaDirektoratSatikFilter
+    ? filterUsersBySatikDivision(allUsers, true, "include_only")
+    : allUsers;
   const totalPersonil = users.length;
   const totalUsernameUpdated = users.filter((u) => u?.insta || u?.tiktok).length;
   const totalInstagramUpdated = users.filter((u) => u?.insta).length;
@@ -1956,7 +1971,7 @@ async function formatExecutiveSummary(clientId, roleFlag = null, options = {}) {
   const previousStartYmd = getJakartaYmd(previousWeekStart);
   const previousEndYmd = getJakartaYmd(previousWeekEnd);
 
-  const [currentTotals, previousTotals, hourlyActivity, activityByUsername, client] = await Promise.all([
+  const [currentTotals, previousTotals, hourlyActivity, activityByUsername] = await Promise.all([
     getExecutiveSummaryActivityTotals(targetClientId, effectiveRole, startYmd, endYmd, trackedInstaUsernames, trackedTiktokUsernames),
     getExecutiveSummaryActivityTotals(
       targetClientId,
@@ -1968,7 +1983,6 @@ async function formatExecutiveSummary(clientId, roleFlag = null, options = {}) {
     ),
     getEngagementHourlyActivity(targetClientId, effectiveRole, startYmd, endYmd, trackedInstaUsernames, trackedTiktokUsernames),
     getExecutiveSummaryActivityByUsername(targetClientId, effectiveRole, startYmd, endYmd, trackedInstaUsernames, trackedTiktokUsernames),
-    findClientById(targetClientId),
   ]);
 
   const totalPostInstagram = currentTotals.totalPostInstagram;
@@ -2830,7 +2844,11 @@ async function performAction(
       break;
     }
     case "2": {
-      msg = await formatExecutiveSummary(clientId, roleFlag, context.executiveSummaryOptions);
+      msg = await formatExecutiveSummary(clientId, roleFlag, {
+        ...context.executiveSummaryOptions,
+        menuName: context.menuName,
+        chakranarayanaSelectedGroup: context.chakranarayanaSelectedGroup,
+      });
       break;
     }
     case "4": {
