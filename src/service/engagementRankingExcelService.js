@@ -9,6 +9,7 @@ import { getPostsByClientAndDateRange } from "../model/tiktokPostModel.js";
 import { getCommentsByVideoId } from "../model/tiktokCommentModel.js";
 import { computeDitbinmasLikesStats } from "../handler/fetchabsensi/insta/ditbinmasLikesUtils.js";
 import { hariIndo } from "../utils/constants.js";
+import { filterUsersBySatikDivision } from "../utils/utilsHelper.js";
 
 const EXPORT_DIR = path.resolve("export_data/engagement_ranking");
 const PERIOD_DESCRIPTIONS = {
@@ -20,6 +21,11 @@ const PERIOD_DESCRIPTIONS = {
   last_month: "bulan sebelumnya",
   all_time: "semua periode",
 };
+
+const shouldApplyChakranarayanaDirektoratSatikFilter = (options, client) =>
+  options?.menuName === "chakranarayana" &&
+  options?.chakranarayanaSelectedGroup === "direktorat" &&
+  client?.switch_satik === true;
 
 function getJakartaDate(baseDate = new Date()) {
   const reference =
@@ -310,6 +316,8 @@ export async function collectEngagementRanking(
       ? normalizedRoleFlag
       : normalizedClientId;
   const { polresIds, usersByClient } = await groupUsersByClientDivision(roleName);
+  const applyChakranarayanaDirektoratSatikFilter =
+    shouldApplyChakranarayanaDirektoratSatikFilter(options, client);
 
   const periodInfo = resolvePeriodRange(options.period, options);
 
@@ -365,7 +373,7 @@ export async function collectEngagementRanking(
   for (const cidRaw of allIds) {
     const cidUpper = String(cidRaw || "").toUpperCase();
     const cidLower = cidUpper.toLowerCase();
-    const users = usersByClient?.[cidUpper] || [];
+    const rawUsers = usersByClient?.[cidUpper] || [];
 
     // Get client info to check client type
     const info = await getClientInfoCached(clientCache, cidUpper);
@@ -376,6 +384,11 @@ export async function collectEngagementRanking(
     if (clientType === 'direktorat' && cidLower !== normalizedClientId) {
       continue;
     }
+
+    const users =
+      applyChakranarayanaDirektoratSatikFilter && clientType === "org"
+        ? filterUsersBySatikDivision(rawUsers, true, "include_only")
+        : rawUsers;
 
     const { summary: igSummary, userStats: igUserStats } = computeDitbinmasLikesStats(
       users,
@@ -485,6 +498,8 @@ export async function saveEngagementRankingExcel({
   period = "today",
   startDate: customStart,
   endDate: customEnd,
+  menuName,
+  chakranarayanaSelectedGroup,
 } = {}) {
   const {
     clientName,
@@ -497,6 +512,8 @@ export async function saveEngagementRankingExcel({
     period,
     startDate: customStart,
     endDate: customEnd,
+    menuName,
+    chakranarayanaSelectedGroup,
   });
 
   const now = new Date();
