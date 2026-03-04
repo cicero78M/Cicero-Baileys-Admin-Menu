@@ -670,7 +670,13 @@ const isSatIntelkamDivision = (division) => {
   );
 };
 
-const filterExecutiveSummaryOrgSatikUsers = async (users = []) => {
+const filterExecutiveSummaryOrgSatikUsers = async (users = [], options = {}) => {
+  const {
+    clientId = null,
+    roleFlag = null,
+    menuName = null,
+    chakranarayanaSelectedGroup = null,
+  } = options || {};
   const clientCache = new Map();
   const resolveClient = async (clientId) => {
     const normalizedId = String(clientId || "").trim().toUpperCase();
@@ -681,16 +687,56 @@ const filterExecutiveSummaryOrgSatikUsers = async (users = []) => {
     return clientCache.get(normalizedId);
   };
 
-  const filteredUsers = [];
+  const orgSatikUsers = [];
+  const strictUsers = [];
   for (const user of users) {
     const userClient = await resolveClient(user?.client_id);
     const isOrgClient = userClient?.client_type?.toLowerCase() === "org";
     if (!isOrgClient) continue;
     if (!isSatikEnabledClient(userClient)) continue;
+    orgSatikUsers.push(user);
     if (!isSatIntelkamDivision(user?.divisi)) continue;
-    filteredUsers.push(user);
+    strictUsers.push(user);
   }
-  return filteredUsers;
+
+  const beforeFilterCount = users.length;
+  const strictCount = strictUsers.length;
+  const orgSatikCount = orgSatikUsers.length;
+
+  let selectedScope = "strict_org_satik_satintelkam";
+  let selectedUsers = strictUsers;
+
+  if (!strictCount) {
+    selectedScope = "fallback_org_satik_all_divisi";
+    selectedUsers = orgSatikUsers;
+  }
+  if (!selectedUsers.length) {
+    selectedScope = "fallback_all_users";
+    selectedUsers = users;
+  }
+
+  console.info("[ExecutiveSummary] User filtering scope", {
+    stage: "applyChakranarayanaDirektoratSatikFilter",
+    menuName,
+    chakranarayanaSelectedGroup,
+    clientId,
+    roleFlag,
+    beforeFilterCount,
+    strictCount,
+    orgSatikCount,
+    afterFallbackCount: selectedUsers.length,
+    selectedScope,
+  });
+
+  return {
+    users: selectedUsers,
+    selectedScope,
+    counts: {
+      beforeFilter: beforeFilterCount,
+      afterStrictFilter: strictCount,
+      afterFallback: selectedUsers.length,
+    },
+  };
 };
 
 const formatCaptionPreview = (caption) => {
@@ -1968,9 +2014,30 @@ async function formatExecutiveSummary(clientId, roleFlag = null, options = {}) {
     isSatikEnabledClient(client);
 
   const allUsers = await getUsersSocialByClient(targetClientId, effectiveRole);
-  const users = applyChakranarayanaDirektoratSatikFilter
-    ? await filterExecutiveSummaryOrgSatikUsers(allUsers)
-    : allUsers;
+  const filteringResult = applyChakranarayanaDirektoratSatikFilter
+    ? await filterExecutiveSummaryOrgSatikUsers(allUsers, {
+      clientId: targetClientId,
+      roleFlag: effectiveRole,
+      menuName: options?.menuName,
+      chakranarayanaSelectedGroup: options?.chakranarayanaSelectedGroup,
+    })
+    : {
+      users: allUsers,
+      selectedScope: "all_users_default",
+      counts: {
+        beforeFilter: allUsers.length,
+        afterStrictFilter: allUsers.length,
+        afterFallback: allUsers.length,
+      },
+    };
+  const users = filteringResult.users;
+  const userScopeLabelMap = {
+    strict_org_satik_satintelkam: "Strict (ORG SATIK + divisi Sat Intelkam)",
+    fallback_org_satik_all_divisi: "Fallback 1 (ORG SATIK semua divisi)",
+    fallback_all_users: "Fallback 2 (semua user dari getUsersSocialByClient)",
+    all_users_default: "Default (tanpa filter SATIK khusus)",
+  };
+  const userScopeLabel = userScopeLabelMap[filteringResult.selectedScope] || filteringResult.selectedScope;
   const totalPersonil = users.length;
   const totalUsernameUpdated = users.filter((u) => u?.insta || u?.tiktok).length;
   const totalInstagramUpdated = users.filter((u) => u?.insta).length;
@@ -2134,6 +2201,7 @@ async function formatExecutiveSummary(clientId, roleFlag = null, options = {}) {
     `*Implementasi Sistem CICERO – ${periodText}*`,
     `*Satuan:* ${clientName}`,
     `*Periode:* ${periodLabel} (WIB)`,
+    `*Scope user summary:* ${userScopeLabel} | before filter ${Number(filteringResult?.counts?.beforeFilter || 0).toLocaleString("id-ID")}, after strict ${Number(filteringResult?.counts?.afterStrictFilter || 0).toLocaleString("id-ID")}, after fallback ${Number(filteringResult?.counts?.afterFallback || 0).toLocaleString("id-ID")}.`,
     "",
     "Dalam rangka optimalisasi penguatan citra institusi melalui engagement digital terstruktur, Sistem CICERO telah mengimplementasikan mekanisme pengelolaan personil, distribusi tugas, serta monitoring pelaksanaan likes dan komentar secara terukur.",
     "",
