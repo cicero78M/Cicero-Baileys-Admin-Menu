@@ -354,13 +354,13 @@ const KASATKER_REPORT_MENU_TEXT = appendSubmenuBackInstruction(
     "\n\nBalas angka pilihan atau ketik *batal* untuk kembali."
 );
 
-const EXECUTIVE_SUMMARY_MENU_TEXT = appendSubmenuBackInstruction(
+const EXECUTIVE_SUMMARY_MENU_TEXT =
   "Silakan pilih periode Executive Summary:\n" +
-    Object.entries(EXECUTIVE_SUMMARY_PERIOD_MAP)
-      .map(([key, option]) => `${DIGIT_EMOJI[key] || key} ${option.description}`)
-      .join("\n") +
-    "\n\nBalas angka pilihan atau ketik *batal* untuk kembali."
-);
+  Object.entries(EXECUTIVE_SUMMARY_PERIOD_MAP)
+    .map(([key, option]) => `${DIGIT_EMOJI[key] || key} ${option.description}`)
+    .join("\n") +
+  "\n\nBalas angka pilihan atau ketik batal untuk kembali.\n" +
+  "Ketik back untuk kembali ke menu sebelumnya.";
 
 const EXECUTIVE_SUMMARY_MONTH_PROMPT = appendSubmenuBackInstruction(
   "Masukkan bulan laporan Executive Summary dengan format *YYYY-MM*\n" +
