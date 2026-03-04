@@ -3307,6 +3307,8 @@ async function performAction(
             clientId,
             roleFlag,
             period,
+            menuName: context?.menuName,
+            chakranarayanaSelectedGroup: context?.chakranarayanaSelectedGroup,
           });
           filePath = generatedPath;
           const buffer = await readFile(filePath);
@@ -4829,6 +4831,8 @@ export const dirRequestHandlers = {
         clientId: targetClientId,
         roleFlag,
         period: option.period,
+        menuName: session.menu,
+        chakranarayanaSelectedGroup: session.chakranarayanaSelectedGroup,
       });
       filePath = generatedPath;
       const buffer = await readFile(filePath);
