@@ -36,7 +36,6 @@ import {
   sortDivisionKeys,
   formatNama,
   filterAttendanceUsers,
-  filterUsersBySatikDivision,
 } from "../../utils/utilsHelper.js";
 import { sendWAFile, safeSendMessage, sendWithClientFallback } from "../../utils/waHelper.js";
 import { writeFile, mkdir, readFile, unlink, stat } from "fs/promises";
@@ -661,6 +660,29 @@ const isSatikEnabledClient = (client) => client?.switch_satik === true;
 const isSatIntelkamDivision = (division) => {
   const normalized = String(division || "").toLowerCase().trim().replace(/\s+/g, " ");
   return normalized === "sat intel" || normalized === "satintel" || normalized === "sat intelkam" || normalized === "satintelkam";
+};
+
+const filterExecutiveSummaryOrgSatikUsers = async (users = []) => {
+  const clientCache = new Map();
+  const resolveClient = async (clientId) => {
+    const normalizedId = String(clientId || "").trim().toUpperCase();
+    if (!normalizedId) return null;
+    if (!clientCache.has(normalizedId)) {
+      clientCache.set(normalizedId, await findClientById(normalizedId));
+    }
+    return clientCache.get(normalizedId);
+  };
+
+  const filteredUsers = [];
+  for (const user of users) {
+    const userClient = await resolveClient(user?.client_id);
+    const isOrgClient = userClient?.client_type?.toLowerCase() === "org";
+    if (!isOrgClient) continue;
+    if (!isSatikEnabledClient(userClient)) continue;
+    if (!isSatIntelkamDivision(user?.divisi)) continue;
+    filteredUsers.push(user);
+  }
+  return filteredUsers;
 };
 
 const formatCaptionPreview = (caption) => {
@@ -1934,13 +1956,11 @@ async function formatExecutiveSummary(clientId, roleFlag = null, options = {}) {
   const client = await findClientById(targetClientId);
   const applyChakranarayanaDirektoratSatikFilter =
     options?.menuName === "chakranarayana" &&
-    options?.chakranarayanaSelectedGroup === "direktorat" &&
-    client?.client_type?.toLowerCase() === "org" &&
-    isSatikEnabledClient(client);
+    options?.chakranarayanaSelectedGroup === "direktorat";
 
   const allUsers = await getUsersSocialByClient(targetClientId, effectiveRole);
   const users = applyChakranarayanaDirektoratSatikFilter
-    ? filterUsersBySatikDivision(allUsers, true, "include_only")
+    ? await filterExecutiveSummaryOrgSatikUsers(allUsers)
     : allUsers;
   const totalPersonil = users.length;
   const totalUsernameUpdated = users.filter((u) => u?.insta || u?.tiktok).length;
