@@ -22,9 +22,9 @@ const PERIOD_DESCRIPTIONS = {
   all_time: "semua periode",
 };
 
-const shouldApplyChakranarayanaJajaranSatikFilter = (options, client) =>
+const shouldApplyChakranarayanaDirektoratSatikFilter = (options, client) =>
   options?.menuName === "chakranarayana" &&
-  options?.chakranarayanaSelectedGroup === "jajaran" &&
+  options?.chakranarayanaSelectedGroup === "direktorat" &&
   client?.switch_satik === true;
 
 function getJakartaDate(baseDate = new Date()) {
@@ -316,8 +316,8 @@ export async function collectEngagementRanking(
       ? normalizedRoleFlag
       : normalizedClientId;
   const { polresIds, usersByClient } = await groupUsersByClientDivision(roleName);
-  const applyChakranarayanaJajaranSatikFilter =
-    shouldApplyChakranarayanaJajaranSatikFilter(options, client);
+  const applyChakranarayanaDirektoratSatikFilter =
+    shouldApplyChakranarayanaDirektoratSatikFilter(options, client);
 
   const periodInfo = resolvePeriodRange(options.period, options);
 
@@ -386,7 +386,7 @@ export async function collectEngagementRanking(
     }
 
     const users =
-      applyChakranarayanaJajaranSatikFilter && clientType === "org"
+      applyChakranarayanaDirektoratSatikFilter && clientType === "org"
         ? filterUsersBySatikDivision(rawUsers, true, "include_only")
         : rawUsers;
 
