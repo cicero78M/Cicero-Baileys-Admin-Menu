@@ -217,7 +217,7 @@ const DIGIT_EMOJI = {
 };
 
 const CHAKRANARAYANA_MENU_GROUPS = {
-  direktorat: ["2", "3", "6", "9", "22", "46", "53", "54"],
+  direktorat: ["2", "3", "6", "9", "19", "20", "22", "46", "53", "54"],
   jajaran: ["1", "48", "49", "55", "56"],
 };
 
@@ -227,6 +227,8 @@ const CHAKRANARAYANA_MENU_LABELS = {
   "3": "Rekap data personil",
   "6": "Absensi like Direktorat/Bidang Simple",
   "9": "Absensi komentar Direktorat/Bidang Simple",
+  "19": "Rekap like Instagram (Excel)",
+  "20": "Rekap komentar TikTok (Excel)",
   "22": "Rekap ranking engagement jajaran",
   "46": "Input post manual (IG/TikTok)",
   "47": "Input TikTok post manual",
@@ -1343,6 +1345,21 @@ async function absensiKomentarDitbinmasSimple(clientId) {
 }
 async function absensiKomentarDitbinmas(clientId) {
   return await absensiKomentarDitbinmasReport(clientId);
+}
+
+function buildChakranarayanaMenu5ScopeOptions(clientId, context = {}) {
+  const applyScope =
+    context?.menuName === "chakranarayana" &&
+    context?.chakranarayanaSelectedGroup === "direktorat";
+
+  if (!applyScope) {
+    return {};
+  }
+
+  return {
+    userScope: "chakranarayana_menu5_user_flow",
+    targetClientId: String(clientId || "").trim().toUpperCase(),
+  };
 }
 
 /**
@@ -3268,7 +3285,10 @@ async function performAction(
       case "19": {
         let filePath;
         try {
-          const data = await collectLikesRecap(clientId);
+          const data = await collectLikesRecap(
+            clientId,
+            buildChakranarayanaMenu5ScopeOptions(clientId, context)
+          );
           if (typeof data === "string") {
             msg = data;
             break;
@@ -3324,7 +3344,10 @@ async function performAction(
       case "20": {
         let filePath;
         try {
-          const recapData = await collectKomentarRecap(clientId);
+          const recapData = await collectKomentarRecap(
+            clientId,
+            buildChakranarayanaMenu5ScopeOptions(clientId, context)
+          );
           if (!recapData?.videoIds?.length) {
             msg = `Tidak ada konten TikTok untuk *${clientId}* hari ini.`;
             break;

@@ -13,6 +13,7 @@ import {
   formatNama,
   groupUsersByDivisionStatus,
   filterAttendanceUsers,
+  filterUsersBySatikDivision,
 } from "../../../utils/utilsHelper.js";
 import { sendDebug } from "../../../middleware/debugHandler.js";
 import { sortUsersByPositionRankAndName } from "../../../utils/sortingHelper.js";
@@ -69,6 +70,10 @@ const sortUsersByRankAndName = sortUsersByPositionRankAndName;
 
 export async function collectKomentarRecap(clientId, opts = {}) {
   const { selfOnly, clientFilter, referenceDate } = opts;
+  const isChakranarayanaMenu5Scope = opts?.userScope === "chakranarayana_menu5_user_flow";
+  const targetClientId = String(opts?.targetClientId || "")
+    .trim()
+    .toUpperCase();
   const posts = await getPostsTodayByClient(
     clientId,
     toJakartaDateInput(referenceDate)
@@ -122,10 +127,27 @@ export async function collectKomentarRecap(clientId, opts = {}) {
   });
   const recap = {};
   for (const cid of polresIds) {
+    const normalizedCid = String(cid || "").toUpperCase();
+    if (!normalizedCid) continue;
+
     const { nama: clientName, clientType: cidType } = await getClientInfo(cid);
+    const normalizedClientType = String(cidType || "").toLowerCase();
+    if (
+      isChakranarayanaMenu5Scope &&
+      targetClientId &&
+      normalizedClientType === "direktorat" &&
+      normalizedCid !== targetClientId
+    ) {
+      continue;
+    }
+
     const allUsersForClient = usersByClient[cid] || [];
+    const scopedUsersForClient =
+      isChakranarayanaMenu5Scope && normalizedClientType === "org"
+        ? filterUsersBySatikDivision(allUsersForClient, true, "include_only")
+        : allUsersForClient;
     // Filter out sat intelkam users for direktorat clients
-    const users = filterAttendanceUsers(allUsersForClient, cidType);
+    const users = filterAttendanceUsers(scopedUsersForClient, cidType);
     const byDiv = groupByDivision(users);
     const sortedDiv = sortDivisionKeys(Object.keys(byDiv));
     const rows = [];
