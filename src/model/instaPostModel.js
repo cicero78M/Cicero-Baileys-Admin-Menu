@@ -345,22 +345,38 @@ export async function getShortcodesByDateRange(identifier, startDate, endDate) {
 
   let sql;
   let params;
+  const createdAtJakartaDateSql = getInstagramCreatedAtJakartaDateSql('p.created_at');
 
   if (
     typeRes.rows.length === 0 ||
     clientType === 'direktorat'
   ) {
-    sql =
-      `SELECT p.shortcode FROM insta_post p\n` +
-      `JOIN insta_post_roles pr ON pr.shortcode = p.shortcode\n` +
-      `WHERE LOWER(pr.role_name) = LOWER($1)\n` +
-      `  AND ${getInstagramCreatedAtJakartaDateSql('p.created_at')} BETWEEN $2::date AND $3::date`;
+    sql = `
+      SELECT shortcode FROM (
+        SELECT p.shortcode, p.created_at
+        FROM insta_post p
+        JOIN insta_post_roles pr ON pr.shortcode = p.shortcode
+        WHERE LOWER(pr.role_name) = LOWER($1)
+          AND ${createdAtJakartaDateSql} BETWEEN $2::date AND $3::date
+
+        UNION
+
+        SELECT p.shortcode, p.created_at
+        FROM insta_post p
+        WHERE LOWER(p.client_id) = LOWER($1)
+          AND ${createdAtJakartaDateSql} BETWEEN $2::date AND $3::date
+      ) merged
+      ORDER BY created_at ASC, shortcode ASC
+    `;
     params = [identifier, startBound, endBound];
   } else {
-    sql =
-      `SELECT shortcode FROM insta_post\n` +
-      `WHERE LOWER(client_id) = LOWER($1)\n` +
-      `  AND ${getInstagramCreatedAtJakartaDateSql()} BETWEEN $2::date AND $3::date`;
+    sql = `
+      SELECT p.shortcode
+      FROM insta_post p
+      WHERE LOWER(p.client_id) = LOWER($1)
+        AND ${createdAtJakartaDateSql} BETWEEN $2::date AND $3::date
+      ORDER BY p.created_at ASC, p.shortcode ASC
+    `;
     params = [identifier, startBound, endBound];
   }
 
