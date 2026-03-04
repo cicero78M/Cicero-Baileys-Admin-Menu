@@ -33,6 +33,7 @@ import { absensiRegistrasiDashboardDirektorat } from "../fetchabsensi/dashboard/
 import { findClientById, findAllClientsByType } from "../../service/clientService.js";
 import {
   getGreeting,
+  filterUsersBySatikDivision,
   sortDivisionKeys,
   formatNama,
   filterAttendanceUsers,
@@ -677,6 +678,20 @@ const filterExecutiveSummaryOrgSatikUsers = async (users = [], options = {}) => 
     menuName = null,
     chakranarayanaSelectedGroup = null,
   } = options || {};
+  const normalizedTargetClientId = String(clientId || "").trim().toUpperCase();
+  const normalizedRole = String(roleFlag || normalizedTargetClientId)
+    .trim()
+    .toLowerCase();
+
+  const allUsers = await getUsersByDirektorat(normalizedRole);
+  const usersByClient = {};
+  (allUsers || []).forEach((user) => {
+    if (!user || user.status !== true) return;
+    const cid = String(user.client_id || "").toUpperCase();
+    if (!cid) return;
+    if (!usersByClient[cid]) usersByClient[cid] = [];
+    usersByClient[cid].push(user);
+  });
   const clientCache = new Map();
   const resolveClient = async (clientId) => {
     const normalizedId = String(clientId || "").trim().toUpperCase();
@@ -687,33 +702,31 @@ const filterExecutiveSummaryOrgSatikUsers = async (users = [], options = {}) => 
     return clientCache.get(normalizedId);
   };
 
-  const orgSatikUsers = [];
-  const strictUsers = [];
-  for (const user of users) {
-    const userClient = await resolveClient(user?.client_id);
-    const isOrgClient = userClient?.client_type?.toLowerCase() === "org";
-    if (!isOrgClient) continue;
-    if (!isSatikEnabledClient(userClient)) continue;
-    orgSatikUsers.push(user);
-    if (!isSatIntelkamDivision(user?.divisi)) continue;
-    strictUsers.push(user);
+  const usersByScope = [];
+  for (const [cidRaw, rawUsers] of Object.entries(usersByClient || {})) {
+    const cidUpper = String(cidRaw || "").toUpperCase();
+    if (!cidUpper) continue;
+
+    const info = await resolveClient(cidUpper);
+    const clientType = String(info?.client_type || "").toLowerCase();
+
+    if (clientType === "direktorat" && cidUpper !== normalizedTargetClientId) {
+      continue;
+    }
+
+    if (clientType === "org" && isSatikEnabledClient(info)) {
+      usersByScope.push(
+        ...filterUsersBySatikDivision(rawUsers, true, "include_only")
+      );
+      continue;
+    }
+
+    usersByScope.push(...rawUsers);
   }
 
   const beforeFilterCount = users.length;
-  const strictCount = strictUsers.length;
-  const orgSatikCount = orgSatikUsers.length;
-
-  let selectedScope = "strict_org_satik_satintelkam";
-  let selectedUsers = strictUsers;
-
-  if (!strictCount) {
-    selectedScope = "fallback_org_satik_all_divisi";
-    selectedUsers = orgSatikUsers;
-  }
-  if (!selectedUsers.length) {
-    selectedScope = "fallback_all_users";
-    selectedUsers = users;
-  }
+  const selectedUsers = usersByScope;
+  const selectedScope = "chakranarayana_menu5_user_flow";
 
   console.info("[ExecutiveSummary] User filtering scope", {
     stage: "applyChakranarayanaDirektoratSatikFilter",
@@ -722,9 +735,7 @@ const filterExecutiveSummaryOrgSatikUsers = async (users = [], options = {}) => 
     clientId,
     roleFlag,
     beforeFilterCount,
-    strictCount,
-    orgSatikCount,
-    afterFallbackCount: selectedUsers.length,
+    afterScopeCount: selectedUsers.length,
     selectedScope,
   });
 
@@ -733,7 +744,7 @@ const filterExecutiveSummaryOrgSatikUsers = async (users = [], options = {}) => 
     selectedScope,
     counts: {
       beforeFilter: beforeFilterCount,
-      afterStrictFilter: strictCount,
+      afterStrictFilter: selectedUsers.length,
       afterFallback: selectedUsers.length,
     },
   };
@@ -2035,9 +2046,7 @@ async function formatExecutiveSummary(clientId, roleFlag = null, options = {}) {
     };
   const users = filteringResult.users;
   const userScopeLabelMap = {
-    strict_org_satik_satintelkam: "Strict (ORG SATIK + divisi Sat Intelkam)",
-    fallback_org_satik_all_divisi: "Fallback 1 (ORG SATIK semua divisi)",
-    fallback_all_users: "Fallback 2 (semua user dari getUsersSocialByClient)",
+    chakranarayana_menu5_user_flow: "Flow menu 5 (scope direktorat + SATIK include_only)",
     all_users_default: "Default (tanpa filter SATIK khusus)",
   };
   const userScopeLabel = userScopeLabelMap[filteringResult.selectedScope] || filteringResult.selectedScope;
