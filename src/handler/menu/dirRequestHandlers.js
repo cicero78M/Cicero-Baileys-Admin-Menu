@@ -714,7 +714,7 @@ const filterExecutiveSummaryOrgSatikUsers = async (users = [], options = {}) => 
       continue;
     }
 
-    if (clientType === "org" && isSatikEnabledClient(info)) {
+    if (clientType === "org") {
       usersByScope.push(
         ...filterUsersBySatikDivision(rawUsers, true, "include_only")
       );
