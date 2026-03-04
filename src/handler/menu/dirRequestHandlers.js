@@ -2007,6 +2007,9 @@ async function formatExecutiveSummary(clientId, roleFlag = null, options = {}) {
   const effectiveRole = String(roleFlag || targetClientId).trim().toLowerCase();
   const { period = "last_week", value = null } = options || {};
   const { startYmd, endYmd, periodText } = getExecutiveSummaryWindow(period, value);
+  const menuMode = [options?.menuName, options?.chakranarayanaSelectedGroup]
+    .filter(Boolean)
+    .join(":") || "default";
   const client = await findClientById(targetClientId);
   const applyChakranarayanaDirektoratSatikFilter =
     options?.menuName === "chakranarayana" &&
@@ -2039,6 +2042,24 @@ async function formatExecutiveSummary(clientId, roleFlag = null, options = {}) {
   };
   const userScopeLabel = userScopeLabelMap[filteringResult.selectedScope] || filteringResult.selectedScope;
   const totalPersonil = users.length;
+  const userFilterContextPayload = {
+    targetClientId,
+    effectiveRole,
+    menuMode,
+    period,
+    periodText,
+    startYmd,
+    endYmd,
+    selectedScope: filteringResult.selectedScope,
+    counts: {
+      beforeFilter: Number(filteringResult?.counts?.beforeFilter || 0),
+      afterStrictFilter: Number(filteringResult?.counts?.afterStrictFilter || 0),
+      afterFallback: Number(filteringResult?.counts?.afterFallback || 0),
+    },
+  };
+  if (!users.length) {
+    console.warn("[ExecutiveSummary] Data personil kosong setelah proses filter", userFilterContextPayload);
+  }
   const totalUsernameUpdated = users.filter((u) => u?.insta || u?.tiktok).length;
   const totalInstagramUpdated = users.filter((u) => u?.insta).length;
   const totalTiktokUpdated = users.filter((u) => u?.tiktok).length;
@@ -2195,9 +2216,22 @@ async function formatExecutiveSummary(clientId, roleFlag = null, options = {}) {
 
   const periodLabel = `${formatYmdToIndoLong(startYmd)} s.d. ${formatYmdToIndoLong(endYmd)}`;
   const clientName = (client?.nama || targetClientId).toUpperCase();
+  const emptyPersonnelWarningLines = !users.length
+    ? [
+      "⚠️ *Data personil kosong setelah proses filter*",
+      "• Diagnostik konteks:",
+      `  - targetClientId: *${targetClientId}*`,
+      `  - effectiveRole: *${effectiveRole || "-"}*`,
+      `  - mode menu: *${menuMode}*`,
+      `  - periode: *${periodText}* (${periodLabel} WIB)`,
+      "• Rekomendasi: validasi kembali mapping role/client/divisi agar cakupan user tidak tereliminasi seluruhnya.",
+      "",
+    ]
+    : [];
 
   return [
     "*EXECUTIVE SUMMARY*",
+    ...emptyPersonnelWarningLines,
     `*Implementasi Sistem CICERO – ${periodText}*`,
     `*Satuan:* ${clientName}`,
     `*Periode:* ${periodLabel} (WIB)`,
