@@ -692,6 +692,29 @@ const filterExecutiveSummaryOrgSatikUsers = async (users = []) => {
   return filteredUsers;
 };
 
+const filterExecutiveSummaryOrgSatikUsers = async (users = []) => {
+  const clientCache = new Map();
+  const resolveClient = async (clientId) => {
+    const normalizedId = String(clientId || "").trim().toUpperCase();
+    if (!normalizedId) return null;
+    if (!clientCache.has(normalizedId)) {
+      clientCache.set(normalizedId, await findClientById(normalizedId));
+    }
+    return clientCache.get(normalizedId);
+  };
+
+  const filteredUsers = [];
+  for (const user of users) {
+    const userClient = await resolveClient(user?.client_id);
+    const isOrgClient = userClient?.client_type?.toLowerCase() === "org";
+    if (!isOrgClient) continue;
+    if (!isSatikEnabledClient(userClient)) continue;
+    if (!isSatIntelkamDivision(user?.divisi)) continue;
+    filteredUsers.push(user);
+  }
+  return filteredUsers;
+};
+
 const formatCaptionPreview = (caption) => {
   const normalized = sanitizeManualCaption(caption);
   if (!normalized || normalized === "-") {
