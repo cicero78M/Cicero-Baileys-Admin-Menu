@@ -222,7 +222,7 @@ const DIGIT_EMOJI = {
 };
 
 const CHAKRANARAYANA_MENU_GROUPS = {
-  direktorat: ["2", "3", "6", "9", "22", "46", "53", "54"],
+  direktorat: ["3", "6", "9", "22", "2", "46", "53", "54"],
   jajaran: ["1", "48", "49", "55", "56"],
 };
 
@@ -279,9 +279,8 @@ const getChakranarayanaMenuText = (groupKey, groupLabel, menuCodesOverride = nul
   const menuCodes = Array.isArray(menuCodesOverride)
     ? menuCodesOverride
     : CHAKRANARAYANA_MENU_GROUPS[groupKey] || [];
-  const orderedMenuCodes = [...menuCodes].sort((a, b) => Number(a) - Number(b));
 
-  const list = orderedMenuCodes
+  const list = menuCodes
     .map((menuCode, idx) => {
       const localNumber = String(idx + 1);
       const localLabel = DIGIT_EMOJI[localNumber] || `${localNumber}.`;
@@ -354,13 +353,13 @@ const KASATKER_REPORT_MENU_TEXT = appendSubmenuBackInstruction(
     "\n\nBalas angka pilihan atau ketik *batal* untuk kembali."
 );
 
-const EXECUTIVE_SUMMARY_MENU_TEXT = appendSubmenuBackInstruction(
+const EXECUTIVE_SUMMARY_MENU_TEXT =
   "Silakan pilih periode Executive Summary:\n" +
-    Object.entries(EXECUTIVE_SUMMARY_PERIOD_MAP)
-      .map(([key, option]) => `${DIGIT_EMOJI[key] || key} ${option.description}`)
-      .join("\n") +
-    "\n\nBalas angka pilihan atau ketik *batal* untuk kembali."
-);
+  Object.entries(EXECUTIVE_SUMMARY_PERIOD_MAP)
+    .map(([key, option]) => `${DIGIT_EMOJI[key] || key} ${option.description}`)
+    .join("\n") +
+  "\n\nBalas angka pilihan atau ketik batal untuk kembali.\n" +
+  "Ketik back untuk kembali ke menu sebelumnya.";
 
 const EXECUTIVE_SUMMARY_MONTH_PROMPT = appendSubmenuBackInstruction(
   "Masukkan bulan laporan Executive Summary dengan format *YYYY-MM*\n" +
@@ -3919,10 +3918,9 @@ export const dirRequestHandlers = {
     }
 
     const menuCodes = await resolveChakranarayanaMenuCodes(session, selectedGroup);
-    const orderedMenuCodes = [...menuCodes].sort((a, b) => Number(a) - Number(b));
-    session.chakranarayanaMenuMap = orderedMenuCodes;
+    session.chakranarayanaMenuMap = menuCodes;
     session.chakranarayanaSelectedGroup = selectedGroup;
-    session.allowedDirrequestMenuChoices = orderedMenuCodes;
+    session.allowedDirrequestMenuChoices = menuCodes;
     session.step = "chakranarayana_choose_menu";
     const groupLabel = selectedGroup === "direktorat" ? "Direktorat" : "Jajaran";
     await waClient.sendMessage(chatId, getChakranarayanaMenuText(selectedGroup, groupLabel));
