@@ -658,8 +658,38 @@ const uniq = (items) => [...new Set(items.filter(Boolean))];
 const isSatikEnabledClient = (client) => client?.switch_satik === true;
 
 const isSatIntelkamDivision = (division) => {
-  const normalized = String(division || "").toLowerCase().trim().replace(/\s+/g, " ");
-  return normalized === "sat intel" || normalized === "satintel" || normalized === "sat intelkam" || normalized === "satintelkam";
+  const normalized = String(division || "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, " ");
+  return (
+    normalized.includes("sat intelkam") ||
+    normalized.includes("satintelkam") ||
+    normalized === "sat intel" ||
+    normalized === "satintel"
+  );
+};
+
+const filterExecutiveSummaryOrgSatikUsers = async (users = []) => {
+  const clientCache = new Map();
+  const resolveClient = async (clientId) => {
+    const normalizedId = String(clientId || "").trim().toUpperCase();
+    if (!normalizedId) return null;
+    if (!clientCache.has(normalizedId)) {
+      clientCache.set(normalizedId, await findClientById(normalizedId));
+    }
+    return clientCache.get(normalizedId);
+  };
+
+  const filteredUsers = [];
+  for (const user of users) {
+    const userClient = await resolveClient(user?.client_id);
+    const isOrgClient = userClient?.client_type?.toLowerCase() === "org";
+    if (!isOrgClient) continue;
+    if (!isSatIntelkamDivision(user?.divisi)) continue;
+    filteredUsers.push(user);
+  }
+  return filteredUsers;
 };
 
 const filterExecutiveSummaryOrgSatikUsers = async (users = []) => {
@@ -1956,7 +1986,8 @@ async function formatExecutiveSummary(clientId, roleFlag = null, options = {}) {
   const client = await findClientById(targetClientId);
   const applyChakranarayanaDirektoratSatikFilter =
     options?.menuName === "chakranarayana" &&
-    options?.chakranarayanaSelectedGroup === "direktorat";
+    options?.chakranarayanaSelectedGroup === "direktorat" &&
+    isSatikEnabledClient(client);
 
   const allUsers = await getUsersSocialByClient(targetClientId, effectiveRole);
   const users = applyChakranarayanaDirektoratSatikFilter
