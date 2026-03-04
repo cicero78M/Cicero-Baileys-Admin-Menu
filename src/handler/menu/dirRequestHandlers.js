@@ -131,34 +131,29 @@ const isDitbinmas = (value) =>
 
 const ENGAGEMENT_RECAP_PERIOD_MAP = {
   "1": {
+    period: "selected_month",
+    label: "pilihan bulan",
+    description: "Pilihan bulan (format YYYY-MM)",
+  },
+  "2": {
+    period: "this_week",
+    label: "minggu ini",
+    description: "Minggu ini (Senin - hari ini)",
+  },
+  "3": {
+    period: "last_week",
+    label: "minggu sebelumnya",
+    description: "Minggu sebelumnya (Senin - Minggu)",
+  },
+  "4": {
     period: "today",
     label: "hari ini",
     description: "Hari ini",
   },
-  "2": {
-    period: "yesterday",
-    label: "hari sebelumnya",
-    description: "Hari sebelumnya",
-  },
-  "3": {
-    period: "this_week",
-    label: "minggu ini",
-    description: "Minggu ini",
-  },
-  "4": {
-    period: "last_week",
-    label: "minggu sebelumnya",
-    description: "Minggu sebelumnya",
-  },
   "5": {
-    period: "this_month",
-    label: "bulan ini",
-    description: "Bulan ini",
-  },
-  "6": {
-    period: "last_month",
-    label: "bulan sebelumnya",
-    description: "Bulan sebelumnya",
+    period: "selected_date",
+    label: "pilihan tanggal",
+    description: "Pilihan tanggal (format YYYY-MM-DD)",
   },
 };
 
@@ -338,13 +333,25 @@ const resolveChakranarayanaMenuCodes = async (session, selectedGroup) => {
   return baseMenuCodes;
 };
 
-const ENGAGEMENT_RECAP_MENU_TEXT = appendSubmenuBackInstruction(
+const ENGAGEMENT_RECAP_MENU_TEXT =
   "Silakan pilih periode rekap ranking engagement jajaran:\n" +
-    Object.entries(ENGAGEMENT_RECAP_PERIOD_MAP)
-      .map(([key, option]) => `${DIGIT_EMOJI[key] || key} ${option.description}`)
-      .join("\n") +
-    "\n\nBalas angka pilihan atau ketik *batal* untuk kembali."
-);
+  Object.entries(ENGAGEMENT_RECAP_PERIOD_MAP)
+    .map(([key, option]) => `${DIGIT_EMOJI[key] || key} ${option.description}`)
+    .join("\n") +
+  "\n\nBalas angka pilihan atau ketik batal untuk kembali.\n" +
+  "Ketik back untuk kembali ke menu sebelumnya.";
+
+const ENGAGEMENT_RECAP_MONTH_PROMPT =
+  "Masukkan bulan rekap ranking engagement dengan format YYYY-MM\n" +
+  "Contoh: 2026-01\n\n" +
+  "Ketik batal untuk kembali ke pilihan periode.\n" +
+  "Ketik back untuk kembali ke menu sebelumnya.";
+
+const ENGAGEMENT_RECAP_DATE_PROMPT =
+  "Masukkan tanggal rekap ranking engagement dengan format YYYY-MM-DD\n" +
+  "Contoh: 2026-01-31\n\n" +
+  "Ketik batal untuk kembali ke pilihan periode.\n" +
+  "Ketik back untuk kembali ke menu sebelumnya.";
 
 const KASATKER_REPORT_MENU_TEXT = appendSubmenuBackInstruction(
   "Silakan pilih periode Laporan Kasatker:\n" +
@@ -4970,7 +4977,13 @@ export const dirRequestHandlers = {
       return;
     }
 
-    if (input.toLowerCase() === "batal") {
+    const normalizedInput = input.toLowerCase();
+    if (
+      normalizedInput === "batal" ||
+      normalizedInput === "menu" ||
+      normalizedInput === "back" ||
+      input === "0"
+    ) {
       await waClient.sendMessage(chatId, "✅ Menu rekap ranking engagement ditutup.");
       session.step = "main";
       await dirRequestHandlers.main(session, chatId, "", waClient);
@@ -4981,23 +4994,132 @@ export const dirRequestHandlers = {
     if (!option) {
       await waClient.sendMessage(
         chatId,
-        "Pilihan tidak valid. Balas angka 1 sampai 6 atau ketik *batal*."
+        "Pilihan tidak valid. Balas angka 1 sampai 5 atau ketik batal."
       );
       await waClient.sendMessage(chatId, ENGAGEMENT_RECAP_MENU_TEXT);
       return;
     }
 
+    if (option.period === "selected_month") {
+      session.step = "input_engagement_recap_month";
+      await waClient.sendMessage(chatId, ENGAGEMENT_RECAP_MONTH_PROMPT);
+      return;
+    }
+
+    if (option.period === "selected_date") {
+      session.step = "input_engagement_recap_date";
+      await waClient.sendMessage(chatId, ENGAGEMENT_RECAP_DATE_PROMPT);
+      return;
+    }
+
+    await dirRequestHandlers.sendEngagementRecapFile(session, chatId, waClient, {
+      period: option.period,
+      label: option.label,
+    });
+  },
+
+  async input_engagement_recap_month(session, chatId, text, waClient) {
+    const input = String(text || "").trim();
+
+    if (!input) {
+      await waClient.sendMessage(chatId, ENGAGEMENT_RECAP_MONTH_PROMPT);
+      return;
+    }
+
+    if (
+      input.toLowerCase() === "batal" ||
+      input.toLowerCase() === "back" ||
+      input.toLowerCase() === "menu" ||
+      input === "0"
+    ) {
+      session.step = "choose_engagement_recap_period";
+      await waClient.sendMessage(chatId, ENGAGEMENT_RECAP_MENU_TEXT);
+      return;
+    }
+
+    if (!isValidYm(input)) {
+      await waClient.sendMessage(chatId, "❌ Format bulan tidak valid. Gunakan format YYYY-MM.");
+      await waClient.sendMessage(chatId, ENGAGEMENT_RECAP_MONTH_PROMPT);
+      return;
+    }
+
+    const [yearText, monthText] = input.split("-");
+    const year = Number(yearText);
+    const month = Number(monthText);
+    if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
+      await waClient.sendMessage(chatId, "❌ Bulan tidak valid. Gunakan rentang bulan 01 sampai 12.");
+      await waClient.sendMessage(chatId, ENGAGEMENT_RECAP_MONTH_PROMPT);
+      return;
+    }
+
+    const startDate = `${yearText}-${monthText}-01`;
+    const endDate = getJakartaYmd(new Date(Date.UTC(year, month, 0, 0, 0, 0)));
+
+    await dirRequestHandlers.sendEngagementRecapFile(session, chatId, waClient, {
+      period: "selected_month",
+      label: `bulan ${input}`,
+      startDate,
+      endDate,
+    });
+  },
+
+  async input_engagement_recap_date(session, chatId, text, waClient) {
+    const input = String(text || "").trim();
+
+    if (!input) {
+      await waClient.sendMessage(chatId, ENGAGEMENT_RECAP_DATE_PROMPT);
+      return;
+    }
+
+    if (
+      input.toLowerCase() === "batal" ||
+      input.toLowerCase() === "back" ||
+      input.toLowerCase() === "menu" ||
+      input === "0"
+    ) {
+      session.step = "choose_engagement_recap_period";
+      await waClient.sendMessage(chatId, ENGAGEMENT_RECAP_MENU_TEXT);
+      return;
+    }
+
+    if (!isValidYmd(input)) {
+      await waClient.sendMessage(chatId, "❌ Format tanggal tidak valid. Gunakan format YYYY-MM-DD.");
+      await waClient.sendMessage(chatId, ENGAGEMENT_RECAP_DATE_PROMPT);
+      return;
+    }
+
+    await dirRequestHandlers.sendEngagementRecapFile(session, chatId, waClient, {
+      period: "selected_date",
+      label: `tanggal ${input}`,
+      startDate: input,
+      endDate: input,
+    });
+  },
+
+  async sendEngagementRecapFile(
+    session,
+    chatId,
+    waClient,
+    { period, label, startDate, endDate }
+  ) {
     const targetClientId = session.dir_client_id || session.selectedClientId || DITBINMAS_CLIENT_ID;
     const roleFlag = session.role;
     let filePath;
+
     try {
-      const { filePath: generatedPath } = await saveEngagementRankingExcel({
+      const requestOptions = {
         clientId: targetClientId,
         roleFlag,
-        period: option.period,
+        period,
         menuName: session.menu,
         chakranarayanaSelectedGroup: session.chakranarayanaSelectedGroup,
-      });
+      };
+      if (startDate && endDate) {
+        requestOptions.startDate = startDate;
+        requestOptions.endDate = endDate;
+      }
+
+      const { filePath: generatedPath } = await saveEngagementRankingExcel(requestOptions);
       filePath = generatedPath;
       const buffer = await readFile(filePath);
       await sendWAFile(
@@ -5007,10 +5129,7 @@ export const dirRequestHandlers = {
         chatId,
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
       );
-      await waClient.sendMessage(
-        chatId,
-        `✅ File Excel rekap ranking engagement (${option.label}) dikirim.`
-      );
+      await waClient.sendMessage(chatId, `✅ File Excel rekap ranking engagement (${label}) dikirim.`);
     } catch (error) {
       console.error("Gagal membuat rekap ranking engagement:", error);
       let msg;
@@ -5022,7 +5141,7 @@ export const dirRequestHandlers = {
       ) {
         msg = error.message;
       } else {
-        msg = `❌ Gagal membuat rekap ranking engagement (${option.label}).`;
+        msg = `❌ Gagal membuat rekap ranking engagement (${label}).`;
       }
       await waClient.sendMessage(chatId, msg);
     } finally {

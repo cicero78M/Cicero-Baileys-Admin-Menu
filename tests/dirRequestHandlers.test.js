@@ -1827,7 +1827,7 @@ test('choose_menu option 22 opens engagement recap submenu', async () => {
   );
 });
 
-test('choose_engagement_recap_period option 1 sends today recap and returns to main menu', async () => {
+test('choose_engagement_recap_period option 4 sends today recap and returns to main menu', async () => {
   mockReadFile.mockResolvedValue(Buffer.from('excel'));
   const session = {
     selectedClientId: 'ditbinmas',
@@ -1838,13 +1838,15 @@ test('choose_engagement_recap_period option 1 sends today recap and returns to m
   const chatId = '789';
   const waClient = { sendMessage: jest.fn() };
 
-  await dirRequestHandlers.choose_engagement_recap_period(session, chatId, '1', waClient);
+  await dirRequestHandlers.choose_engagement_recap_period(session, chatId, '4', waClient);
 
-  expect(mockSaveEngagementRankingExcel).toHaveBeenCalledWith({
-    clientId: 'ditbinmas',
-    roleFlag: 'ditbinmas',
-    period: 'today',
-  });
+  expect(mockSaveEngagementRankingExcel).toHaveBeenCalledWith(
+    expect.objectContaining({
+      clientId: 'ditbinmas',
+      roleFlag: 'ditbinmas',
+      period: 'today',
+    })
+  );
   expect(mockReadFile).toHaveBeenCalledWith('/tmp/ranking.xlsx');
   expect(mockSendWAFile).toHaveBeenCalledWith(
     waClient,
@@ -1862,6 +1864,72 @@ test('choose_engagement_recap_period option 1 sends today recap and returns to m
   expect(session.step).toBe('choose_menu');
 });
 
+
+test('choose_engagement_recap_period option 1 asks for custom month input', async () => {
+  const session = {
+    selectedClientId: 'ditbinmas',
+    dir_client_id: 'ditbinmas',
+    clientName: 'DIT BINMAS',
+  };
+  const chatId = '7891';
+  const waClient = { sendMessage: jest.fn() };
+
+  await dirRequestHandlers.choose_engagement_recap_period(session, chatId, '1', waClient);
+
+  expect(session.step).toBe('input_engagement_recap_month');
+  expect(mockSaveEngagementRankingExcel).not.toHaveBeenCalled();
+  expect(waClient.sendMessage).toHaveBeenCalledWith(
+    chatId,
+    expect.stringContaining('Masukkan bulan rekap ranking engagement dengan format YYYY-MM')
+  );
+});
+
+test('input_engagement_recap_month sends excel with selected month range', async () => {
+  mockReadFile.mockResolvedValue(Buffer.from('excel'));
+  const session = {
+    selectedClientId: 'ditbinmas',
+    dir_client_id: 'ditbinmas',
+    clientName: 'DIT BINMAS',
+    step: 'input_engagement_recap_month',
+  };
+  const chatId = '7892';
+  const waClient = { sendMessage: jest.fn() };
+
+  await dirRequestHandlers.input_engagement_recap_month(session, chatId, '2026-01', waClient);
+
+  expect(mockSaveEngagementRankingExcel).toHaveBeenCalledWith(
+    expect.objectContaining({
+      period: 'selected_month',
+      startDate: '2026-01-01',
+      endDate: '2026-01-31',
+    })
+  );
+  expect(session.step).toBe('choose_menu');
+});
+
+test('input_engagement_recap_date sends excel with selected date range', async () => {
+  mockReadFile.mockResolvedValue(Buffer.from('excel'));
+  const session = {
+    selectedClientId: 'ditbinmas',
+    dir_client_id: 'ditbinmas',
+    clientName: 'DIT BINMAS',
+    step: 'input_engagement_recap_date',
+  };
+  const chatId = '7893';
+  const waClient = { sendMessage: jest.fn() };
+
+  await dirRequestHandlers.input_engagement_recap_date(session, chatId, '2026-01-15', waClient);
+
+  expect(mockSaveEngagementRankingExcel).toHaveBeenCalledWith(
+    expect.objectContaining({
+      period: 'selected_date',
+      startDate: '2026-01-15',
+      endDate: '2026-01-15',
+    })
+  );
+  expect(session.step).toBe('choose_menu');
+});
+
 test('choose_engagement_recap_period handles service failure gracefully', async () => {
   mockSaveEngagementRankingExcel.mockRejectedValueOnce(
     new Error('Tidak ada data engagement untuk direkap.')
@@ -1874,7 +1942,7 @@ test('choose_engagement_recap_period handles service failure gracefully', async 
   const chatId = '790';
   const waClient = { sendMessage: jest.fn() };
 
-  await dirRequestHandlers.choose_engagement_recap_period(session, chatId, '2', waClient);
+  await dirRequestHandlers.choose_engagement_recap_period(session, chatId, '4', waClient);
 
   expect(mockReadFile).not.toHaveBeenCalled();
   expect(mockSendWAFile).not.toHaveBeenCalled();
