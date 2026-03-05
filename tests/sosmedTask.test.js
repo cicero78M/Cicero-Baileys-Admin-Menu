@@ -1,7 +1,7 @@
 import { jest } from '@jest/globals';
 
-const mockGetShortcodesTodayByClient = jest.fn();
 const mockGetInstaPostsTodayByClient = jest.fn();
+const mockGetManualInstaPostsTodayByClient = jest.fn();
 const mockGetLikesByShortcode = jest.fn();
 const mockGetLatestLikeAuditByWindow = jest.fn();
 const mockGetTiktokPostsToday = jest.fn();
@@ -12,8 +12,10 @@ const mockHandleFetchLikesInstagram = jest.fn();
 const mockHandleFetchKomentarTiktokBatch = jest.fn();
 
 jest.unstable_mockModule('../src/model/instaPostModel.js', () => ({
-  getShortcodesTodayByClient: mockGetShortcodesTodayByClient,
   getPostsTodayByClient: mockGetInstaPostsTodayByClient,
+}));
+jest.unstable_mockModule('../src/model/instaPostKhususModel.js', () => ({
+  getPostsTodayByClient: mockGetManualInstaPostsTodayByClient,
 }));
 jest.unstable_mockModule('../src/model/instaLikeModel.js', () => ({
   getLikesByShortcode: mockGetLikesByShortcode,
@@ -47,12 +49,12 @@ beforeAll(async () => {
 beforeEach(() => {
   jest.clearAllMocks();
   mockGetLatestLikeAuditByWindow.mockResolvedValue([]);
+  mockGetManualInstaPostsTodayByClient.mockResolvedValue([]);
   mockGetLatestCommentAuditByWindow.mockResolvedValue([]);
 });
 
 test('generateSosmedTaskMessage formats message correctly', async () => {
   mockFindClientById.mockResolvedValue({ nama: 'Dit Binmas', client_tiktok: '' });
-  mockGetShortcodesTodayByClient.mockResolvedValue(['abc']);
   mockGetInstaPostsTodayByClient.mockResolvedValue([
     { shortcode: 'abc', created_at: '2024-01-01T07:30:00+07:00' },
   ]);
@@ -91,7 +93,6 @@ test('generateSosmedTaskMessage formats message correctly', async () => {
 
 test('generateSosmedTaskMessage can skip internal fetches', async () => {
   mockFindClientById.mockResolvedValue({ nama: 'Dit Binmas', client_tiktok: '' });
-  mockGetShortcodesTodayByClient.mockResolvedValue([]);
   mockGetInstaPostsTodayByClient.mockResolvedValue([]);
   mockGetTiktokPostsToday.mockResolvedValue([]);
   mockHandleFetchLikesInstagram.mockResolvedValue();
@@ -101,7 +102,6 @@ test('generateSosmedTaskMessage can skip internal fetches', async () => {
     skipLikesFetch: true,
   });
 
-  expect(mockGetShortcodesTodayByClient).toHaveBeenCalledWith('DITBINMAS');
   expect(mockGetInstaPostsTodayByClient).toHaveBeenCalledWith('DITBINMAS');
   expect(mockGetTiktokPostsToday).toHaveBeenCalledWith('DITBINMAS');
   expect(mockHandleFetchKomentarTiktokBatch).not.toHaveBeenCalled();
@@ -110,7 +110,6 @@ test('generateSosmedTaskMessage can skip internal fetches', async () => {
 
 test('generateSosmedTaskMessage preserves ordering from sources', async () => {
   mockFindClientById.mockResolvedValue({ nama: 'Unit', client_tiktok: '@operator' });
-  mockGetShortcodesTodayByClient.mockResolvedValue(['latest', 'earlier']);
   mockGetInstaPostsTodayByClient.mockResolvedValue([
     { shortcode: 'latest', created_at: '2024-01-01T06:00:00+07:00' },
     { shortcode: 'earlier', created_at: '2024-01-01T05:00:00+07:00' },
@@ -155,7 +154,6 @@ test('generateSosmedTaskMessage preserves ordering from sources', async () => {
 
 test('generateSosmedTaskMessage labels new content against previous state', async () => {
   mockFindClientById.mockResolvedValue({ nama: 'Unit', client_tiktok: '@operator' });
-  mockGetShortcodesTodayByClient.mockResolvedValue(['alpha', 'beta']);
   mockGetInstaPostsTodayByClient.mockResolvedValue([
     { shortcode: 'alpha', created_at: '2024-01-01T06:00:00+07:00' },
     { shortcode: 'beta', created_at: '2024-01-01T07:00:00+07:00' },
@@ -190,7 +188,6 @@ test('generateSosmedTaskMessage prefers audit data and labels window when provid
   const snapshotStart = new Date('2024-01-01T00:00:00+07:00');
   const snapshotEnd = new Date('2024-01-01T00:30:00+07:00');
   mockFindClientById.mockResolvedValue({ nama: 'Unit', client_tiktok: '' });
-  mockGetShortcodesTodayByClient.mockResolvedValue(['windowed']);
   mockGetInstaPostsTodayByClient.mockResolvedValue([
     { shortcode: 'windowed', created_at: '2024-01-01T06:00:00+07:00' },
   ]);
@@ -218,4 +215,37 @@ test('generateSosmedTaskMessage prefers audit data and labels window when provid
   expect(text).toContain('Data rentang 00:00–00:30 WIB');
   expect(mockGetLikesByShortcode).not.toHaveBeenCalled();
   expect(mockGetCommentsByVideoId).not.toHaveBeenCalled();
+});
+
+
+test('generateSosmedTaskMessage memisahkan post manual dari tabel utama ke segmen tugas khusus', async () => {
+  mockFindClientById.mockResolvedValue({ nama: 'Unit', client_tiktok: '@operator' });
+  mockGetInstaPostsTodayByClient.mockResolvedValue([
+    { shortcode: 'official-1', created_at: '2024-01-01T06:00:00+07:00', source_type: 'cron_fetch' },
+    { shortcode: 'manual-1', created_at: '2024-01-01T07:00:00+07:00', source_type: 'manual_input' },
+  ]);
+  mockGetLikesByShortcode
+    .mockResolvedValueOnce(['a'])
+    .mockResolvedValueOnce(['b', 'c']);
+  mockGetTiktokPostsToday.mockResolvedValue([
+    { video_id: 'vid-official', created_at: '2024-01-01T08:00:00+07:00', source_type: 'cron_fetch' },
+    { video_id: 'vid-manual', created_at: '2024-01-01T09:00:00+07:00', source_type: 'manual_input' },
+  ]);
+  mockGetCommentsByVideoId
+    .mockResolvedValueOnce({ comments: ['@o'] })
+    .mockResolvedValueOnce({ comments: ['@m1', '@m2'] });
+
+  const { text } = await generateSosmedTaskMessage('CLIENT', {
+    skipLikesFetch: true,
+    skipTiktokFetch: true,
+  });
+
+  expect(text).toContain('- Instagram: 1 konten | Total likes: 1');
+  expect(text).toContain('- Instagram (manual): 1 konten | Total likes: 2');
+  expect(text).toContain('- TikTok: 1 konten | Total komentar: 1');
+  expect(text).toContain('- TikTok (manual): 1 konten | Total komentar: 2');
+  expect(text).toContain('https://www.instagram.com/p/official-1');
+  expect(text).toContain('https://www.instagram.com/p/manual-1');
+  expect(text).toContain('/@operator/video/vid-official');
+  expect(text).toContain('/@operator/video/vid-manual');
 });

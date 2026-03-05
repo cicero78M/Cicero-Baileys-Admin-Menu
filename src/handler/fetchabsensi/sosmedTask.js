@@ -5,8 +5,7 @@ import {
   getLatestLikeAuditByWindow,
 } from "../../model/instaLikeModel.js";
 import {
-  getManualPostsTodayByClient as getManualTiktokPostsToday,
-  getOfficialPostsTodayByClient as getOfficialTiktokPostsToday,
+  getPostsTodayByClient as getTiktokPostsTodayByClient,
 } from "../../model/tiktokPostModel.js";
 import {
   getCommentsByVideoId,
@@ -129,6 +128,18 @@ function pickUniqueBy(items, keyExtractor, sourceExtractor) {
     }
   }
   return Array.from(map.values());
+}
+
+function normalizeSourceType(sourceType) {
+  return String(sourceType || "cron_fetch")
+    .trim()
+    .toLowerCase()
+    .replace(/[-\s]+/g, "_");
+}
+
+function isManualSourceType(sourceType) {
+  const normalized = normalizeSourceType(sourceType);
+  return normalized === "manual_input" || normalized === "manual_fetch" || normalized === "manual";
 }
 
 async function fetchLikesWithAudit(shortcodes, snapshotWindow) {
@@ -267,8 +278,13 @@ export async function generateSosmedTaskMessage(
   let officialInstaPosts = [];
   let manualInstaPosts = [];
   try {
-    officialInstaPosts = await getInstaPostsTodayByClient(clientId);
-    manualInstaPosts = await getManualInstaPostsTodayByClient(clientId);
+    const allInstaPosts = await getInstaPostsTodayByClient(clientId);
+    const fetchedManualInstaPosts = await getManualInstaPostsTodayByClient(clientId);
+    officialInstaPosts = (allInstaPosts || []).filter((post) => !isManualSourceType(post?.source_type));
+    manualInstaPosts = [
+      ...(allInstaPosts || []).filter((post) => isManualSourceType(post?.source_type)),
+      ...(fetchedManualInstaPosts || []),
+    ];
     if (!skipLikesFetch) {
       await handleFetchLikesInstagram(null, null, clientId, {
         snapshotWindow: snapshotWindow
@@ -340,8 +356,9 @@ export async function generateSosmedTaskMessage(
   let officialTiktokPosts = [];
   let manualTiktokPosts = [];
   try {
-    officialTiktokPosts = await getOfficialTiktokPostsToday(clientId);
-    manualTiktokPosts = await getManualTiktokPostsToday(clientId);
+    const allTiktokPosts = await getTiktokPostsTodayByClient(clientId);
+    officialTiktokPosts = (allTiktokPosts || []).filter((post) => !isManualSourceType(post?.source_type));
+    manualTiktokPosts = (allTiktokPosts || []).filter((post) => isManualSourceType(post?.source_type));
     if (!skipTiktokFetch) {
       await handleFetchKomentarTiktokBatch(null, null, clientId, {
         snapshotWindow: snapshotWindow
