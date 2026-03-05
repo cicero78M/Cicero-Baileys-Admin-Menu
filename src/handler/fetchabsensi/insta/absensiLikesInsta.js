@@ -103,8 +103,19 @@ export async function collectLikesRecap(clientId, opts = {}) {
 
   const recap = {};
   for (const cid of polresIds) {
-    const { nama: clientName } = await getClientInfo(cid);
-    const users = usersByClient[cid] || [];
+    const { nama: clientName, clientType: cidType } = await getClientInfo(cid);
+    const normalizedCid = String(cid || "").toUpperCase();
+
+    if (
+      isChakranarayanaMenu5Scope &&
+      targetClientId &&
+      String(cidType || "").toLowerCase() === "direktorat" &&
+      normalizedCid !== targetClientId
+    ) {
+      continue;
+    }
+
+    const users = filterAttendanceUsers(usersByClient[cid] || [], cidType);
     const byDiv = groupByDivision(users);
     const sortedDiv = sortDivisionKeys(Object.keys(byDiv));
     const rows = [];
