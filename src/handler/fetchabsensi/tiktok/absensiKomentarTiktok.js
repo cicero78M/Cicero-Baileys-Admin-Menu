@@ -752,7 +752,7 @@ export async function absensiKomentarDitbinmasSimple(clientId = "DITBINMAS") {
 
   let msg =
     `Mohon ijin Komandan,\n\n` +
-    `📋 Rekap Komentar TikTok (Simple)\n` +
+    `📋 Rekap Engagement Tiktok\n` +
     `*${clientName.toUpperCase()}*\n` +
     `${hari}, ${tanggal}\nJam: ${jam}\n\n` +
     `*Jumlah Konten:* ${posts.length}\n` +
