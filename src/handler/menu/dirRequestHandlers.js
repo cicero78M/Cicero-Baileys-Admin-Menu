@@ -217,7 +217,7 @@ const DIGIT_EMOJI = {
 };
 
 const CHAKRANARAYANA_MENU_GROUPS = {
-  direktorat: ["2", "3", "6", "9", "20", "22", "28", "46", "53", "54"],
+  direktorat: ["2", "3", "6", "9", "28", "20", "22", "46", "53", "54"],
   jajaran: ["1", "48", "49", "55", "56"],
 };
 
@@ -225,8 +225,8 @@ const CHAKRANARAYANA_MENU_LABELS = {
   "1": "Rekap Kelengkapan data Personil Satker",
   "2": "Executive Summary Narative CICERO",
   "3": "Rekap data personil",
-  "6": "Absensi like Direktorat/Bidang Simple",
-  "9": "Absensi komentar Direktorat/Bidang Simple",
+  "6": "Absensi Instagram Direktorat/Bidang Simple",
+  "9": "Absensi Tiktok Direktorat/Bidang Simple",
   "28": "Rekap like Instagram (Excel)",
   "20": "Rekap komentar TikTok (Excel)",
   "22": "Rekap ranking engagement jajaran",
@@ -276,7 +276,7 @@ const getChakranarayanaMenuText = (groupKey, groupLabel, menuCodesOverride = nul
   const menuCodes = Array.isArray(menuCodesOverride)
     ? menuCodesOverride
     : CHAKRANARAYANA_MENU_GROUPS[groupKey] || [];
-  const orderedMenuCodes = [...menuCodes].sort((a, b) => Number(a) - Number(b));
+  const orderedMenuCodes = [...menuCodes];
 
   const list = orderedMenuCodes
     .map((menuCode, idx) => {
@@ -291,7 +291,7 @@ const getChakranarayanaMenuText = (groupKey, groupLabel, menuCodesOverride = nul
     `*Menu Chakranarayana - ${groupLabel}*\n` +
     "Nomor menu sudah diurutkan ulang khusus menu ini:\n" +
     `${list}\n\n` +
-    "Balas *angka urut* untuk menjalankan menu, atau ketik *batal* untuk kembali."
+    "Balas angka urut untuk menjalankan menu, atau ketik batal untuk kembali."
   );
 };
 
@@ -3952,13 +3952,16 @@ export const dirRequestHandlers = {
     }
 
     const menuCodes = await resolveChakranarayanaMenuCodes(session, selectedGroup);
-    const orderedMenuCodes = [...menuCodes].sort((a, b) => Number(a) - Number(b));
+    const orderedMenuCodes = [...menuCodes];
     session.chakranarayanaMenuMap = orderedMenuCodes;
     session.chakranarayanaSelectedGroup = selectedGroup;
     session.allowedDirrequestMenuChoices = orderedMenuCodes;
     session.step = "chakranarayana_choose_menu";
     const groupLabel = selectedGroup === "direktorat" ? "Direktorat" : "Jajaran";
-    await waClient.sendMessage(chatId, getChakranarayanaMenuText(selectedGroup, groupLabel));
+    await waClient.sendMessage(
+      chatId,
+      getChakranarayanaMenuText(selectedGroup, groupLabel, orderedMenuCodes)
+    );
   },
 
   async chakranarayana_choose_menu(session, chatId, text, waClient) {
@@ -4048,10 +4051,10 @@ export const dirRequestHandlers = {
         "4️⃣ Rekap Matriks Update Satker\n\n" +
         "📅 *Absensi*\n" +
         "5️⃣ Absensi like Direktorat/Bidang\n" +
-        "6️⃣ Absensi like Direktorat/Bidang Simple\n" +
+        "6️⃣ Absensi Instagram Direktorat/Bidang Simple\n" +
         "7️⃣ Absensi like Instagram\n" +
         "8️⃣ Absensi komentar TikTok\n" +
-        "9️⃣ Absensi komentar Direktorat/Bidang Simple\n" +
+        "9️⃣ Absensi Tiktok Direktorat/Bidang Simple\n" +
         "1️⃣0️⃣ Absensi komentar Direktorat/Bidang\n" +
         "1️⃣1️⃣ Absensi user web dashboard Direktorat/Bidang\n" +
         "4️⃣8️⃣ Absensi Instagram Jajaran\n" +
