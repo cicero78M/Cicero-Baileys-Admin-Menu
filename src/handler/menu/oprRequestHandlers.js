@@ -26,6 +26,45 @@ function extractInstagramLinksFromInput(text) {
     .filter((item) => item && /^https?:\/\//i.test(item) && /instagram\.com/i.test(item));
 }
 
+function extractEngagementManualLinksFromInput(text) {
+  const rawText = String(text || "");
+  const urlMatches = rawText.match(/https?:\/\/[^\s<>"']+/gi) || [];
+  const instagramLinks = [];
+  const tiktokLinks = [];
+  const seenInstagram = new Set();
+  const seenTiktok = new Set();
+  let ignoredUrlCount = 0;
+
+  for (const rawUrl of urlMatches) {
+    const cleanedUrl = String(rawUrl).replace(/[),.;!?]+$/g, "");
+    const dedupeKey = cleanedUrl.toLowerCase();
+
+    if (/instagram\.com\/(p|reel|tv)\//i.test(cleanedUrl)) {
+      if (!seenInstagram.has(dedupeKey)) {
+        seenInstagram.add(dedupeKey);
+        instagramLinks.push(cleanedUrl);
+      }
+      continue;
+    }
+
+    if (/(?:tiktok\.com|vt\.tiktok\.com|vm\.tiktok\.com)\//i.test(cleanedUrl)) {
+      if (!seenTiktok.has(dedupeKey)) {
+        seenTiktok.add(dedupeKey);
+        tiktokLinks.push(cleanedUrl);
+      }
+      continue;
+    }
+
+    ignoredUrlCount += 1;
+  }
+
+  return {
+    instagramLinks,
+    tiktokLinks,
+    ignoredUrlCount,
+  };
+}
+
 function normalizeAccessNumbers(rawNumber) {
   const digitsOnly = String(rawNumber || "").replace(/\D/g, "");
   if (!digitsOnly) return [];
@@ -445,13 +484,28 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
         const tiktokLabel = tiktokActive
           ? "2️⃣ Absensi Komentar TikTok"
           : "2️⃣ Absensi Komentar TikTok (nonaktif)";
-        const fetchPostLabel = instagramActive && tiktokActive
-          ? "3️⃣ Fetch Post Engagement"
-          : null;
-        const engagementMenuItems = [instaLabel, tiktokLabel];
-        if (fetchPostLabel) {
-          engagementMenuItems.push(fetchPostLabel);
+        const engagementMenuItems = [];
+        const engagementMenuMapping = {};
+        let engagementMenuNumber = 1;
+
+        engagementMenuItems.push(instaLabel);
+        engagementMenuMapping[engagementMenuNumber] = "likes";
+        engagementMenuNumber += 1;
+
+        engagementMenuItems.push(tiktokLabel);
+        engagementMenuMapping[engagementMenuNumber] = "komentar";
+        engagementMenuNumber += 1;
+
+        if (instagramActive && tiktokActive) {
+          engagementMenuItems.push(`${engagementMenuNumber}️⃣ Fetch Post Engagement`);
+          engagementMenuMapping[engagementMenuNumber] = "fetch_post";
+          engagementMenuNumber += 1;
         }
+
+        engagementMenuItems.push(`${engagementMenuNumber}️⃣ Input Manual Multi Link`);
+        engagementMenuMapping[engagementMenuNumber] = "manual_multi_link";
+
+        session.engagementMenuMapping = engagementMenuMapping;
         session.step = "kelolaEngagement_menu";
         await waClient.sendMessage(
           chatId,
@@ -584,19 +638,30 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
 
   kelolaEngagement_menu: async (session, chatId, text, waClient, pool, userModel) => {
     const menuText = (text || "").trim();
+    const menuMapping = session.engagementMenuMapping || {
+      1: "likes",
+      2: "komentar",
+      3: "fetch_post",
+      4: "manual_multi_link",
+    };
+
     if (/^(menu|kembali|back|0)$/i.test(text.trim())) {
+      delete session.engagementMenuMapping;
       session.step = "main";
       return oprRequestHandlers.main(session, chatId, "", waClient, pool, userModel);
     }
     if (/^(batal|cancel|exit)$/i.test(text.trim())) {
       session.menu = null;
       session.step = null;
+      delete session.engagementMenuMapping;
       delete session.absensi_engagement_client_id;
       delete session.absensi_engagement_type;
       await waClient.sendMessage(chatId, "❎ Keluar dari menu operator.");
       return;
     }
-    if (/^1$/i.test(menuText)) {
+    const selectedMenu = menuMapping[Number.parseInt(menuText, 10)];
+
+    if (selectedMenu === "likes") {
       const access = await ensureEngagementMenuAccess(
         session,
         chatId,
@@ -622,7 +687,7 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
         userModel
       );
     }
-    if (/^2$/i.test(menuText)) {
+    if (selectedMenu === "komentar") {
       const access = await ensureEngagementMenuAccess(
         session,
         chatId,
@@ -648,7 +713,7 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
         userModel
       );
     }
-    if (/^3$/i.test(menuText)) {
+    if (selectedMenu === "fetch_post") {
       const access = await ensureEngagementMenuAccess(session, chatId, waClient, pool);
       if (!access) {
         if (isAdminWhatsApp(chatId)) {
@@ -712,10 +777,169 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
       session.step = "main";
       return oprRequestHandlers.main(session, chatId, "", waClient, pool, userModel);
     }
+
+    if (selectedMenu === "manual_multi_link") {
+      const access = await ensureEngagementMenuAccess(session, chatId, waClient, pool);
+      if (!access) {
+        if (isAdminWhatsApp(chatId)) {
+          delete session.selected_client_id;
+        }
+        session.step = "main";
+        return oprRequestHandlers.main(session, chatId, "", waClient, pool, userModel);
+      }
+
+      session.step = "kelolaEngagement_inputManualMultiLink";
+      await waClient.sendMessage(
+        chatId,
+        appendSubmenuBackInstruction(
+          "Kirim link post Instagram/TikTok untuk input manual engagement.\n\n" +
+            "Boleh kirim *multi link* sekaligus (campur narasi juga boleh).\n" +
+            "Sistem otomatis mendeteksi platform dari link yang dikirim.\n" +
+            "Contoh IG: https://www.instagram.com/p/XXXXXXXXXXX/\n" +
+            "Contoh TikTok: https://www.tiktok.com/@username/video/1234567890123456789\n" +
+            "Ketik *menu* untuk kembali, atau *batal* untuk keluar."
+        )
+      );
+      return;
+    }
+
+    const maxMenuNumber = Math.max(...Object.keys(menuMapping).map(Number));
     await waClient.sendMessage(
       chatId,
-      "Menu tidak dikenal. Balas angka 1-3, *menu* untuk kembali, atau ketik *batal* untuk keluar."
+      `Menu tidak dikenal. Balas angka 1-${maxMenuNumber}, *menu* untuk kembali, atau ketik *batal* untuk keluar.`
     );
+  },
+
+  kelolaEngagement_inputManualMultiLink: async (
+    session,
+    chatId,
+    text,
+    waClient,
+    pool,
+    userModel
+  ) => {
+    const trimmedText = (text || "").trim();
+
+    if (/^(menu|kembali|back|0)$/i.test(trimmedText)) {
+      session.step = "kelolaEngagement_menu";
+      return oprRequestHandlers.kelolaEngagement_menu(
+        session,
+        chatId,
+        "",
+        waClient,
+        pool,
+        userModel
+      );
+    }
+
+    if (/^(batal|cancel|exit)$/i.test(trimmedText)) {
+      session.menu = null;
+      session.step = null;
+      delete session.engagementMenuMapping;
+      delete session.absensi_engagement_client_id;
+      delete session.absensi_engagement_type;
+      await waClient.sendMessage(chatId, "❎ Keluar dari menu operator.");
+      return;
+    }
+
+    const clientId = await resolveClientId(session, chatId, pool);
+    if (!clientId) {
+      await waClient.sendMessage(chatId, "❌ Client tidak ditemukan untuk nomor ini.");
+      session.step = "main";
+      return oprRequestHandlers.main(session, chatId, "", waClient, pool, userModel);
+    }
+
+    const { instagramLinks, tiktokLinks, ignoredUrlCount } =
+      extractEngagementManualLinksFromInput(trimmedText);
+
+    if (!instagramLinks.length && !tiktokLinks.length) {
+      await waClient.sendMessage(
+        chatId,
+        "❌ Tidak ada link Instagram/TikTok yang valid. Kirim ulang link valid atau ketik *menu* untuk kembali."
+      );
+      return;
+    }
+
+    await waClient.sendMessage(chatId, "⏳ Proses input manual multi-link dimulai.");
+
+    try {
+      const instagramSuccess = [];
+      const instagramFailed = [];
+      const tiktokSuccess = [];
+      const tiktokFailed = [];
+
+      if (instagramLinks.length) {
+        const { fetchSinglePostKhusus } = await import("../fetchpost/instaFetchPost.js");
+        for (const instagramLink of instagramLinks) {
+          try {
+            const result = await fetchSinglePostKhusus(instagramLink, clientId);
+            instagramSuccess.push(result.shortcode);
+          } catch (error) {
+            instagramFailed.push(`- ${instagramLink} => ${error.message}`);
+          }
+        }
+      }
+
+      if (tiktokLinks.length) {
+        const { fetchAndStoreSingleTiktokPost } = await import(
+          "../fetchpost/tiktokFetchPost.js"
+        );
+        for (const tiktokLink of tiktokLinks) {
+          try {
+            const result = await fetchAndStoreSingleTiktokPost(clientId, tiktokLink);
+            tiktokSuccess.push(result.videoId);
+          } catch (error) {
+            tiktokFailed.push(`- ${tiktokLink} => ${error.message}`);
+          }
+        }
+      }
+
+      if (instagramSuccess.length) {
+        const { handleFetchLikesInstagram } = await import(
+          "../fetchengagement/fetchLikesInstagram.js"
+        );
+        await handleFetchLikesInstagram(waClient, chatId, clientId, {
+          shortcodes: instagramSuccess,
+          sourceType: "manual_input",
+        });
+      }
+
+      if (tiktokSuccess.length) {
+        const { handleFetchKomentarTiktokBatch } = await import(
+          "../fetchengagement/fetchCommentTiktok.js"
+        );
+        await handleFetchKomentarTiktokBatch(waClient, chatId, clientId, {
+          videoIds: tiktokSuccess,
+          sourceType: "manual_input",
+        });
+      }
+
+      const summaryLines = [
+        "✅ Proses input manual multi-link selesai.",
+        `• Instagram berhasil: ${instagramSuccess.length}`,
+        `• TikTok berhasil: ${tiktokSuccess.length}`,
+      ];
+      if (ignoredUrlCount > 0) {
+        summaryLines.push(`• Link non-IG/TikTok diabaikan: ${ignoredUrlCount}`);
+      }
+      await waClient.sendMessage(chatId, summaryLines.join("\n"));
+
+      if (instagramFailed.length || tiktokFailed.length) {
+        await waClient.sendMessage(
+          chatId,
+          [
+            "⚠️ Sebagian link gagal diproses:",
+            ...instagramFailed,
+            ...tiktokFailed,
+          ].join("\n")
+        );
+      }
+    } catch (error) {
+      await waClient.sendMessage(chatId, `❌ Gagal memproses input manual: ${error.message}`);
+    }
+
+    session.step = "main";
+    return oprRequestHandlers.main(session, chatId, "", waClient, pool, userModel);
   },
 
   kelolaAmplifikasi_menu: async (session, chatId, text, waClient, pool, userModel) => {
