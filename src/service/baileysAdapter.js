@@ -64,6 +64,8 @@ const DEFAULT_AUTH_DATA_DIR = 'baileys_auth';
 const DEFAULT_AUTH_DATA_PARENT_DIR = '.cicero';
 const DEFAULT_SEND_MESSAGE_RETRY_COUNT = 2;
 const DEFAULT_SEND_MESSAGE_RETRY_DELAY_MS = 1500;
+const DEFAULT_QUERY_TIMEOUT_MS = 15000;
+const DEFAULT_SYNC_HISTORY = false;
 
 function parsePositiveIntegerEnv(varName, fallback) {
   const raw = process.env[varName];
@@ -82,6 +84,24 @@ function parsePositiveIntegerEnv(varName, fallback) {
   }
 
   return parsed;
+}
+
+function parseBooleanEnv(varName, fallback) {
+  const raw = process.env[varName];
+  if (raw == null || raw === '') return fallback;
+
+  if (raw === 'true') return true;
+  if (raw === 'false') return false;
+
+  writeStructuredLog('warn', buildStructuredLog({
+    clientId: 'global',
+    event: 'invalid_env_value',
+    envVar: varName,
+    value: raw,
+    fallback,
+  }));
+
+  return fallback;
 }
 
 function isTimedOutWaitingForMessageError(err) {
@@ -198,6 +218,14 @@ export async function createBaileysClient(clientId = 'wa-admin') {
   const sendMessageRetryDelayMs = parsePositiveIntegerEnv(
     'WA_BAILEYS_SEND_RETRY_DELAY_MS',
     DEFAULT_SEND_MESSAGE_RETRY_DELAY_MS
+  );
+  const queryTimeoutMs = parsePositiveIntegerEnv(
+    'WA_BAILEYS_QUERY_TIMEOUT_MS',
+    DEFAULT_QUERY_TIMEOUT_MS
+  );
+  const shouldSyncHistory = parseBooleanEnv(
+    'WA_BAILEYS_SYNC_HISTORY',
+    DEFAULT_SYNC_HISTORY
   );
 
   // Internal event handlers
@@ -347,14 +375,14 @@ export async function createBaileysClient(clientId = 'wa-admin') {
       printQRInTerminal: false, // We handle QR ourselves
       browser: Browsers.ubuntu(clientId),
       msgRetryCounterCache,
-      defaultQueryTimeoutMs: 60000,
+      defaultQueryTimeoutMs: queryTimeoutMs,
       connectTimeoutMs: 60000,
       keepAliveIntervalMs: 25000,
       getMessage: async (key) => {
         // Return empty message for historical messages
         return { conversation: '' };
       },
-      shouldSyncHistoryMessage: () => true, // Sync all history messages by default
+      shouldSyncHistoryMessage: () => shouldSyncHistory,
     });
 
     registerEventListeners();
@@ -494,6 +522,18 @@ export async function createBaileysClient(clientId = 'wa-admin') {
             attempt: attempt + 1,
             maxAttempts: sendMessageRetryCount + 1,
           }));
+
+          if (isTimedOutWaitingForMessageError(err)) {
+            try {
+              await reinitializeClient('send_message_timeout');
+            } catch (reinitErr) {
+              writeStructuredLog('error', buildStructuredLog({
+                clientId,
+                event: 'reinitialize_after_send_timeout_failed',
+                error: reinitErr.message,
+              }));
+            }
+          }
 
           if (!isRetryable) {
             throw err;
