@@ -403,7 +403,7 @@ test('chakranarayana submenu direktorat menyembunyikan menu 22 saat switch_satik
 
   await dirRequestHandlers.chakranarayana_choose_submenu(session, '123', '1', waClient);
 
-  expect(session.chakranarayanaMenuMap).toEqual(['2', '3', '6', '9', '46', '53', '54']);
+  expect(session.chakranarayanaMenuMap).toEqual(['2', '3', '6', '9', '20', '28', '46', '53', '54']);
   expect(session.chakranarayanaMenuMap).not.toContain('22');
 });
 
@@ -418,8 +418,8 @@ test('chakranarayana submenu direktorat memetakan menu terurut', async () => {
 
   await dirRequestHandlers.chakranarayana_choose_submenu(session, '123', '1', waClient);
 
-  expect(session.chakranarayanaMenuMap).toEqual(['2', '3', '6', '9', '22', '46', '53', '54']);
-  expect(session.allowedDirrequestMenuChoices).toEqual(['2', '3', '6', '9', '22', '46', '53', '54']);
+  expect(session.chakranarayanaMenuMap).toEqual(['2', '3', '6', '9', '20', '22', '28', '46', '53', '54']);
+  expect(session.allowedDirrequestMenuChoices).toEqual(['2', '3', '6', '9', '20', '22', '28', '46', '53', '54']);
   expect(session.step).toBe('chakranarayana_choose_menu');
 });
 
@@ -427,15 +427,15 @@ test('chakranarayana choose menu meneruskan pilihan ke nomor dirrequest asli', a
   const session = {
     menu: 'chakranarayana',
     step: 'chakranarayana_choose_menu',
-    chakranarayanaMenuMap: ['2', '3', '6', '9', '22', '46', '53', '54'],
-    allowedDirrequestMenuChoices: ['2', '3', '6', '9', '22', '46', '53', '54'],
+    chakranarayanaMenuMap: ['2', '3', '6', '9', '20', '22', '28', '46', '53', '54'],
+    allowedDirrequestMenuChoices: ['2', '3', '6', '9', '20', '22', '28', '46', '53', '54'],
   };
   const waClient = { sendMessage: jest.fn() };
   const chooseMenuSpy = jest.spyOn(dirRequestHandlers, 'choose_menu').mockResolvedValue();
 
   await dirRequestHandlers.chakranarayana_choose_menu(session, '123', '4', waClient);
 
-  expect(chooseMenuSpy).toHaveBeenCalledWith(session, '123', '9', waClient);
+  expect(chooseMenuSpy).toHaveBeenCalledWith(session, '123', '20', waClient);
   chooseMenuSpy.mockRestore();
 });
 
@@ -445,8 +445,8 @@ test('main menampilkan menu chakranarayana aktif pada akhir sesi', async () => {
     menu: 'chakranarayana',
     step: 'main',
     chakranarayanaSelectedGroup: 'direktorat',
-    chakranarayanaMenuMap: ['2', '3', '6', '9', '22', '46', '53', '54'],
-    allowedDirrequestMenuChoices: ['2', '3', '6', '9', '22', '46', '53', '54'],
+    chakranarayanaMenuMap: ['2', '3', '6', '9', '20', '22', '28', '46', '53', '54'],
+    allowedDirrequestMenuChoices: ['2', '3', '6', '9', '20', '22', '28', '46', '53', '54'],
   };
   const waClient = { sendMessage: jest.fn() };
 
@@ -457,7 +457,7 @@ test('main menampilkan menu chakranarayana aktif pada akhir sesi', async () => {
   expect(msg).toContain('Menu Chakranarayana - Direktorat');
   expect(msg).not.toContain('Client: *');
   expect(msg).toContain('1️⃣ Executive Summary Narative CICERO');
-  expect(msg).toContain('5️⃣ Rekap ranking engagement jajaran');
+  expect(msg).toContain('5️⃣ Rekap komentar TikTok (Excel)');
 });
 
 test('choose_menu menolak pilihan di luar whitelist chakranarayana', async () => {
@@ -1487,7 +1487,7 @@ test('choose_menu option 17 sends laphar file, narrative, and likes recap excel'
   await dirRequestHandlers.choose_menu(session, chatId, '17', waClient);
 
   expect(mockLapharDitbinmas).toHaveBeenCalled();
-  expect(mockCollectLikesRecap).toHaveBeenCalledWith('ditbinmas');
+  expect(mockCollectLikesRecap).toHaveBeenCalledWith('ditbinmas', {});
   expect(mockSaveLikesRecapExcel).toHaveBeenCalledWith({ shortcodes: ['sc1'] }, 'ditbinmas');
   expect(mockReadFile).toHaveBeenCalledWith('/tmp/recap.xlsx');
   expect(mockUnlink).toHaveBeenCalledWith('/tmp/recap.xlsx');
@@ -1613,7 +1613,7 @@ test('choose_menu option 19 generates likes recap excel and sends file', async (
 
   await dirRequestHandlers.choose_menu(session, chatId, '19', waClient);
 
-  expect(mockCollectLikesRecap).toHaveBeenCalledWith('ditbinmas');
+  expect(mockCollectLikesRecap).toHaveBeenCalledWith('ditbinmas', {});
   expect(mockSaveLikesRecapExcel).toHaveBeenCalledWith({
     shortcodes: ['sc1'],
     recap: { POLRES_A: [{ pangkat: 'AKP', nama: 'Budi', satfung: 'SAT A', sc1: 1 }] },
@@ -1664,6 +1664,32 @@ test('choose_menu option 28 generates per content likes recap excel and sends fi
     chatId,
     expect.stringContaining('File Excel dikirim')
   );
+});
+
+
+
+test('choose_menu option 28 chakranarayana direktorat applies menu5 satik scope options', async () => {
+  mockCollectLikesRecap.mockResolvedValue({
+    shortcodes: ['sc1'],
+    recap: { POLRES_A: [{ pangkat: 'AKP', nama: 'Budi', satfung: 'SAT A', sc1: 1 }] },
+  });
+  mockSaveLikesRecapPerContentExcel.mockResolvedValue('/tmp/per_content_scope.xlsx');
+  mockReadFile.mockResolvedValue(Buffer.from('excel'));
+  const session = {
+    selectedClientId: 'ditintelkam',
+    clientName: 'DIT INTELKAM',
+    menu: 'chakranarayana',
+    chakranarayanaSelectedGroup: 'direktorat',
+  };
+  const chatId = '781';
+  const waClient = { sendMessage: jest.fn() };
+
+  await dirRequestHandlers.choose_menu(session, chatId, '28', waClient);
+
+  expect(mockCollectLikesRecap).toHaveBeenCalledWith('ditintelkam', {
+    userScope: 'chakranarayana_menu5_user_flow',
+    targetClientId: 'DITINTELKAM',
+  });
 });
 
 test('choose_menu option 29 generates TikTok per content comment recap excel and sends file', async () => {
