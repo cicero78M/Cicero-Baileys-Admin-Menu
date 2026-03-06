@@ -651,7 +651,7 @@ export async function absensiLikesDitbinmasSimple(clientId = "DITBINMAS") {
 
   let msg =
     `Mohon ijin Komandan,\n\n` +
-    `📋 Rekap Akumulasi Likes Instagram (Simple)\n` +
+    `📋 Rekap Engagement Instagram\n` +
     `*${clientName.toUpperCase()}*\n` +
     `${hari}, ${tanggal}\n` +
     `Jam: ${jam} WIB\nPeriode: hari ini (WIB)\n\n` +
