@@ -217,7 +217,7 @@ const DIGIT_EMOJI = {
 };
 
 const CHAKRANARAYANA_MENU_GROUPS = {
-  direktorat: ["2", "3", "6", "9", "19", "20", "22", "46", "53", "54"],
+  direktorat: ["2", "3", "6", "9", "20", "22", "28", "46", "53", "54"],
   jajaran: ["1", "48", "49", "55", "56"],
 };
 
@@ -227,7 +227,7 @@ const CHAKRANARAYANA_MENU_LABELS = {
   "3": "Rekap data personil",
   "6": "Absensi like Direktorat/Bidang Simple",
   "9": "Absensi komentar Direktorat/Bidang Simple",
-  "19": "Rekap like Instagram (Excel)",
+  "28": "Rekap like Instagram (Excel)",
   "20": "Rekap komentar TikTok (Excel)",
   "22": "Rekap ranking engagement jajaran",
   "46": "Input post manual (IG/TikTok)",
@@ -3641,7 +3641,10 @@ async function performAction(
         break;
       }
       case "28": {
-        const data = await collectLikesRecap(clientId);
+        const data = await collectLikesRecap(
+          clientId,
+          buildChakranarayanaMenu5ScopeOptions(clientId, context)
+        );
         if (typeof data === "string") {
           msg = data;
           break;
