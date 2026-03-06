@@ -252,6 +252,56 @@ async function resolveClientId(session, chatId, pool) {
   return null;
 }
 
+function buildTiktokTaskLink(videoId, tiktokUsername) {
+  const normalizedVideoId = String(videoId || "").trim();
+  if (!normalizedVideoId) return null;
+
+  const normalizedUsername = String(tiktokUsername || "").replace(/^@/, "").trim();
+  if (normalizedUsername) {
+    return `https://www.tiktok.com/@${normalizedUsername}/video/${normalizedVideoId}`;
+  }
+  return `https://www.tiktok.com/video/${normalizedVideoId}`;
+}
+
+async function sendTodayEngagementTasks(session, chatId, waClient, pool) {
+  const client = await resolveClientProfile(session, chatId, pool);
+  if (!client) {
+    await waClient.sendMessage(chatId, "❌ Client tidak ditemukan untuk nomor ini.");
+    return;
+  }
+
+  const { getShortcodesTodayByClient } = await import("../../model/instaPostModel.js");
+  const { getPostsTodayByClient } = await import("../../model/tiktokPostModel.js");
+
+  const [instagramShortcodes, tiktokPosts] = await Promise.all([
+    getShortcodesTodayByClient(client.client_id),
+    getPostsTodayByClient(client.client_id),
+  ]);
+
+  const instagramLinks = instagramShortcodes.map(
+    (shortcode) => `https://www.instagram.com/p/${shortcode}`
+  );
+  const tiktokLinks = tiktokPosts
+    .map((post) => buildTiktokTaskLink(post?.video_id, client.client_tiktok))
+    .filter(Boolean);
+
+  const lines = ["*Tugas Hari Ini*", `Client: *${client.client_id}*`, ""];
+
+  if (!instagramLinks.length && !tiktokLinks.length) {
+    lines.push("Tidak ada tugas engagement hari ini.");
+  } else {
+    lines.push("Link tugas yang harus dilaksanakan hari ini:");
+    lines.push("");
+    lines.push(`Instagram (${instagramLinks.length}):`);
+    lines.push(instagramLinks.join("\n") || "-");
+    lines.push("");
+    lines.push(`TikTok (${tiktokLinks.length}):`);
+    lines.push(tiktokLinks.join("\n") || "-");
+  }
+
+  await waClient.sendMessage(chatId, appendSubmenuBackInstruction(lines.join("\n").trim()));
+}
+
 function formatUpdateFieldList() {
   return appendSubmenuBackInstruction(`
 ✏️ *Pilih field yang ingin diupdate:*
@@ -502,6 +552,10 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
           engagementMenuNumber += 1;
         }
 
+        engagementMenuItems.push(`${engagementMenuNumber}️⃣ Tugas Hari Ini`);
+        engagementMenuMapping[engagementMenuNumber] = "tugas_hari_ini";
+        engagementMenuNumber += 1;
+
         engagementMenuItems.push(`${engagementMenuNumber}️⃣ Input Manual Multi Link`);
         engagementMenuMapping[engagementMenuNumber] = "manual_multi_link";
 
@@ -642,7 +696,8 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
       1: "likes",
       2: "komentar",
       3: "fetch_post",
-      4: "manual_multi_link",
+      4: "tugas_hari_ini",
+      5: "manual_multi_link",
     };
 
     if (/^(menu|kembali|back|0)$/i.test(text.trim())) {
@@ -800,6 +855,20 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
             "Ketik *menu* untuk kembali, atau *batal* untuk keluar."
         )
       );
+      return;
+    }
+
+    if (selectedMenu === "tugas_hari_ini") {
+      const access = await ensureEngagementMenuAccess(session, chatId, waClient, pool);
+      if (!access) {
+        if (isAdminWhatsApp(chatId)) {
+          delete session.selected_client_id;
+        }
+        session.step = "main";
+        return oprRequestHandlers.main(session, chatId, "", waClient, pool, userModel);
+      }
+
+      await sendTodayEngagementTasks(session, chatId, waClient, pool);
       return;
     }
 

@@ -6,6 +6,8 @@ describe('oprRequestHandlers - Conditional Menu Display', () => {
   let mockWaClient;
   let mockUserModel;
   let mockSession;
+  let mockGetShortcodesTodayByClient;
+  let mockGetPostsTodayByClient;
   
   beforeEach(async () => {
     // Reset all modules before each test
@@ -33,6 +35,20 @@ describe('oprRequestHandlers - Conditional Menu Display', () => {
     
     jest.unstable_mockModule('../../../src/handler/menu/menuPromptHelpers.js', () => ({
       appendSubmenuBackInstruction: jest.fn((msg) => msg)
+    }));
+
+    jest.unstable_mockModule('../../../src/middleware/debugHandler.js', () => ({
+      sendDebug: jest.fn()
+    }));
+
+    mockGetShortcodesTodayByClient = jest.fn();
+    jest.unstable_mockModule('../../../src/model/instaPostModel.js', () => ({
+      getShortcodesTodayByClient: mockGetShortcodesTodayByClient
+    }));
+
+    mockGetPostsTodayByClient = jest.fn();
+    jest.unstable_mockModule('../../../src/model/tiktokPostModel.js', () => ({
+      getPostsTodayByClient: mockGetPostsTodayByClient
     }));
     
     const module = await import('../../../src/handler/menu/oprRequestHandlers.js');
@@ -220,6 +236,82 @@ describe('oprRequestHandlers - Conditional Menu Display', () => {
       expect(sentMessage).toContain('1️⃣ Manajemen User');
       expect(sentMessage).not.toContain('Manajemen Amplifikasi');
       expect(sentMessage).not.toContain('Manajemen Engagement');
+    });
+  });
+
+  describe('kelolaEngagement_menu', () => {
+    it('should include Tugas Hari Ini menu in engagement list', async () => {
+      mockPool.query.mockResolvedValue({
+        rows: [{
+          client_id: 'TEST_CLIENT',
+          client_status: true,
+          client_insta_status: true,
+          client_tiktok_status: true,
+          client_amplify_status: true,
+          client_type: 'org'
+        }]
+      });
+
+      mockSession.menuMapping = { 3: 'engagement' };
+      mockSession.step = 'chooseMenuGroup';
+
+      await oprRequestHandlers.chooseMenuGroup(
+        mockSession,
+        '628123456789',
+        '3',
+        mockWaClient,
+        mockPool,
+        mockUserModel
+      );
+
+      const sentMessage = mockWaClient.sendMessage.mock.calls[0][1];
+      expect(sentMessage).toContain('Tugas Hari Ini');
+      expect(mockSession.engagementMenuMapping).toEqual({
+        1: 'likes',
+        2: 'komentar',
+        3: 'fetch_post',
+        4: 'tugas_hari_ini',
+        5: 'manual_multi_link'
+      });
+    });
+
+    it('should send today tasks for instagram and tiktok links', async () => {
+      mockPool.query.mockResolvedValue({
+        rows: [{
+          client_id: 'TEST_CLIENT',
+          client_status: true,
+          client_insta_status: true,
+          client_tiktok_status: true,
+          client_tiktok: '@testuser',
+          client_type: 'org'
+        }]
+      });
+
+      mockGetShortcodesTodayByClient.mockResolvedValue(['IG123']);
+      mockGetPostsTodayByClient.mockResolvedValue([{ video_id: 'TT999' }]);
+
+      mockSession.step = 'kelolaEngagement_menu';
+      mockSession.engagementMenuMapping = {
+        1: 'likes',
+        2: 'komentar',
+        3: 'fetch_post',
+        4: 'tugas_hari_ini',
+        5: 'manual_multi_link'
+      };
+
+      await oprRequestHandlers.kelolaEngagement_menu(
+        mockSession,
+        '628123456789',
+        '4',
+        mockWaClient,
+        mockPool,
+        mockUserModel
+      );
+
+      const sentMessage = mockWaClient.sendMessage.mock.calls[0][1];
+      expect(sentMessage).toContain('*Tugas Hari Ini*');
+      expect(sentMessage).toContain('https://www.instagram.com/p/IG123');
+      expect(sentMessage).toContain('https://www.tiktok.com/@testuser/video/TT999');
     });
   });
 });
