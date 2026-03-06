@@ -349,7 +349,17 @@ WA_BAILEYS_SEND_RETRY_COUNT=2
 
 # jeda antar retry dalam milidetik (default: 1500)
 WA_BAILEYS_SEND_RETRY_DELAY_MS=1500
+
+# query timeout baileys untuk operasi request/ack (default: 15000)
+WA_BAILEYS_QUERY_TIMEOUT_MS=15000
+
+# sinkronisasi history saat koneksi awal (default: false)
+WA_BAILEYS_SYNC_HISTORY=false
 ```
+
+**Catatan tuning**:
+- Turunkan `WA_BAILEYS_QUERY_TIMEOUT_MS` untuk mempercepat failover/retry saat koneksi sedang tidak stabil.
+- Pertahankan `WA_BAILEYS_SYNC_HISTORY=false` pada workload bot menu agar proses kirim respons tidak tertahan sinkronisasi history yang besar.
 
 **Langkah operasional**:
 1. Set variabel di atas pada environment produksi.
