@@ -3952,13 +3952,16 @@ export const dirRequestHandlers = {
     }
 
     const menuCodes = await resolveChakranarayanaMenuCodes(session, selectedGroup);
-    const orderedMenuCodes = [...menuCodes].sort((a, b) => Number(a) - Number(b));
+    const orderedMenuCodes = [...menuCodes];
     session.chakranarayanaMenuMap = orderedMenuCodes;
     session.chakranarayanaSelectedGroup = selectedGroup;
     session.allowedDirrequestMenuChoices = orderedMenuCodes;
     session.step = "chakranarayana_choose_menu";
     const groupLabel = selectedGroup === "direktorat" ? "Direktorat" : "Jajaran";
-    await waClient.sendMessage(chatId, getChakranarayanaMenuText(selectedGroup, groupLabel));
+    await waClient.sendMessage(
+      chatId,
+      getChakranarayanaMenuText(selectedGroup, groupLabel, orderedMenuCodes)
+    );
   },
 
   async chakranarayana_choose_menu(session, chatId, text, waClient) {
