@@ -6,6 +6,11 @@ import {
   sortDivisionKeys,
   sortTitleKeys,
 } from "../../utils/utilsHelper.js";
+import {
+  formatJakartaDisplayDate,
+  formatJakartaDisplayTime,
+  formatJakartaQueryDateKey,
+} from "../../utils/dateJakarta.js";
 import { appendSubmenuBackInstruction } from "./menuPromptHelpers.js";
 import { sendDebug } from "../../middleware/debugHandler.js";
 
@@ -18,6 +23,26 @@ const INSTAGRAM_TASK_FETCH_FIELDS = [
   "like_count",
   "timestamp",
 ];
+
+function buildJakartaDateContext(referenceDate = new Date()) {
+  const queryDate = formatJakartaQueryDateKey(referenceDate);
+  const [year, month, day] = queryDate.split("-").map(Number);
+  const utcDate = new Date(Date.UTC(year, month - 1, day));
+
+  return {
+    hari: hariIndo[utcDate.getUTCDay()] || "-",
+    tanggal: formatJakartaDisplayDate(referenceDate),
+    jam: formatJakartaDisplayTime(referenceDate),
+  };
+}
+
+function getJakartaRelativeDate(baseDate = new Date(), dayOffset = 0) {
+  const baseQueryDate = formatJakartaQueryDateKey(baseDate);
+  const [year, month, day] = baseQueryDate.split("-").map(Number);
+  const utcDate = new Date(Date.UTC(year, month - 1, day));
+  utcDate.setUTCDate(utcDate.getUTCDate() + dayOffset);
+  return utcDate;
+}
 
 function extractInstagramLinksFromInput(text) {
   return String(text || "")
@@ -1580,10 +1605,7 @@ Balas *angka* (1/2) sesuai status baru, atau *batal* untuk keluar.
       list.tiktok.length +
       list.youtube.length;
 
-    const now = new Date();
-    const hari = hariIndo[now.getDay()];
-    const tanggal = now.toLocaleDateString("id-ID");
-    const jam = now.toLocaleTimeString("id-ID", { hour12: false });
+    const { hari, tanggal, jam } = buildJakartaDateContext();
     const salam = getGreeting();
 
     const { rows: nameRows } = await pool.query(
@@ -1673,12 +1695,9 @@ Balas *angka* (1/2) sesuai status baru, atau *batal* untuk keluar.
       list.tiktok.length +
       list.youtube.length;
 
-    const now = new Date();
-    const yesterday = new Date();
-    yesterday.setDate(now.getDate() - 1);
-    const hari = hariIndo[yesterday.getDay()];
-    const tanggal = yesterday.toLocaleDateString("id-ID");
-    const jam = now.toLocaleTimeString("id-ID", { hour12: false });
+    const yesterdayJakarta = getJakartaRelativeDate(new Date(), -1);
+    const { hari, tanggal } = buildJakartaDateContext(yesterdayJakarta);
+    const { jam } = buildJakartaDateContext();
     const salam = getGreeting();
 
     const { rows: nameRows } = await pool.query(
@@ -1753,10 +1772,7 @@ Balas *angka* (1/2) sesuai status baru, atau *batal* untuk keluar.
     const totalLinks =
       list.facebook.length + list.instagram.length + list.twitter.length + list.tiktok.length + list.youtube.length;
 
-    const now = new Date();
-    const hari = hariIndo[now.getDay()];
-    const tanggal = now.toLocaleDateString("id-ID");
-    const jam = now.toLocaleTimeString("id-ID", { hour12: false });
+    const { hari, tanggal, jam } = buildJakartaDateContext();
     const salam = getGreeting();
     const { rows: nameRows } = await pool.query(
       "SELECT nama FROM clients WHERE client_id=$1 LIMIT 1",
@@ -1873,10 +1889,7 @@ Balas *angka* (1/2) sesuai status baru, atau *batal* untuk keluar.
       list.tiktok.length +
       list.youtube.length;
 
-    const now = new Date();
-    const hari = hariIndo[now.getDay()];
-    const tanggal = now.toLocaleDateString("id-ID");
-    const jam = now.toLocaleTimeString("id-ID", { hour12: false });
+    const { hari, tanggal, jam } = buildJakartaDateContext();
     const salam = getGreeting();
 
     const { rows: nameRows } = await pool.query(
@@ -1988,10 +2001,7 @@ Balas *angka* (1/2) sesuai status baru, atau *batal* untuk keluar.
       list.tiktok.length +
       list.youtube.length;
 
-    const now = new Date();
-    const hari = hariIndo[now.getDay()];
-    const tanggal = now.toLocaleDateString("id-ID");
-    const jam = now.toLocaleTimeString("id-ID", { hour12: false });
+    const { hari, tanggal, jam } = buildJakartaDateContext();
     const salam = getGreeting();
 
     const { rows: nameRows } = await pool.query(
