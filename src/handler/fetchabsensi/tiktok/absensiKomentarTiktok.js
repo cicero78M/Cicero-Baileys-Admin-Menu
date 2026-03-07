@@ -74,10 +74,12 @@ export async function collectKomentarRecap(clientId, opts = {}) {
   const targetClientId = String(opts?.targetClientId || "")
     .trim()
     .toUpperCase();
-  const posts = await getPostsTodayByClient(
-    clientId,
-    toJakartaDateInput(referenceDate)
-  );
+  const posts = Array.isArray(opts?.posts)
+    ? opts.posts.filter((post) => post?.video_id)
+    : await getPostsTodayByClient(
+        clientId,
+        toJakartaDateInput(referenceDate)
+      );
   const videoIds = posts.map((p) => p.video_id);
   const commentSets = [];
   const failedVideoIds = [];
@@ -629,7 +631,7 @@ export async function absensiKomentar(client_id, opts = {}) {
   return msg.trim();
 }
 
-export async function absensiKomentarDitbinmasSimple(clientId = "DITBINMAS") {
+export async function absensiKomentarDitbinmasSimple(clientId = "DITBINMAS", opts = {}) {
   const targetClientId = String(clientId || "DITBINMAS").trim().toUpperCase();
   const roleName = targetClientId.toLowerCase();
   const now = new Date();
@@ -639,9 +641,12 @@ export async function absensiKomentarDitbinmasSimple(clientId = "DITBINMAS") {
 
   const { tiktok: mainUsername, nama: clientName, clientType } = await getClientInfo(targetClientId);
   const clientNameUpper = String(clientName || targetClientId).toUpperCase();
-  const posts = await getPostsTodayByClient(targetClientId);
+  const posts = Array.isArray(opts?.posts)
+    ? opts.posts.filter((post) => post?.video_id)
+    : await getPostsTodayByClient(targetClientId);
+  const periodLabel = String(opts?.periodLabel || "hari ini").trim();
   if (!posts.length)
-    return `Tidak ada konten TikTok pada akun Official ${clientNameUpper} hari ini.`;
+    return `Tidak ada konten TikTok pada akun Official ${clientNameUpper} untuk periode ${periodLabel}.`;
   const kontenLinks = posts.map(
     (p) => `https://www.tiktok.com/@${mainUsername}/video/${p.video_id}`
   );
@@ -754,7 +759,7 @@ export async function absensiKomentarDitbinmasSimple(clientId = "DITBINMAS") {
     `Mohon ijin Komandan,\n\n` +
     `📋 Rekap Engagement Tiktok\n` +
     `*${clientName.toUpperCase()}*\n` +
-    `${hari}, ${tanggal}\nJam: ${jam}\n\n` +
+    `${hari}, ${tanggal}\nJam: ${jam} WIB\nPeriode: ${periodLabel}\n\n` +
     `*Jumlah Konten:* ${posts.length}\n` +
     `*Daftar Link Konten:*\n${kontenLinks.join("\n")}\n\n` +
     `*Jumlah Total Personil:* ${totals.total} pers\n` +

@@ -44,7 +44,13 @@ export async function collectLikesRecap(clientId, opts = {}) {
     .toUpperCase();
   let shortcodes;
   try {
-    shortcodes = await getShortcodesTodayByClient(clientId);
+    if (Array.isArray(opts?.shortcodes)) {
+      shortcodes = opts.shortcodes
+        .map((shortcode) => String(shortcode || "").trim())
+        .filter(Boolean);
+    } else {
+      shortcodes = await getShortcodesTodayByClient(clientId);
+    }
   } catch (error) {
     console.error(error);
     return "Maaf, gagal mengambil data konten Instagram.";
@@ -548,7 +554,7 @@ export async function rekapLikesIG(client_id) {
   return msg.trim();
 }
 
-export async function absensiLikesDitbinmasSimple(clientId = "DITBINMAS") {
+export async function absensiLikesDitbinmasSimple(clientId = "DITBINMAS", opts = {}) {
   const targetClientId = String(clientId || "DITBINMAS").trim().toUpperCase();
   const roleName = targetClientId.toLowerCase();
   const { hari, tanggal, jam, operationalDate } = getOperationalAttendanceDate();
@@ -556,15 +562,25 @@ export async function absensiLikesDitbinmasSimple(clientId = "DITBINMAS") {
 
   let shortcodes;
   try {
-    shortcodes = await getShortcodesTodayByClient(targetClientId);
+    if (Array.isArray(opts?.shortcodes)) {
+      shortcodes = opts.shortcodes
+        .map((shortcode) => String(shortcode || "").trim())
+        .filter(Boolean);
+    } else {
+      shortcodes = await getShortcodesTodayByClient(targetClientId);
+    }
   } catch (error) {
     console.error(error);
     return "Maaf, gagal mengambil data konten Instagram.";
   }
   const { nama: clientName, clientType } = await getClientInfo(targetClientId);
 
+  const periodLabel = String(
+    opts?.periodLabel || `tanggal operasional ${tanggalOperasionalLabel}`
+  ).trim();
+
   if (!shortcodes.length)
-    return `*Tidak ada konten untuk tanggal operasional ${tanggalOperasionalLabel} pada akun official ${clientName.toUpperCase()}.*`;
+    return `*Tidak ada konten pada akun official ${clientName.toUpperCase()} untuk periode ${periodLabel}.*`;
 
   const kontenLinks = shortcodes.map((sc) => `https://www.instagram.com/p/${sc}`);
   let likesSets;
@@ -654,7 +670,7 @@ export async function absensiLikesDitbinmasSimple(clientId = "DITBINMAS") {
     `📋 Rekap Engagement Instagram\n` +
     `*${clientName.toUpperCase()}*\n` +
     `${hari}, ${tanggal}\n` +
-    `Jam: ${jam} WIB\nPeriode: hari ini (WIB)\n\n` +
+    `Jam: ${jam} WIB\nPeriode: ${periodLabel}\n\n` +
     `*Jumlah Konten:* ${shortcodes.length}\n` +
     `*Daftar Link Konten:*\n${kontenLinks.join("\n")}\n\n` +
     `*Jumlah Total Personil:* ${totals.total} pers\n` +
@@ -837,7 +853,7 @@ export async function absensiLikesDitbinmasReport(clientId = "DITBINMAS") {
     `📋 Rekap Akumulasi Likes Instagram\n` +
     `*${clientName.toUpperCase()}*\n` +
     `${hari}, ${tanggal}\n` +
-    `Jam: ${jam} WIB\nPeriode: hari ini (WIB)\n\n` +
+    `Jam: ${jam} WIB\n\n` +
     `*Jumlah Konten:* ${shortcodes.length}\n` +
     `*Daftar Link Konten:*\n${kontenLinks.join("\n")}\n\n` +
     `*Jumlah Total Personil :* ${totals.total} pers\n` +

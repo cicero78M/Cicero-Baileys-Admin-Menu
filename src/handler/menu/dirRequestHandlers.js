@@ -355,6 +355,28 @@ const ENGAGEMENT_RECAP_DATE_PROMPT =
   "Ketik batal untuk kembali ke pilihan periode.\n" +
   "Ketik back untuk kembali ke menu sebelumnya.";
 
+const CHAKRANARAYANA_DIRECTORATE_RECAP_PERIOD_MENU_TEXT =
+  "Silakan pilih periode rekap ..............\n" +
+  "1️⃣ Pilihan bulan (format YYYY-MM)\n" +
+  "2️⃣ Minggu ini (Senin - hari ini)\n" +
+  "3️⃣ Minggu sebelumnya (Senin - Minggu)\n" +
+  "4️⃣ Hari ini\n" +
+  "5️⃣ Pilihan tanggal (format YYYY-MM-DD)\n\n" +
+  "Balas angka pilihan atau ketik batal untuk kembali.\n" +
+  "Ketik back untuk kembali ke menu sebelumnya.";
+
+const CHAKRANARAYANA_DIRECTORATE_RECAP_MONTH_PROMPT =
+  "Masukkan bulan rekap dengan format YYYY-MM\n" +
+  "Contoh: 2026-01\n\n" +
+  "Ketik batal untuk kembali ke pilihan periode.\n" +
+  "Ketik back untuk kembali ke menu sebelumnya.";
+
+const CHAKRANARAYANA_DIRECTORATE_RECAP_DATE_PROMPT =
+  "Masukkan tanggal rekap dengan format YYYY-MM-DD\n" +
+  "Contoh: 2026-01-31\n\n" +
+  "Ketik batal untuk kembali ke pilihan periode.\n" +
+  "Ketik back untuk kembali ke menu sebelumnya.";
+
 const KASATKER_REPORT_MENU_TEXT = appendSubmenuBackInstruction(
   "Silakan pilih periode Laporan Kasatker:\n" +
     Object.entries(KASATKER_REPORT_PERIOD_MAP)
@@ -1668,6 +1690,75 @@ const getCurrentWeekWindow = (referenceDate = new Date()) => {
     startYmd: getJakartaYmd(thisWeekMonday),
     endYmd: getJakartaYmd(jakartaNow),
   };
+};
+
+const resolveChakranarayanaRecapWindow = (period, rawValue = null, referenceDate = new Date()) => {
+  if (period === "last_week") {
+    return {
+      ...getPreviousWeekWindow(referenceDate),
+      periodLabel: "minggu sebelumnya (Senin - Minggu)",
+      periodKey: "last_week",
+    };
+  }
+
+  if (period === "this_week") {
+    return {
+      ...getCurrentWeekWindow(referenceDate),
+      periodLabel: "minggu ini (Senin - hari ini)",
+      periodKey: "this_week",
+    };
+  }
+
+  if (period === "today") {
+    const todayYmd = getJakartaYmd(referenceDate);
+    return {
+      startYmd: todayYmd,
+      endYmd: todayYmd,
+      periodLabel: `hari ini (${todayYmd})`,
+      periodKey: "today",
+    };
+  }
+
+  if (period === "selected_date") {
+    const normalizedDate = String(rawValue || "").trim();
+    if (!isValidYmd(normalizedDate)) {
+      throw new Error("❌ Format tanggal tidak valid. Gunakan format YYYY-MM-DD.");
+    }
+
+    return {
+      startYmd: normalizedDate,
+      endYmd: normalizedDate,
+      periodLabel: `pilihan tanggal (${normalizedDate})`,
+      periodKey: "selected_date",
+    };
+  }
+
+  if (period === "selected_month") {
+    const normalizedMonth = String(rawValue || "").trim();
+    if (!isValidYm(normalizedMonth)) {
+      throw new Error("❌ Format bulan tidak valid. Gunakan format YYYY-MM.");
+    }
+
+    const [yearText, monthText] = normalizedMonth.split("-");
+    const year = Number(yearText);
+    const month = Number(monthText);
+    if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
+      throw new Error("❌ Bulan tidak valid. Gunakan rentang bulan 01 sampai 12.");
+    }
+
+    const startYmd = `${yearText}-${monthText}-01`;
+    const endDate = new Date(Date.UTC(year, month, 0, 0, 0, 0));
+    const endYmd = getJakartaYmd(endDate);
+
+    return {
+      startYmd,
+      endYmd,
+      periodLabel: `pilihan bulan (${normalizedMonth})`,
+      periodKey: "selected_month",
+    };
+  }
+
+  throw new Error("❌ Periode rekap tidak dikenali.");
 };
 
 const getExecutiveSummaryWindow = (period, rawValue = null, referenceDate = new Date()) => {
@@ -3344,9 +3435,16 @@ async function performAction(
       case "20": {
         let filePath;
         try {
+          const recapPeriodOptions = context?.recapPeriodOptions || {};
+          const periodStart = recapPeriodOptions.startYmd || getJakartaYmd();
+          const periodEnd = recapPeriodOptions.endYmd || getJakartaYmd();
+          const posts = await getTiktokPostsByDateRange(clientId, periodStart, periodEnd);
           const recapData = await collectKomentarRecap(
             clientId,
-            buildChakranarayanaMenu5ScopeOptions(clientId, context)
+            {
+              ...buildChakranarayanaMenu5ScopeOptions(clientId, context),
+              posts,
+            }
           );
           if (!recapData?.videoIds?.length) {
             msg = `Tidak ada konten TikTok untuk *${clientId}* hari ini.`;
@@ -3641,9 +3739,20 @@ async function performAction(
         break;
       }
       case "28": {
+        const recapPeriodOptions = context?.recapPeriodOptions || {};
+        const instagramPosts = await getInstaPostsByFilters(clientId, {
+          startDate: recapPeriodOptions.startYmd || null,
+          endDate: recapPeriodOptions.endYmd || null,
+        });
+        const shortcodes = (instagramPosts || [])
+          .map((post) => String(post?.shortcode || "").trim())
+          .filter(Boolean);
         const data = await collectLikesRecap(
           clientId,
-          buildChakranarayanaMenu5ScopeOptions(clientId, context)
+          {
+            ...buildChakranarayanaMenu5ScopeOptions(clientId, context),
+            shortcodes,
+          }
         );
         if (typeof data === "string") {
           msg = data;
@@ -4496,6 +4605,17 @@ export const dirRequestHandlers = {
       return;
     }
 
+    if (
+      session.menu === "chakranarayana" &&
+      session.chakranarayanaSelectedGroup === "direktorat" &&
+      ["28", "20"].includes(choice)
+    ) {
+      session.pendingChakranarayanaRecapAction = choice;
+      session.step = "choose_chakranarayana_directorate_recap_period";
+      await waClient.sendMessage(chatId, CHAKRANARAYANA_DIRECTORATE_RECAP_PERIOD_MENU_TEXT);
+      return;
+    }
+
     await performAction(
       choice,
       taskClientId,
@@ -4511,6 +4631,160 @@ export const dirRequestHandlers = {
     );
     session.step = "main";
     await dirRequestHandlers.main(session, chatId, "", waClient);
+  },
+
+
+  async choose_chakranarayana_directorate_recap_period(session, chatId, text, waClient) {
+    const choice = String(text || "").trim().toLowerCase();
+
+    if (!choice) {
+      await waClient.sendMessage(chatId, CHAKRANARAYANA_DIRECTORATE_RECAP_PERIOD_MENU_TEXT);
+      return;
+    }
+
+    if (choice === "batal" || choice === "back") {
+      delete session.pendingChakranarayanaRecapAction;
+      session.step = "main";
+      await dirRequestHandlers.main(session, chatId, "", waClient);
+      return;
+    }
+
+    const selectedPeriod = EXECUTIVE_SUMMARY_PERIOD_MAP[choice];
+    if (!selectedPeriod) {
+      await waClient.sendMessage(chatId, "❌ Pilihan periode tidak valid.");
+      await waClient.sendMessage(chatId, CHAKRANARAYANA_DIRECTORATE_RECAP_PERIOD_MENU_TEXT);
+      return;
+    }
+
+    if (selectedPeriod.period === "selected_month") {
+      session.chakranarayanaRecapPeriod = selectedPeriod.period;
+      session.step = "input_chakranarayana_directorate_recap_month";
+      await waClient.sendMessage(chatId, CHAKRANARAYANA_DIRECTORATE_RECAP_MONTH_PROMPT);
+      return;
+    }
+
+    if (selectedPeriod.period === "selected_date") {
+      session.chakranarayanaRecapPeriod = selectedPeriod.period;
+      session.step = "input_chakranarayana_directorate_recap_date";
+      await waClient.sendMessage(chatId, CHAKRANARAYANA_DIRECTORATE_RECAP_DATE_PROMPT);
+      return;
+    }
+
+    try {
+      const recapPeriodOptions = resolveChakranarayanaRecapWindow(selectedPeriod.period);
+      const targetClientId =
+        session.dir_client_id || session.selectedClientId || DITBINMAS_CLIENT_ID;
+      const action = session.pendingChakranarayanaRecapAction || "28";
+      await performAction(
+        action,
+        targetClientId,
+        waClient,
+        chatId,
+        session.role,
+        session.selectedClientId,
+        {
+          username: session.username || session.user?.username,
+          menuName: session.menu,
+          chakranarayanaSelectedGroup: session.chakranarayanaSelectedGroup,
+          recapPeriodOptions,
+        }
+      );
+    } catch (error) {
+      await waClient.sendMessage(chatId, error?.message || "❌ Gagal memproses pilihan periode.");
+    }
+
+    delete session.pendingChakranarayanaRecapAction;
+    delete session.chakranarayanaRecapPeriod;
+    session.step = "main";
+    await dirRequestHandlers.main(session, chatId, "", waClient);
+  },
+
+  async input_chakranarayana_directorate_recap_month(session, chatId, text, waClient) {
+    const input = String(text || "").trim();
+
+    if (!input) {
+      await waClient.sendMessage(chatId, CHAKRANARAYANA_DIRECTORATE_RECAP_MONTH_PROMPT);
+      return;
+    }
+
+    if (input.toLowerCase() === "batal" || input.toLowerCase() === "back") {
+      session.step = "choose_chakranarayana_directorate_recap_period";
+      await waClient.sendMessage(chatId, CHAKRANARAYANA_DIRECTORATE_RECAP_PERIOD_MENU_TEXT);
+      return;
+    }
+
+    try {
+      const recapPeriodOptions = resolveChakranarayanaRecapWindow("selected_month", input);
+      const targetClientId =
+        session.dir_client_id || session.selectedClientId || DITBINMAS_CLIENT_ID;
+      const action = session.pendingChakranarayanaRecapAction || "28";
+      await performAction(
+        action,
+        targetClientId,
+        waClient,
+        chatId,
+        session.role,
+        session.selectedClientId,
+        {
+          username: session.username || session.user?.username,
+          menuName: session.menu,
+          chakranarayanaSelectedGroup: session.chakranarayanaSelectedGroup,
+          recapPeriodOptions,
+        }
+      );
+
+      delete session.pendingChakranarayanaRecapAction;
+      delete session.chakranarayanaRecapPeriod;
+      session.step = "main";
+      await dirRequestHandlers.main(session, chatId, "", waClient);
+    } catch (error) {
+      await waClient.sendMessage(chatId, error?.message || "❌ Format bulan tidak valid.");
+      await waClient.sendMessage(chatId, CHAKRANARAYANA_DIRECTORATE_RECAP_MONTH_PROMPT);
+    }
+  },
+
+  async input_chakranarayana_directorate_recap_date(session, chatId, text, waClient) {
+    const input = String(text || "").trim();
+
+    if (!input) {
+      await waClient.sendMessage(chatId, CHAKRANARAYANA_DIRECTORATE_RECAP_DATE_PROMPT);
+      return;
+    }
+
+    if (input.toLowerCase() === "batal" || input.toLowerCase() === "back") {
+      session.step = "choose_chakranarayana_directorate_recap_period";
+      await waClient.sendMessage(chatId, CHAKRANARAYANA_DIRECTORATE_RECAP_PERIOD_MENU_TEXT);
+      return;
+    }
+
+    try {
+      const recapPeriodOptions = resolveChakranarayanaRecapWindow("selected_date", input);
+      const targetClientId =
+        session.dir_client_id || session.selectedClientId || DITBINMAS_CLIENT_ID;
+      const action = session.pendingChakranarayanaRecapAction || "28";
+      await performAction(
+        action,
+        targetClientId,
+        waClient,
+        chatId,
+        session.role,
+        session.selectedClientId,
+        {
+          username: session.username || session.user?.username,
+          menuName: session.menu,
+          chakranarayanaSelectedGroup: session.chakranarayanaSelectedGroup,
+          recapPeriodOptions,
+        }
+      );
+
+      delete session.pendingChakranarayanaRecapAction;
+      delete session.chakranarayanaRecapPeriod;
+      session.step = "main";
+      await dirRequestHandlers.main(session, chatId, "", waClient);
+    } catch (error) {
+      await waClient.sendMessage(chatId, error?.message || "❌ Format tanggal tidak valid.");
+      await waClient.sendMessage(chatId, CHAKRANARAYANA_DIRECTORATE_RECAP_DATE_PROMPT);
+    }
   },
 
 
