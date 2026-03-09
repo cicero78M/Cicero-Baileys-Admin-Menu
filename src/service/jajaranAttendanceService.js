@@ -74,7 +74,13 @@ export async function collectInstagramJajaranAttendance(clientId, roleFlag = nul
   // Get Instagram posts for today
   let shortcodes;
   try {
-    shortcodes = await getShortcodesTodayByClient(normalizedClientId);
+    if (Array.isArray(options?.shortcodes)) {
+      shortcodes = options.shortcodes
+        .map((shortcode) => String(shortcode || "").trim())
+        .filter(Boolean);
+    } else {
+      shortcodes = await getShortcodesTodayByClient(normalizedClientId);
+    }
   } catch (error) {
     console.error("Error fetching Instagram posts:", error);
     throw new Error("Gagal mengambil data konten Instagram.");
