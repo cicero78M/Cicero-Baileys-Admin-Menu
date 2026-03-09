@@ -384,6 +384,28 @@ export async function getShortcodesByDateRange(identifier, startDate, endDate) {
   return res.rows.map((r) => r.shortcode);
 }
 
+export async function getAttendancePostsByClientAndDate(identifier, date) {
+  if (!identifier || !date) return [];
+
+  const shortcodes = await getShortcodesByDateRange(identifier, date, date);
+  if (!shortcodes.length) return [];
+
+  const res = await query(
+    `SELECT DISTINCT ON (shortcode) *
+     FROM insta_post
+     WHERE shortcode = ANY($1::text[])
+     ORDER BY shortcode, created_at ASC`,
+    [shortcodes]
+  );
+
+  return res.rows.sort((a, b) => {
+    const aTime = new Date(a?.created_at || 0).getTime();
+    const bTime = new Date(b?.created_at || 0).getTime();
+    if (aTime !== bTime) return aTime - bTime;
+    return String(a?.shortcode || '').localeCompare(String(b?.shortcode || ''));
+  });
+}
+
 export async function getShortcodesTodayByUsername(username) {
   if (!username) return [];
   const today = new Date();
