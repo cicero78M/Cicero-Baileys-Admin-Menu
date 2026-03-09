@@ -253,8 +253,9 @@ export async function collectTiktokJajaranAttendance(clientId, roleFlag = null, 
   const tanggal = formatJakartaDisplayDate(now);
   const jam = formatJakartaDisplayTime(now);
 
-  const roleName = (roleFlag || clientId || "").toLowerCase();
   const normalizedClientId = String(clientId || "").toUpperCase();
+  const expectedDirektoratRole = normalizedClientId.toLowerCase();
+  const normalizedRoleFlag = String(roleFlag || "").toLowerCase();
 
   // Get client info
   const client = await findClientById(normalizedClientId);
@@ -271,10 +272,26 @@ export async function collectTiktokJajaranAttendance(clientId, roleFlag = null, 
   const applyChakranarayanaJajaranSatikFilter =
     shouldApplyChakranarayanaJajaranSatikFilter(options, client);
 
+  let personilScopeRole = expectedDirektoratRole;
+  if (normalizedRoleFlag) {
+    if (normalizedRoleFlag === expectedDirektoratRole) {
+      personilScopeRole = normalizedRoleFlag;
+    } else {
+      console.warn("[JAJARAN_ATTENDANCE] roleFlag mismatch for direktorat scope", {
+        event: "jajaran_attendance_roleflag_mismatch",
+        selectedClientId: normalizedClientId,
+        expectedRole: expectedDirektoratRole,
+        providedRoleFlag: normalizedRoleFlag,
+        fallbackRole: expectedDirektoratRole,
+        source: "collectTiktokJajaranAttendance",
+      });
+    }
+  }
+
   // Get TikTok posts for today
   let posts;
   try {
-    posts = await getPostsTodayByClient(roleName);
+    posts = await getPostsTodayByClient(normalizedClientId);
   } catch (error) {
     console.error("Error fetching TikTok posts:", error);
     throw new Error("Gagal mengambil data konten TikTok.");
@@ -303,7 +320,7 @@ export async function collectTiktokJajaranAttendance(clientId, roleFlag = null, 
   }
 
   // Get all polres IDs under this direktorat
-  const polresIds = await getClientsByRole(roleName);
+  const polresIds = await getClientsByRole(personilScopeRole);
   
   // Build daftar satker dari direktorat + polres sesuai role direktorat.
   const seen = new Set();
@@ -323,7 +340,7 @@ export async function collectTiktokJajaranAttendance(clientId, roleFlag = null, 
   });
   
   // Get all users
-  const allUsers = await getUsersByDirektorat(roleName, allClientIds);
+  const allUsers = await getUsersByDirektorat(personilScopeRole, allClientIds);
   
   // Group users by client
   const usersByClient = {};
