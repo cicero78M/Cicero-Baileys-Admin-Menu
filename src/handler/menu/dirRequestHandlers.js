@@ -1360,8 +1360,8 @@ async function formatTopPolresRanking(clientId, roleFlag = null) {
 async function absensiLikesDitbinmas(clientId) {
   return await absensiLikesDitbinmasReport(clientId);
 }
-async function absensiLikesDitbinmasSimple(clientId) {
-  return await absensiLikesDitbinmasSimpleReport(clientId);
+async function absensiLikesDitbinmasSimple(clientId, opts = {}) {
+  return await absensiLikesDitbinmasSimpleReport(clientId, opts);
 }
 async function absensiKomentarTiktok(clientId, roleFlag) {
   return await absensiKomentar(clientId, { roleFlag });
