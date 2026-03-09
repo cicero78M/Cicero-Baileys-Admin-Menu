@@ -182,7 +182,7 @@ export async function getVideoIdsTodayByClient(client_id, referenceDate) {
   const res = await query(
     `SELECT video_id FROM tiktok_post
      WHERE LOWER(TRIM(client_id)) = $1
-     AND created_at::date = $2::date`,
+     AND ${jakartaDateCast("created_at")}::date = $2::date`,
     [normalizedId, targetDate]
   );
   return res.rows.map((r) => r.video_id);
@@ -197,7 +197,7 @@ export async function getPostsTodayByClient(client_id, referenceDate) {
   const normalizedId = normalizeClientId(client_id);
   const targetDate = resolveJakartaDate(referenceDate);
   const res = await query(
-    `SELECT * FROM tiktok_post WHERE LOWER(TRIM(client_id)) = $1 AND created_at::date = $2::date ORDER BY created_at ASC, video_id ASC`,
+    `SELECT * FROM tiktok_post WHERE LOWER(TRIM(client_id)) = $1 AND ${jakartaDateCast("created_at")}::date = $2::date ORDER BY created_at ASC, video_id ASC`,
     [normalizedId, targetDate]
   );
   return res.rows;
@@ -210,7 +210,7 @@ export async function getOfficialPostsTodayByClient(client_id, referenceDate) {
     `SELECT * FROM tiktok_post
      WHERE LOWER(TRIM(client_id)) = $1
        AND COALESCE(LOWER(TRIM(source_type)), 'cron_fetch') <> 'manual_input'
-       AND created_at::date = $2::date
+       AND ${jakartaDateCast("created_at")}::date = $2::date
      ORDER BY created_at ASC, video_id ASC`,
     [normalizedId, targetDate]
   );
@@ -224,7 +224,7 @@ export async function getManualPostsTodayByClient(client_id, referenceDate) {
     `SELECT * FROM tiktok_post
      WHERE LOWER(TRIM(client_id)) = $1
        AND COALESCE(LOWER(TRIM(source_type)), 'cron_fetch') = 'manual_input'
-       AND created_at::date = $2::date
+       AND ${jakartaDateCast("created_at")}::date = $2::date
      ORDER BY created_at ASC, video_id ASC`,
     [normalizedId, targetDate]
   );
