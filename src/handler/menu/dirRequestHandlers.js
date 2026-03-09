@@ -1,10 +1,8 @@
 import { getUsersSocialByClient, getClientsByRole, getUsersByDirektorat } from "../../model/userModel.js";
 import {
   deletePostByShortcode,
-  getAttendancePostsByClientAndDate,
   getShortcodesTodayByClient,
   getPostsTodayByClient as getInstaPostsTodayByClient,
-  getPostsByFilters as getInstaPostsByFilters,
 } from "../../model/instaPostModel.js";
 import {
   deletePostByVideoId,
@@ -83,6 +81,11 @@ import {
   formatInstagramJajaranReport,
   formatTiktokJajaranReport,
 } from "../../service/jajaranAttendanceService.js";
+import {
+  getStandardInstagramTaskPostsByDate,
+  getStandardInstagramTaskPostsToday,
+  getStandardInstagramTaskShortcodesByRange,
+} from "../../service/instagramTaskContentService.js";
 import { appendSubmenuBackInstruction } from "./menuPromptHelpers.js";
 import { fetchSinglePostKhusus } from "../fetchpost/instaFetchPost.js";
 import { fetchAndStoreSingleTiktokPost } from "../fetchpost/tiktokFetchPost.js";
@@ -3139,7 +3142,11 @@ async function performAction(
         msg = await absensiLikesDitbinmas(attendanceClientId);
         break;
       case "6":
-        msg = await absensiLikesDitbinmasSimple(attendanceClientId);
+        msg = await absensiLikesDitbinmasSimple(attendanceClientId, {
+          shortcodes: (await getStandardInstagramTaskPostsToday(attendanceClientId)).map(
+            (post) => post.shortcode
+          ),
+        });
         break;
       case "7": {
         const opts = { mode: "all", roleFlag: normalizedRoleFlag };
@@ -3741,13 +3748,10 @@ async function performAction(
       }
       case "28": {
         const recapPeriodOptions = context?.recapPeriodOptions || {};
-        const instagramPosts = await getInstaPostsByFilters(clientId, {
+        const shortcodes = await getStandardInstagramTaskShortcodesByRange(clientId, {
           startDate: recapPeriodOptions.startYmd || null,
           endDate: recapPeriodOptions.endYmd || null,
         });
-        const shortcodes = (instagramPosts || [])
-          .map((post) => String(post?.shortcode || "").trim())
-          .filter(Boolean);
         const data = await collectLikesRecap(
           clientId,
           {
@@ -6248,6 +6252,9 @@ export const dirRequestHandlers = {
       const data = await collectInstagramJajaranAttendance(targetClientId, roleFlag, {
         menuName: session.menu,
         chakranarayanaSelectedGroup: session.chakranarayanaSelectedGroup,
+        shortcodes: (await getStandardInstagramTaskPostsToday(targetClientId)).map(
+          (post) => post.shortcode
+        ),
       });
       const report = formatInstagramJajaranReport(data);
       
@@ -6359,7 +6366,7 @@ export const dirRequestHandlers = {
     if (!session.perpostOptions || !Array.isArray(session.perpostOptions)) {
       let posts = [];
       if (platform === "instagram") {
-        posts = await getAttendancePostsByClientAndDate(targetClientId, selectedDate);
+        posts = await getStandardInstagramTaskPostsByDate(targetClientId, selectedDate);
       } else {
         posts = await getTiktokPostsByDateRange(targetClientId, selectedDate, selectedDate);
       }
