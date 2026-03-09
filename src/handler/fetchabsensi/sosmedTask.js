@@ -130,18 +130,6 @@ function pickUniqueBy(items, keyExtractor, sourceExtractor) {
   return Array.from(map.values());
 }
 
-function normalizeSourceType(sourceType) {
-  return String(sourceType || "cron_fetch")
-    .trim()
-    .toLowerCase()
-    .replace(/[-\s]+/g, "_");
-}
-
-function isManualSourceType(sourceType) {
-  const normalized = normalizeSourceType(sourceType);
-  return normalized === "manual_input" || normalized === "manual_fetch" || normalized === "manual";
-}
-
 async function fetchLikesWithAudit(shortcodes, snapshotWindow) {
   if (!Array.isArray(shortcodes) || shortcodes.length === 0) {
     return { likesList: [], auditUsed: false };
@@ -275,16 +263,11 @@ export async function generateSosmedTaskMessage(
     // ignore errors, use defaults
   }
 
-  let officialInstaPosts = [];
-  let manualInstaPosts = [];
+  let allInstaPosts = [];
+  let additionalInstaPosts = [];
   try {
-    const allInstaPosts = await getInstaPostsTodayByClient(clientId);
-    const fetchedManualInstaPosts = await getManualInstaPostsTodayByClient(clientId);
-    officialInstaPosts = (allInstaPosts || []).filter((post) => !isManualSourceType(post?.source_type));
-    manualInstaPosts = [
-      ...(allInstaPosts || []).filter((post) => isManualSourceType(post?.source_type)),
-      ...(fetchedManualInstaPosts || []),
-    ];
+    allInstaPosts = await getInstaPostsTodayByClient(clientId);
+    additionalInstaPosts = await getManualInstaPostsTodayByClient(clientId);
     if (!skipLikesFetch) {
       await handleFetchLikesInstagram(null, null, clientId, {
         snapshotWindow: snapshotWindow
@@ -293,27 +276,15 @@ export async function generateSosmedTaskMessage(
       });
     }
   } catch {
-    officialInstaPosts = [];
-    manualInstaPosts = [];
+    allInstaPosts = [];
+    additionalInstaPosts = [];
   }
 
-  const dedupedOfficialInstaPosts = pickUniqueBy(
-    officialInstaPosts,
+  const mergedInstaPosts = pickUniqueBy(
+    [...(allInstaPosts || []), ...(additionalInstaPosts || [])],
     (post) => post?.shortcode,
-    () => "official"
+    () => "all"
   );
-  const dedupedManualInstaPosts = pickUniqueBy(
-    manualInstaPosts,
-    (post) => post?.shortcode,
-    () => "manual"
-  ).filter(
-    (manualPost) =>
-      !dedupedOfficialInstaPosts.some(
-        (officialPost) => officialPost.shortcode === manualPost.shortcode
-      )
-  );
-
-  const mergedInstaPosts = [...dedupedOfficialInstaPosts, ...dedupedManualInstaPosts];
   const instaShortcodes = mergedInstaPosts.map((post) => post.shortcode);
   const { likesList: likeResults } = await fetchLikesWithAudit(
     instaShortcodes,
@@ -326,7 +297,7 @@ export async function generateSosmedTaskMessage(
     likesCountByShortcode.set(shortcode, Array.isArray(likes) ? likes.length : 0);
   });
 
-  const officialIgDetails = dedupedOfficialInstaPosts.map((post, idx) =>
+  const allIgDetails = mergedInstaPosts.map((post, idx) =>
     buildInstaLine(
       post,
       idx,
@@ -335,30 +306,19 @@ export async function generateSosmedTaskMessage(
     )
   );
 
-  const manualIgDetails = dedupedManualInstaPosts.map((post, idx) =>
-    buildInstaLine(
-      post,
-      idx,
-      likesCountByShortcode.get(post.shortcode) || 0,
-      previousIgShortcodes
-    )
-  );
-
-  const officialIgTotalLikes = dedupedOfficialInstaPosts.reduce(
-    (acc, post) => acc + (likesCountByShortcode.get(post.shortcode) || 0),
-    0
-  );
-  const manualIgTotalLikes = dedupedManualInstaPosts.reduce(
+  const allIgTotalLikes = mergedInstaPosts.reduce(
     (acc, post) => acc + (likesCountByShortcode.get(post.shortcode) || 0),
     0
   );
 
-  let officialTiktokPosts = [];
-  let manualTiktokPosts = [];
+  let mergedTiktokPosts = [];
   try {
     const allTiktokPosts = await getTiktokPostsTodayByClient(clientId);
-    officialTiktokPosts = (allTiktokPosts || []).filter((post) => !isManualSourceType(post?.source_type));
-    manualTiktokPosts = (allTiktokPosts || []).filter((post) => isManualSourceType(post?.source_type));
+    mergedTiktokPosts = pickUniqueBy(
+      allTiktokPosts || [],
+      (post) => post?.video_id,
+      () => "all"
+    );
     if (!skipTiktokFetch) {
       await handleFetchKomentarTiktokBatch(null, null, clientId, {
         snapshotWindow: snapshotWindow
@@ -367,27 +327,8 @@ export async function generateSosmedTaskMessage(
       });
     }
   } catch {
-    officialTiktokPosts = [];
-    manualTiktokPosts = [];
+    mergedTiktokPosts = [];
   }
-
-  const dedupedOfficialTiktokPosts = pickUniqueBy(
-    officialTiktokPosts,
-    (post) => post?.video_id,
-    () => "official"
-  );
-  const dedupedManualTiktokPosts = pickUniqueBy(
-    manualTiktokPosts,
-    (post) => post?.video_id,
-    () => "manual"
-  ).filter(
-    (manualPost) =>
-      !dedupedOfficialTiktokPosts.some(
-        (officialPost) => officialPost.video_id === manualPost.video_id
-      )
-  );
-
-  const mergedTiktokPosts = [...dedupedOfficialTiktokPosts, ...dedupedManualTiktokPosts];
   const { commentList: commentResults } = await fetchCommentsWithAudit(
     mergedTiktokPosts,
     snapshotWindow
@@ -399,7 +340,7 @@ export async function generateSosmedTaskMessage(
     commentsCountByVideoId.set(post.video_id, Array.isArray(comments) ? comments.length : 0);
   });
 
-  const officialTiktokDetails = dedupedOfficialTiktokPosts.map((post, idx) =>
+  const allTiktokDetails = mergedTiktokPosts.map((post, idx) =>
     buildTiktokLine(
       post,
       idx,
@@ -409,29 +350,14 @@ export async function generateSosmedTaskMessage(
     )
   );
 
-  const manualTiktokDetails = dedupedManualTiktokPosts.map((post, idx) =>
-    buildTiktokLine(
-      post,
-      idx,
-      commentsCountByVideoId.get(post.video_id) || 0,
-      previousTiktokVideoIds,
-      tiktokUsername
-    )
-  );
-
-  const officialTiktokTotalComments = dedupedOfficialTiktokPosts.reduce(
-    (acc, post) => acc + (commentsCountByVideoId.get(post.video_id) || 0),
-    0
-  );
-  const manualTiktokTotalComments = dedupedManualTiktokPosts.reduce(
+  const allTotalComments = mergedTiktokPosts.reduce(
     (acc, post) => acc + (commentsCountByVideoId.get(post.video_id) || 0),
     0
   );
 
-  const allIgCount = dedupedOfficialInstaPosts.length + dedupedManualInstaPosts.length;
-  const allTiktokCount = dedupedOfficialTiktokPosts.length + dedupedManualTiktokPosts.length;
-  const allTotalLikes = officialIgTotalLikes + manualIgTotalLikes;
-  const allTotalComments = officialTiktokTotalComments + manualTiktokTotalComments;
+  const allIgCount = mergedInstaPosts.length;
+  const allTiktokCount = mergedTiktokPosts.length;
+  const allTotalLikes = allIgTotalLikes;
 
   let msg =
     "Mohon Ijin Komandan, Senior, Rekan Operator dan Personil pelaksana Tugas Likes dan komentar Sosial Media " +
@@ -442,26 +368,11 @@ export async function generateSosmedTaskMessage(
     `Total likes semua konten: ${allTotalLikes} \n` +
     `Jumlah konten Tiktok hari ini (total): ${allTiktokCount} \n` +
     `Total komentar semua konten: ${allTotalComments}\n\n` +
-    "Segmen Konten Resmi\n" +
-    `- Instagram: ${dedupedOfficialInstaPosts.length} konten | Total likes: ${officialIgTotalLikes}\n` +
-    `Rincian Instagram:\n`;
+    "Rincian Instagram:\n";
 
-  msg += officialIgDetails.length ? officialIgDetails.join("\n") : "-";
-  msg +=
-    `\n\n- TikTok: ${dedupedOfficialTiktokPosts.length} konten | Total komentar: ${officialTiktokTotalComments}\n` +
-    "Rincian TikTok:\n";
-  msg += officialTiktokDetails.length ? officialTiktokDetails.join("\n") : "-";
-
-  msg +=
-    "\n\nSegmen Tugas Khusus\n" +
-    `- Instagram (manual): ${dedupedManualInstaPosts.length} konten | Total likes: ${manualIgTotalLikes}\n` +
-    "Rincian Instagram manual:\n";
-  msg += manualIgDetails.length ? manualIgDetails.join("\n") : "-";
-
-  msg +=
-    `\n\n- TikTok (manual): ${dedupedManualTiktokPosts.length} konten | Total komentar: ${manualTiktokTotalComments}\n` +
-    "Rincian TikTok manual:\n";
-  msg += manualTiktokDetails.length ? manualTiktokDetails.join("\n") : "-";
+  msg += allIgDetails.length ? allIgDetails.join("\n") : "-";
+  msg += "\n\nRincian TikTok:\n";
+  msg += allTiktokDetails.length ? allTiktokDetails.join("\n") : "-";
 
   if (snapshotWindowLabel) {
     msg += `\n\n${snapshotWindowLabel}`;
