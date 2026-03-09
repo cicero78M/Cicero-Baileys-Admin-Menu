@@ -63,6 +63,10 @@ const mockHandleFetchKomentarTiktokBatch = jest.fn();
 const mockGenerateSosmedTaskMessage = jest.fn();
 const mockMatchesKasatBinmasJabatan = jest.fn();
 
+const mockGetStandardInstagramTaskPostsByDate = jest.fn();
+const mockGetStandardInstagramTaskPostsToday = jest.fn();
+const mockGetStandardInstagramTaskShortcodesByRange = jest.fn();
+
 const createAsyncStub = (value) => jest.fn().mockResolvedValue(value);
 const stubEmptyArray = () => createAsyncStub([]);
 const stubNull = () => createAsyncStub(null);
@@ -116,10 +120,14 @@ jest.unstable_mockModule('../src/model/userModel.js', () => {
 jest.unstable_mockModule('../src/model/instaPostModel.js', () => ({
   getShortcodesTodayByClient: mockGetShortcodesTodayByClient,
   getPostsTodayByClient: mockGetInstaPostsTodayByClient,
+  deletePostByShortcode: jest.fn(),
+  getAttendancePostsByClientAndDate: jest.fn().mockResolvedValue([]),
+  getPostsByFilters: jest.fn().mockResolvedValue([]),
 }));
 jest.unstable_mockModule('../src/model/tiktokPostModel.js', () => ({
   getVideoIdsTodayByClient: mockGetVideoIdsTodayByClient,
   getPostsTodayByClient: mockGetTiktokPostsTodayByClient,
+  getPostsByClientAndDateRange: jest.fn().mockResolvedValue([]),
   findPostByVideoId: jest.fn(),
   deletePostByVideoId: jest.fn(),
 }));
@@ -137,6 +145,8 @@ jest.unstable_mockModule('../src/handler/fetchabsensi/tiktok/absensiKomentarTikt
   collectKomentarRecap: mockCollectKomentarRecap,
   absensiKomentarDitbinmasReport: mockAbsensiKomentarDitbinmasReport,
   absensiKomentarDitbinmasSimple: mockAbsensiKomentarDitbinmasSimple,
+  extractUsernamesFromComments: jest.fn(() => new Set()),
+  normalizeUsername: jest.fn((value) => String(value || '').toLowerCase()),
 }));
 jest.unstable_mockModule('../src/service/clientService.js', () => ({
   findClientById: mockFindClientById,
@@ -248,12 +258,21 @@ jest.unstable_mockModule('../src/service/instagramAllDataRecapService.js', () =>
 jest.unstable_mockModule('../src/service/tiktokAllDataRecapService.js', () => ({
   generateTiktokAllDataRecap: mockGenerateTiktokAllDataRecap,
 }));
+
+jest.unstable_mockModule('../src/service/instagramTaskContentService.js', () => ({
+  getStandardInstagramTaskPostsByDate: mockGetStandardInstagramTaskPostsByDate,
+  getStandardInstagramTaskPostsToday: mockGetStandardInstagramTaskPostsToday,
+  getStandardInstagramTaskShortcodesByRange: mockGetStandardInstagramTaskShortcodesByRange,
+}));
 jest.unstable_mockModule('../src/utils/utilsHelper.js', () => ({
   getGreeting: () => 'Selamat malam',
   sortDivisionKeys: (arr) => arr.sort(),
   formatNama: (u) => `${u.title || ''} ${u.nama || ''}`.trim(),
   formatUserData: jest.fn(),
   filterAttendanceUsers: (users) => users,
+  groupByDivision: () => ({}),
+  filterUsersBySatikDivision: (users) => users,
+  extractInstagramShortcode: jest.fn(() => null),
 }));
 
 let dirRequestHandlers;
@@ -351,6 +370,55 @@ beforeEach(() => {
     'Laporan IG Top and Bottom'
   );
   mockGenerateWeeklyTiktokHighLowReport.mockResolvedValue('Laporan Top and Bottom');
+
+  mockGetStandardInstagramTaskPostsByDate.mockReset();
+  mockGetStandardInstagramTaskPostsToday.mockReset();
+  mockGetStandardInstagramTaskShortcodesByRange.mockReset();
+  mockGetStandardInstagramTaskPostsByDate.mockResolvedValue([]);
+  mockGetStandardInstagramTaskPostsToday.mockResolvedValue([]);
+  mockGetStandardInstagramTaskShortcodesByRange.mockResolvedValue([]);
+});
+
+
+test('choose_menu action 6 uses range shortcode source and forwards shortcodes', async () => {
+  jest.useFakeTimers();
+  jest.setSystemTime(new Date('2026-01-31T01:23:45Z'));
+
+  mockFindClientById.mockImplementation(async (cid) => {
+    const key = String(cid || '').toUpperCase();
+    if (key === 'DITBINMAS') {
+      return { nama: 'DIT BINMAS', client_type: 'direktorat' };
+    }
+    return { nama: key, client_type: 'direktorat' };
+  });
+  mockGetStandardInstagramTaskShortcodesByRange.mockResolvedValue(['  SC1 ', '', 'SC2']);
+  mockAbsensiLikesDitbinmasSimple.mockResolvedValue('ok');
+
+  const session = {
+    selectedClientId: 'DITBINMAS',
+    dir_client_id: 'DITBINMAS',
+    role: 'ditbinmas',
+  };
+  const waClient = { sendMessage: jest.fn() };
+
+  await dirRequestHandlers.choose_menu(session, '123', '6', waClient);
+
+  expect(mockGetStandardInstagramTaskShortcodesByRange).toHaveBeenCalledWith(
+    'DITBINMAS',
+    {
+      startDate: '2026-01-31',
+      endDate: '2026-01-31',
+    }
+  );
+  expect(mockAbsensiLikesDitbinmasSimple).toHaveBeenCalledWith(
+    'DITBINMAS',
+    expect.objectContaining({
+      shortcodes: ['SC1', 'SC2'],
+    })
+  );
+  expect(mockGetStandardInstagramTaskPostsToday).not.toHaveBeenCalled();
+
+  jest.useRealTimers();
 });
 
 test('main always sets session to DITBINMAS client', async () => {
