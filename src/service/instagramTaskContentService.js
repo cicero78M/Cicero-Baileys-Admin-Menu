@@ -4,7 +4,6 @@ import {
 } from "../model/instaPostModel.js";
 import {
   getPostsByClientAndDateRange as getManualInstaPostsByDateRange,
-  getPostsTodayByClient as getManualInstaPostsTodayByClient,
 } from "../model/instaPostKhususModel.js";
 import { getOperationalAttendanceDate } from "../utils/attendanceOperationalDate.js";
 
@@ -47,7 +46,10 @@ export async function getStandardInstagramTaskPostsToday(clientId) {
   const { operationalDate } = getOperationalAttendanceDate();
   const [officialPosts, manualPosts] = await Promise.all([
     getAttendancePostsByClientAndDate(clientId, operationalDate),
-    getManualInstaPostsTodayByClient(clientId),
+    getManualInstaPostsByDateRange(clientId, {
+      startDate: operationalDate,
+      endDate: operationalDate,
+    }),
   ]);
 
   return mergeUniquePosts(officialPosts, manualPosts);
