@@ -91,6 +91,7 @@ import { fetchSinglePostKhusus } from "../fetchpost/instaFetchPost.js";
 import { fetchAndStoreSingleTiktokPost } from "../fetchpost/tiktokFetchPost.js";
 import { extractInstagramShortcode } from "../../utils/utilsHelper.js";
 import { extractVideoId } from "../../utils/tiktokHelper.js";
+import { getOperationalAttendanceDate } from "../../utils/attendanceOperationalDate.js";
 import {
   addTaskPostExclusion,
   getTaskPostExclusionSet,
@@ -3142,11 +3143,22 @@ async function performAction(
         msg = await absensiLikesDitbinmas(attendanceClientId);
         break;
       case "6":
-        msg = await absensiLikesDitbinmasSimple(attendanceClientId, {
-          shortcodes: (await getStandardInstagramTaskPostsToday(attendanceClientId)).map(
-            (post) => post.shortcode
-          ),
+        {
+        const recapPeriodOptions = context?.recapPeriodOptions || {};
+        const { operationalDate } = getOperationalAttendanceDate();
+        const startDate = recapPeriodOptions.startYmd || operationalDate;
+        const endDate = recapPeriodOptions.endYmd || operationalDate;
+        const shortcodes = await getStandardInstagramTaskShortcodesByRange(attendanceClientId, {
+          startDate,
+          endDate,
         });
+        msg = await absensiLikesDitbinmasSimple(attendanceClientId, {
+          shortcodes: shortcodes
+            .map((shortcode) => String(shortcode || "").trim())
+            .filter(Boolean),
+          periodLabel: recapPeriodOptions.periodLabel,
+        });
+        }
         break;
       case "7": {
         const opts = { mode: "all", roleFlag: normalizedRoleFlag };
