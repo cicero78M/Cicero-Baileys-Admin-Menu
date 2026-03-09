@@ -1,12 +1,12 @@
 import {
   getAttendancePostsByClientAndDate,
   getPostsByFilters as getInstaPostsByFilters,
-  getPostsTodayByClient as getInstaPostsTodayByClient,
 } from "../model/instaPostModel.js";
 import {
   getPostsByClientAndDateRange as getManualInstaPostsByDateRange,
   getPostsTodayByClient as getManualInstaPostsTodayByClient,
 } from "../model/instaPostKhususModel.js";
+import { getOperationalAttendanceDate } from "../utils/attendanceOperationalDate.js";
 
 function normalizeShortcode(value) {
   return String(value || "").trim();
@@ -44,8 +44,9 @@ function mergeUniquePosts(officialPosts = [], manualPosts = []) {
 }
 
 export async function getStandardInstagramTaskPostsToday(clientId) {
+  const { operationalDate } = getOperationalAttendanceDate();
   const [officialPosts, manualPosts] = await Promise.all([
-    getInstaPostsTodayByClient(clientId),
+    getAttendancePostsByClientAndDate(clientId, operationalDate),
     getManualInstaPostsTodayByClient(clientId),
   ]);
 
