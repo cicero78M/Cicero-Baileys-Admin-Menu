@@ -1,6 +1,7 @@
 import { getUsersSocialByClient, getClientsByRole, getUsersByDirektorat } from "../../model/userModel.js";
 import {
   deletePostByShortcode,
+  getAttendancePostsByClientAndDate,
   getShortcodesTodayByClient,
   getPostsTodayByClient as getInstaPostsTodayByClient,
   getPostsByFilters as getInstaPostsByFilters,
@@ -6358,12 +6359,7 @@ export const dirRequestHandlers = {
     if (!session.perpostOptions || !Array.isArray(session.perpostOptions)) {
       let posts = [];
       if (platform === "instagram") {
-        posts = await getInstaPostsByFilters(targetClientId, {
-          periode: "harian",
-          tanggal: selectedDate,
-          role: String(targetClientId || "").toLowerCase(),
-          scope: "direktorat",
-        });
+        posts = await getAttendancePostsByClientAndDate(targetClientId, selectedDate);
       } else {
         posts = await getTiktokPostsByDateRange(targetClientId, selectedDate, selectedDate);
       }
