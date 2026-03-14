@@ -24,8 +24,9 @@ jest.unstable_mockModule('../src/model/tiktokCommentModel.js', () => ({
 jest.unstable_mockModule('../src/middleware/debugHandler.js', () => ({ sendDebug: mockSendDebug }));
 
 let absensiKomentar;
+let absensiKomentarDitbinmasSimple;
 beforeAll(async () => {
-  ({ absensiKomentar } = await import('../src/handler/fetchabsensi/tiktok/absensiKomentarTiktok.js'));
+  ({ absensiKomentar, absensiKomentarDitbinmasSimple } = await import('../src/handler/fetchabsensi/tiktok/absensiKomentarTiktok.js'));
 });
 
 beforeEach(() => {
@@ -113,4 +114,24 @@ test('sorts satker reports with Ditbinmas first and by percentage and count', as
   expect(idxA).toBeLessThan(idxB);
   expect(idxB).toBeLessThan(idxD);
   expect(idxD).toBeLessThan(idxC);
+});
+
+test('absensiKomentarDitbinmasSimple supports detail mode lengkap', async () => {
+  mockQuery.mockResolvedValueOnce({
+    rows: [{ nama: 'DIT A', client_tiktok: 'dita', client_type: 'direktorat' }],
+  });
+  mockGetUsersByDirektorat.mockResolvedValueOnce([
+    { user_id: 1, client_id: 'DITBINMAS', tiktok: 'usera', status: true, exception: false, nama: 'A' },
+    { user_id: 2, client_id: 'DITBINMAS', tiktok: 'userb', status: true, exception: false, nama: 'B' },
+  ]);
+  mockGetPostsTodayByClient.mockResolvedValueOnce([{ video_id: 'v1' }]);
+  mockGetCommentsByVideoId.mockResolvedValueOnce({ comments: [{ username: 'usera' }] });
+
+  const msg = await absensiKomentarDitbinmasSimple('DITBINMAS', { detailMode: 'lengkap' });
+
+  expect(msg).toContain('✅ *Melaksanakan Lengkap');
+  expect(msg).toContain('✅ *Melaksanakan Lengkap (1 pers):*');
+  expect(msg).not.toContain('⚠️ *Melaksanakan Kurang (');
+  expect(msg).not.toContain('❌ *Belum Melaksanakan (');
+  expect(msg).not.toContain('⚠️❌ *Belum Input Username TikTok (');
 });
