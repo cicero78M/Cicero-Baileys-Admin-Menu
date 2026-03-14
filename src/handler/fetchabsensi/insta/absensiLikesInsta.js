@@ -636,25 +636,42 @@ export async function absensiLikesDitbinmasSimple(clientId = "DITBINMAS", opts =
       icon: "✅",
       title: "Melaksanakan Lengkap",
       users: lengkapUsers,
+      key: "lengkap",
     },
     {
       icon: "⚠️",
       title: "Melaksanakan Kurang",
       users: kurangUsers,
+      key: "kurang",
     },
     {
       icon: "❌",
       title: "Belum Melaksanakan",
       users: belumUsers,
+      key: "belum",
     },
     {
       icon: "⚠️❌",
       title: "Belum Update Username Instagram",
       users: noUsernameUsers,
+      key: "noUsername",
     },
   ];
 
-  const detailText = detailSections
+  const detailMode = String(opts?.detailMode || "all").trim().toLowerCase();
+  const filteredDetailSections = detailSections.filter((section) => {
+    if (detailMode === "lengkap") {
+      return section.key === "lengkap";
+    }
+
+    if (detailMode === "kurang_belum") {
+      return ["kurang", "belum", "noUsername"].includes(section.key);
+    }
+
+    return true;
+  });
+
+  const detailText = filteredDetailSections
     .map(({ icon, title, users }) => {
       const header = `${icon} *${title} (${users.length} pers):*`;
       if (!users.length) {
