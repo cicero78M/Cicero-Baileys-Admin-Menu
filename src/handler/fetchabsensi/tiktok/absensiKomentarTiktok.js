@@ -744,7 +744,24 @@ export async function absensiKomentarDitbinmasSimple(clientId = "DITBINMAS", opt
     },
   ];
 
-  const detailText = detailSections
+  const detailMode = String(opts?.detailMode || "all").trim().toLowerCase();
+  const filteredDetailSections = detailSections.filter((section) => {
+    if (detailMode === "lengkap") {
+      return section.title === "Melaksanakan Lengkap";
+    }
+
+    if (detailMode === "kurang_belum") {
+      return [
+        "Melaksanakan Kurang",
+        "Belum Melaksanakan",
+        "Belum Input Username TikTok",
+      ].includes(section.title);
+    }
+
+    return true;
+  });
+
+  const detailText = filteredDetailSections
     .map(({ icon, title, users }) => {
       const header = `${icon} *${title} (${users.length} pers):*`;
       if (!users.length) {

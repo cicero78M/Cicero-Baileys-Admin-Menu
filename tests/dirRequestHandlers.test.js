@@ -541,6 +541,49 @@ test('choose_menu menolak pilihan di luar whitelist chakranarayana', async () =>
   expect(waClient.sendMessage).toHaveBeenCalledWith('123', 'Pilihan tidak valid untuk akses menu ini.');
 });
 
+test('choose_menu option 9 pada chakranarayana direktorat membuka submenu jenis laporan tiktok simple', async () => {
+  const session = {
+    menu: 'chakranarayana',
+    chakranarayanaSelectedGroup: 'direktorat',
+    selectedClientId: 'DITINTELKAM',
+    dir_client_id: 'DITINTELKAM',
+    allowedDirrequestMenuChoices: ['9'],
+  };
+  const waClient = { sendMessage: jest.fn() };
+
+  await dirRequestHandlers.choose_menu(session, '123', '9', waClient);
+
+  expect(session.step).toBe('choose_chakranarayana_directorate_tiktok_simple_type');
+  expect(waClient.sendMessage).toHaveBeenCalledWith(
+    '123',
+    expect.stringContaining('Silakan pilih jenis laporan Absensi Tiktok Direktorat/Bidang Simple')
+  );
+});
+
+test('submenu tiktok simple chakranarayana meneruskan detail mode sesuai pilihan', async () => {
+  const session = {
+    menu: 'chakranarayana',
+    step: 'choose_chakranarayana_directorate_tiktok_simple_type',
+    chakranarayanaSelectedGroup: 'direktorat',
+    selectedClientId: 'DITINTELKAM',
+    dir_client_id: 'DITINTELKAM',
+  };
+  const waClient = { sendMessage: jest.fn() };
+  mockAbsensiKomentarDitbinmasSimple.mockResolvedValue('ok');
+
+  await dirRequestHandlers.choose_chakranarayana_directorate_tiktok_simple_type(
+    session,
+    '123',
+    '2',
+    waClient
+  );
+
+  expect(mockAbsensiKomentarDitbinmasSimple).toHaveBeenCalledWith(
+    'DITINTELKAM',
+    expect.objectContaining({ detailMode: 'lengkap' })
+  );
+});
+
 test('choose_menu aggregates directorate data by client_id', async () => {
   jest.useFakeTimers();
   jest.setSystemTime(new Date('2025-08-27T16:06:00Z'));

@@ -396,6 +396,20 @@ const CHAKRANARAYANA_DIRECTORATE_INSTAGRAM_SIMPLE_ACTION_MAP = {
   "3": "kurang_belum",
 };
 
+const CHAKRANARAYANA_DIRECTORATE_TIKTOK_SIMPLE_MENU_TEXT =
+  "Silakan pilih jenis laporan Absensi Tiktok Direktorat/Bidang Simple:\n" +
+  "1️⃣ Absensi All\n" +
+  "2️⃣ Absensi Lengkap\n" +
+  "3️⃣ list kurang dan belum\n\n" +
+  "Balas angka pilihan atau ketik batal untuk kembali.\n" +
+  "Ketik back untuk kembali ke menu sebelumnya.";
+
+const CHAKRANARAYANA_DIRECTORATE_TIKTOK_SIMPLE_ACTION_MAP = {
+  "1": "all",
+  "2": "lengkap",
+  "3": "kurang_belum",
+};
+
 const KASATKER_REPORT_MENU_TEXT = appendSubmenuBackInstruction(
   "Silakan pilih periode Laporan Kasatker:\n" +
     Object.entries(KASATKER_REPORT_PERIOD_MAP)
@@ -1381,8 +1395,8 @@ async function absensiLikesDitbinmasSimple(clientId, opts = {}) {
 async function absensiKomentarTiktok(clientId, roleFlag) {
   return await absensiKomentar(clientId, { roleFlag });
 }
-async function absensiKomentarDitbinmasSimple(clientId) {
-  return await absensiKomentarDitbinmasSimpleReport(clientId);
+async function absensiKomentarDitbinmasSimple(clientId, opts = {}) {
+  return await absensiKomentarDitbinmasSimpleReport(clientId, opts);
 }
 async function absensiKomentarDitbinmas(clientId) {
   return await absensiKomentarDitbinmasReport(clientId);
@@ -3185,7 +3199,9 @@ async function performAction(
         msg = await absensiKomentarTiktok(attendanceClientId, normalizedRoleFlag);
         break;
       case "9":
-        msg = await absensiKomentarDitbinmasSimple(attendanceClientId);
+        msg = await absensiKomentarDitbinmasSimple(attendanceClientId, {
+          detailMode: context?.detailMode || "all",
+        });
         break;
       case "10":
         msg = await absensiKomentarDitbinmas(attendanceClientId);
@@ -4463,6 +4479,16 @@ export const dirRequestHandlers = {
       return;
     }
 
+    if (
+      choice === "9" &&
+      session.menu === "chakranarayana" &&
+      session.chakranarayanaSelectedGroup === "direktorat"
+    ) {
+      session.step = "choose_chakranarayana_directorate_tiktok_simple_type";
+      await waClient.sendMessage(chatId, CHAKRANARAYANA_DIRECTORATE_TIKTOK_SIMPLE_MENU_TEXT);
+      return;
+    }
+
     if (choice === "22") {
       session.step = "choose_engagement_recap_period";
       await waClient.sendMessage(chatId, ENGAGEMENT_RECAP_MENU_TEXT);
@@ -4702,6 +4728,52 @@ export const dirRequestHandlers = {
         session.dir_client_id || session.selectedClientId || DITBINMAS_CLIENT_ID;
       await performAction(
         "6",
+        targetClientId,
+        waClient,
+        chatId,
+        session.role,
+        session.selectedClientId,
+        {
+          username: session.username || session.user?.username,
+          menuName: session.menu,
+          chakranarayanaSelectedGroup: session.chakranarayanaSelectedGroup,
+          detailMode,
+        }
+      );
+    } catch (error) {
+      await waClient.sendMessage(chatId, error?.message || "❌ Gagal memproses jenis laporan.");
+    }
+
+    session.step = "main";
+    await dirRequestHandlers.main(session, chatId, "", waClient);
+  },
+
+  async choose_chakranarayana_directorate_tiktok_simple_type(session, chatId, text, waClient) {
+    const choice = String(text || "").trim().toLowerCase();
+
+    if (!choice) {
+      await waClient.sendMessage(chatId, CHAKRANARAYANA_DIRECTORATE_TIKTOK_SIMPLE_MENU_TEXT);
+      return;
+    }
+
+    if (choice === "batal" || choice === "back") {
+      session.step = "main";
+      await dirRequestHandlers.main(session, chatId, "", waClient);
+      return;
+    }
+
+    const detailMode = CHAKRANARAYANA_DIRECTORATE_TIKTOK_SIMPLE_ACTION_MAP[choice];
+    if (!detailMode) {
+      await waClient.sendMessage(chatId, "❌ Pilihan jenis laporan tidak valid.");
+      await waClient.sendMessage(chatId, CHAKRANARAYANA_DIRECTORATE_TIKTOK_SIMPLE_MENU_TEXT);
+      return;
+    }
+
+    try {
+      const targetClientId =
+        session.dir_client_id || session.selectedClientId || DITBINMAS_CLIENT_ID;
+      await performAction(
+        "9",
         targetClientId,
         waClient,
         chatId,
