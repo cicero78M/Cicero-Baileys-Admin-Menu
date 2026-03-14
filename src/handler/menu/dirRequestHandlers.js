@@ -382,6 +382,20 @@ const CHAKRANARAYANA_DIRECTORATE_RECAP_DATE_PROMPT =
   "Ketik batal untuk kembali ke pilihan periode.\n" +
   "Ketik back untuk kembali ke menu sebelumnya.";
 
+const CHAKRANARAYANA_DIRECTORATE_INSTAGRAM_SIMPLE_MENU_TEXT =
+  "Silakan pilih jenis laporan Absensi Instagram Direktorat/Bidang Simple:\n" +
+  "1️⃣ Absensi All\n" +
+  "2️⃣ Absensi Lengkap\n" +
+  "3️⃣ list kurang dan belum\n\n" +
+  "Balas angka pilihan atau ketik batal untuk kembali.\n" +
+  "Ketik back untuk kembali ke menu sebelumnya.";
+
+const CHAKRANARAYANA_DIRECTORATE_INSTAGRAM_SIMPLE_ACTION_MAP = {
+  "1": "all",
+  "2": "lengkap",
+  "3": "kurang_belum",
+};
+
 const KASATKER_REPORT_MENU_TEXT = appendSubmenuBackInstruction(
   "Silakan pilih periode Laporan Kasatker:\n" +
     Object.entries(KASATKER_REPORT_PERIOD_MAP)
@@ -3145,6 +3159,7 @@ async function performAction(
       case "6":
         {
         const recapPeriodOptions = context?.recapPeriodOptions || {};
+        const detailMode = context?.detailMode || "all";
         const { operationalDate } = getOperationalAttendanceDate();
         const startDate = recapPeriodOptions.startYmd || operationalDate;
         const endDate = recapPeriodOptions.endYmd || operationalDate;
@@ -3157,6 +3172,7 @@ async function performAction(
             .map((shortcode) => String(shortcode || "").trim())
             .filter(Boolean),
           periodLabel: recapPeriodOptions.periodLabel,
+          detailMode,
         });
         }
         break;
@@ -4437,6 +4453,16 @@ export const dirRequestHandlers = {
       return;
     }
 
+    if (
+      choice === "6" &&
+      session.menu === "chakranarayana" &&
+      session.chakranarayanaSelectedGroup === "direktorat"
+    ) {
+      session.step = "choose_chakranarayana_directorate_instagram_simple_type";
+      await waClient.sendMessage(chatId, CHAKRANARAYANA_DIRECTORATE_INSTAGRAM_SIMPLE_MENU_TEXT);
+      return;
+    }
+
     if (choice === "22") {
       session.step = "choose_engagement_recap_period";
       await waClient.sendMessage(chatId, ENGAGEMENT_RECAP_MENU_TEXT);
@@ -4646,6 +4672,52 @@ export const dirRequestHandlers = {
         chakranarayanaSelectedGroup: session.chakranarayanaSelectedGroup,
       }
     );
+    session.step = "main";
+    await dirRequestHandlers.main(session, chatId, "", waClient);
+  },
+
+  async choose_chakranarayana_directorate_instagram_simple_type(session, chatId, text, waClient) {
+    const choice = String(text || "").trim().toLowerCase();
+
+    if (!choice) {
+      await waClient.sendMessage(chatId, CHAKRANARAYANA_DIRECTORATE_INSTAGRAM_SIMPLE_MENU_TEXT);
+      return;
+    }
+
+    if (choice === "batal" || choice === "back") {
+      session.step = "main";
+      await dirRequestHandlers.main(session, chatId, "", waClient);
+      return;
+    }
+
+    const detailMode = CHAKRANARAYANA_DIRECTORATE_INSTAGRAM_SIMPLE_ACTION_MAP[choice];
+    if (!detailMode) {
+      await waClient.sendMessage(chatId, "❌ Pilihan jenis laporan tidak valid.");
+      await waClient.sendMessage(chatId, CHAKRANARAYANA_DIRECTORATE_INSTAGRAM_SIMPLE_MENU_TEXT);
+      return;
+    }
+
+    try {
+      const targetClientId =
+        session.dir_client_id || session.selectedClientId || DITBINMAS_CLIENT_ID;
+      await performAction(
+        "6",
+        targetClientId,
+        waClient,
+        chatId,
+        session.role,
+        session.selectedClientId,
+        {
+          username: session.username || session.user?.username,
+          menuName: session.menu,
+          chakranarayanaSelectedGroup: session.chakranarayanaSelectedGroup,
+          detailMode,
+        }
+      );
+    } catch (error) {
+      await waClient.sendMessage(chatId, error?.message || "❌ Gagal memproses jenis laporan.");
+    }
+
     session.step = "main";
     await dirRequestHandlers.main(session, chatId, "", waClient);
   },
