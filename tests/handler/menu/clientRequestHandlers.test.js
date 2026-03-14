@@ -251,7 +251,7 @@ describe('kelolaUser mass status option', () => {
 
     expect(sendMessage).toHaveBeenCalledWith(
       chatId,
-      expect.stringContaining('4️⃣ Ubah Status Massal')
+      expect.stringContaining('4️⃣ Update Exception TikTok')
     );
     expect(sendMessage).toHaveBeenCalledWith(
       chatId,
@@ -260,7 +260,7 @@ describe('kelolaUser mass status option', () => {
     expect(session.step).toBe('kelolaUser_menu');
   });
 
-  it('redirects kelola user option 4 to the bulk status prompt', async () => {
+  it('routes kelola user option 4 to update exception tiktok prompt', async () => {
     const session = {};
     const chatId = 'chat-menu';
     const sendMessage = jest.fn().mockResolvedValue();
@@ -269,13 +269,42 @@ describe('kelolaUser mass status option', () => {
       sendMessage,
     });
 
-    expect(session.step).toBe('bulkStatus_process');
+    expect(session.kelolaUser_mode).toBe('4');
+    expect(session.step).toBe('kelolaUser_nrp');
     expect(sendMessage).toHaveBeenCalledWith(
       chatId,
-      expect.stringContaining('Permohonan Penghapusan Data Personil')
+      expect.stringContaining('Masukkan *user_id* / NRP/NIP user:')
     );
   });
 
+
+
+  it('updates exception_tiktok when mode 4 is selected', async () => {
+    const session = { kelolaUser_mode: '4', target_user_id: '12345' };
+    const chatId = 'chat-menu';
+    const sendMessage = jest.fn().mockResolvedValue();
+    const userModel = { updateUserField: jest.fn().mockResolvedValue({}) };
+
+    await clientRequestHandlers.kelolaUser_updateExceptionTiktok(
+      session,
+      chatId,
+      'true',
+      { sendMessage },
+      undefined,
+      userModel
+    );
+
+    expect(userModel.updateUserField).toHaveBeenCalledWith(
+      '12345',
+      'exception_tiktok',
+      true
+    );
+    expect(session.step).toBe('main');
+    expect(sendMessage).toHaveBeenCalledWith(
+      chatId,
+      expect.stringContaining('exception_tiktok=true')
+    );
+  });
   it('routes option 5 through the user lookup flow', async () => {
     const session = {};
     const chatId = 'chat-menu';

@@ -2465,7 +2465,7 @@ Ketik *angka* menu, atau *batal* untuk kembali.
     await waClient.sendMessage(
       chatId,
       appendSubmenuBackInstruction(
-        `Kelola User:\n1️⃣ Update Data User\n2️⃣ Update Exception\n3️⃣ Update Status\n4️⃣ Ubah Client ID\nKetik angka menu atau *batal* untuk keluar.`
+        `Kelola User:\n1️⃣ Update Data User\n2️⃣ Update Exception\n3️⃣ Update Status\n4️⃣ Update Exception TikTok\n5️⃣ Ubah Client ID\nKetik angka menu atau *batal* untuk keluar.`
       )
     );
     session.step = "kelolaUser_menu";
@@ -2478,15 +2478,14 @@ Ketik *angka* menu, atau *batal* untuk kembali.
     pool,
     userModel
   ) => {
-    if (!/^[1-4]$/.test(text.trim())) {
+    if (!/^[1-5]$/.test(text.trim())) {
       await waClient.sendMessage(
         chatId,
         "Pilihan tidak valid. Balas angka menu."
       );
       return;
     }
-    const selectedMode = text.trim();
-    session.kelolaUser_mode = selectedMode === "4" ? "5" : selectedMode;
+    session.kelolaUser_mode = text.trim();
     session.step = "kelolaUser_nrp";
     await waClient.sendMessage(chatId, "Masukkan *user_id* / NRP/NIP user:");
   },
@@ -2516,6 +2515,12 @@ Ketik *angka* menu, atau *batal* untuk kembali.
       await waClient.sendMessage(
         chatId,
         "Ketik *true* untuk aktif, *false* untuk non-aktif:"
+      );
+    } else if (session.kelolaUser_mode === "4") {
+      session.step = "kelolaUser_updateExceptionTiktok";
+      await waClient.sendMessage(
+        chatId,
+        "Ketik *true* untuk exception TikTok, *false* untuk tidak exception TikTok:"
       );
     } else if (session.kelolaUser_mode === "5") {
       session.step = "kelolaUser_updateClientId";
@@ -2604,6 +2609,33 @@ Ketik *angka* menu, atau *batal* untuk kembali.
       await waClient.sendMessage(
         chatId,
         `Gagal update exception: ${e.message}`
+      );
+    }
+    session.step = "main";
+  },
+  kelolaUser_updateExceptionTiktok: async (
+    session,
+    chatId,
+    text,
+    waClient,
+    pool,
+    userModel
+  ) => {
+    try {
+      const newExceptionTiktok = text.trim().toLowerCase() === "true";
+      await userModel.updateUserField(
+        session.target_user_id,
+        "exception_tiktok",
+        newExceptionTiktok
+      );
+      await waClient.sendMessage(
+        chatId,
+        `✅ User ${session.target_user_id} diupdate exception_tiktok=${newExceptionTiktok}.`
+      );
+    } catch (e) {
+      await waClient.sendMessage(
+        chatId,
+        `Gagal update exception TikTok: ${e.message}`
       );
     }
     session.step = "main";

@@ -462,6 +462,7 @@ export async function updateUserField(user_id, field, value) {
     "whatsapp",
     "email",
     "exception",
+    "exception_tiktok",
     "status",
     "nama",
     "title",
