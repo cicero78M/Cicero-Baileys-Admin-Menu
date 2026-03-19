@@ -87,6 +87,15 @@ function resolveCanonicalFetchedAt(fetchedAt) {
   return normalizeCreatedAt(fetchedAt) || new Date().toISOString();
 }
 
+function isTasksReplicaIdentityDeleteError(error) {
+  const message = String(error?.message || '').toLowerCase();
+  return (
+    message.includes('cannot delete from table "tasks"') &&
+    message.includes('does not have a replica identity') &&
+    message.includes('publishes deletes')
+  );
+}
+
 export async function upsertInstaPost(data) {
   // Pastikan field yang dipakai sesuai dengan kolom di DB
   const {
@@ -209,12 +218,27 @@ export async function deletePostByShortcode(shortcode, clientId = null) {
       [normalizedShortcode]
     );
 
-    const res = await client.query(
-      `DELETE FROM insta_post
-       WHERE shortcode = $1`,
-      [normalizedShortcode]
-    );
-    return res.rowCount || 0;
+    try {
+      const res = await client.query(
+        `DELETE FROM insta_post
+         WHERE shortcode = $1`,
+        [normalizedShortcode]
+      );
+      return res.rowCount || 0;
+    } catch (error) {
+      if (!isTasksReplicaIdentityDeleteError(error)) {
+        throw error;
+      }
+
+      await client.query(`ALTER TABLE tasks REPLICA IDENTITY FULL`);
+
+      const retryRes = await client.query(
+        `DELETE FROM insta_post
+         WHERE shortcode = $1`,
+        [normalizedShortcode]
+      );
+      return retryRes.rowCount || 0;
+    }
   });
 }
 
