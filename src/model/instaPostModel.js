@@ -96,6 +96,20 @@ function isTasksReplicaIdentityDeleteError(error) {
   );
 }
 
+async function canCurrentUserAlterTasksReplicaIdentity(client) {
+  const res = await client.query(
+    `SELECT pg_get_userbyid(c.relowner) = current_user AS is_owner
+     FROM pg_class c
+     JOIN pg_namespace n ON n.oid = c.relnamespace
+     WHERE n.nspname = 'public'
+       AND c.relname = 'tasks'
+       AND c.relkind IN ('r', 'p')
+     LIMIT 1`
+  );
+
+  return Boolean(res.rows[0]?.is_owner);
+}
+
 export async function upsertInstaPost(data) {
   // Pastikan field yang dipakai sesuai dengan kolom di DB
   const {
@@ -218,15 +232,25 @@ export async function deletePostByShortcode(shortcode, clientId = null) {
       [normalizedShortcode]
     );
 
+    await client.query('SAVEPOINT insta_post_delete');
     try {
       const res = await client.query(
         `DELETE FROM insta_post
          WHERE shortcode = $1`,
         [normalizedShortcode]
       );
+      await client.query('RELEASE SAVEPOINT insta_post_delete');
       return res.rowCount || 0;
     } catch (error) {
+      await client.query('ROLLBACK TO SAVEPOINT insta_post_delete');
+      await client.query('RELEASE SAVEPOINT insta_post_delete');
+
       if (!isTasksReplicaIdentityDeleteError(error)) {
+        throw error;
+      }
+
+      const canAlterReplicaIdentity = await canCurrentUserAlterTasksReplicaIdentity(client);
+      if (!canAlterReplicaIdentity) {
         throw error;
       }
 
