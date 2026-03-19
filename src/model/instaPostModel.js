@@ -218,14 +218,19 @@ export async function deletePostByShortcode(shortcode, clientId = null) {
       [normalizedShortcode]
     );
 
+    await client.query('SAVEPOINT insta_post_delete');
     try {
       const res = await client.query(
         `DELETE FROM insta_post
          WHERE shortcode = $1`,
         [normalizedShortcode]
       );
+      await client.query('RELEASE SAVEPOINT insta_post_delete');
       return res.rowCount || 0;
     } catch (error) {
+      await client.query('ROLLBACK TO SAVEPOINT insta_post_delete');
+      await client.query('RELEASE SAVEPOINT insta_post_delete');
+
       if (!isTasksReplicaIdentityDeleteError(error)) {
         throw error;
       }
