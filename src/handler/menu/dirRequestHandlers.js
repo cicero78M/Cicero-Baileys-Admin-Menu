@@ -5383,14 +5383,26 @@ export const dirRequestHandlers = {
           contentId: shortcode,
           sourceLink: input,
         });
-        const deletedInstaPosts = await deletePostByShortcode(shortcode, targetClientId);
+        let deletedInstaPosts = 0;
+        let deleteInstaWarning = null;
+        try {
+          deletedInstaPosts = await deletePostByShortcode(shortcode, targetClientId);
+        } catch (deleteError) {
+          console.warn(
+            "Gagal menghapus data pendukung insta_post saat hapus post tugas dirrequest:",
+            deleteError
+          );
+          deleteInstaWarning =
+            "⚠️ Post tugas tetap dihapus dari daftar tugas harian, tetapi penghapusan di tabel insta_post dilewati.";
+        }
         await waClient.sendMessage(
           chatId,
           [
             "✅ Post tugas Instagram berhasil dihapus dari daftar tugas harian.",
-            deletedInstaPosts
-              ? "✅ Post Instagram juga berhasil dihapus dari tabel insta_post."
-              : "ℹ️ Post Instagram tidak ditemukan di tabel insta_post untuk client ini.",
+            deleteInstaWarning ||
+              (deletedInstaPosts
+                ? "✅ Post Instagram juga berhasil dihapus dari tabel insta_post."
+                : "ℹ️ Post Instagram tidak ditemukan di tabel insta_post untuk client ini."),
             "Data likes Instagram yang sudah tersimpan tidak dihapus.",
             `Client : ${targetClientId}`,
             `Shortcode : ${shortcode}`,
@@ -5403,14 +5415,26 @@ export const dirRequestHandlers = {
           contentId: videoId,
           sourceLink: input,
         });
-        const deletedTiktokPosts = await deletePostByVideoId(videoId, targetClientId);
+        let deletedTiktokPosts = 0;
+        let deleteTiktokWarning = null;
+        try {
+          deletedTiktokPosts = await deletePostByVideoId(videoId, targetClientId);
+        } catch (deleteError) {
+          console.warn(
+            "Gagal menghapus data pendukung tiktok_post saat hapus post tugas dirrequest:",
+            deleteError
+          );
+          deleteTiktokWarning =
+            "⚠️ Post tugas tetap dihapus dari daftar tugas harian, tetapi penghapusan di tabel tiktok_post dilewati.";
+        }
         await waClient.sendMessage(
           chatId,
           [
             "✅ Post tugas TikTok berhasil dihapus dari daftar tugas harian.",
-            deletedTiktokPosts
-              ? "✅ Post TikTok juga berhasil dihapus dari tabel tiktok_post."
-              : "ℹ️ Post TikTok tidak ditemukan di tabel tiktok_post untuk client ini.",
+            deleteTiktokWarning ||
+              (deletedTiktokPosts
+                ? "✅ Post TikTok juga berhasil dihapus dari tabel tiktok_post."
+                : "ℹ️ Post TikTok tidak ditemukan di tabel tiktok_post untuk client ini."),
             "Data komentar TikTok yang sudah tersimpan tidak dihapus.",
             `Client : ${targetClientId}`,
             `Video ID : ${videoId}`,
