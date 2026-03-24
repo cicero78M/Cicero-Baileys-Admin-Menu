@@ -7,6 +7,7 @@ import {
 import { getPostsTodayByClient } from "../../../model/tiktokPostModel.js";
 import { getCommentsByVideoId } from "../../../model/tiktokCommentModel.js";
 import { hariIndo } from "../../../utils/constants.js";
+import { getOperationalAttendanceDate } from "../../../utils/attendanceOperationalDate.js";
 import {
   groupByDivision,
   sortDivisionKeys,
@@ -178,10 +179,7 @@ export async function absensiKomentar(client_id, opts = {}) {
   const roleFlag = opts.roleFlag;
   const normalizedRole = (roleFlag || "").toLowerCase();
   const isOperatorRole = normalizedRole === "operator";
-  const now = new Date();
-  const hari = hariIndo[now.getDay()];
-  const tanggal = now.toLocaleDateString("id-ID");
-  const jam = now.toLocaleTimeString("id-ID", { hour12: false });
+  const { hari, tanggal, jam } = getOperationalAttendanceDate();
 
   const clientInfo = await getClientInfo(client_id);
   const clientNama = clientInfo.nama;

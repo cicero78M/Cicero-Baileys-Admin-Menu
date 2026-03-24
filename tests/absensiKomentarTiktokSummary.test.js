@@ -5,6 +5,7 @@ const mockGetUsersByClient = jest.fn();
 const mockGetPostsTodayByClient = jest.fn();
 const mockGetCommentsByVideoId = jest.fn();
 const mockSendDebug = jest.fn();
+const mockGetOperationalAttendanceDate = jest.fn();
 
 jest.unstable_mockModule('../src/db/index.js', () => ({ query: mockQuery }));
 jest.unstable_mockModule('../src/model/userModel.js', () => ({
@@ -22,9 +23,17 @@ jest.unstable_mockModule('../src/model/tiktokCommentModel.js', () => ({
   deleteCommentsByVideoId: jest.fn(),
 }));
 jest.unstable_mockModule('../src/middleware/debugHandler.js', () => ({ sendDebug: mockSendDebug }));
+jest.unstable_mockModule('../src/utils/attendanceOperationalDate.js', () => ({
+  getOperationalAttendanceDate: mockGetOperationalAttendanceDate,
+}));
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockGetOperationalAttendanceDate.mockReturnValue({
+    hari: 'Senin',
+    tanggal: '01/01/2099',
+    jam: '10.11.12',
+  });
 });
 
 test('returns compact analytical recap with lampiran details', async () => {
@@ -74,6 +83,8 @@ test('returns compact analytical recap with lampiran details', async () => {
 
   expect(message).toMatch(/📊 \*Rekap Analitik Komentar TikTok\*/);
   expect(message).toMatch(/\*Ringkasan Capaian\*/);
+  expect(message).toMatch(/Senin, 01\/01\/2099/);
+  expect(message).toMatch(/Jam 10.11.12 WIB/);
   expect(message).toMatch(/• Konten dipantau : 2/);
   expect(message).toMatch(/• Performa tertinggi : Konten A – 2 akun/);
   expect(message).toMatch(/1\. AKP Personel 1/);
