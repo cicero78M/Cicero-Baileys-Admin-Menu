@@ -14,6 +14,7 @@ import {
 import { findClientById } from "../../service/clientService.js";
 import { handleFetchLikesInstagram } from "../fetchengagement/fetchLikesInstagram.js";
 import { handleFetchKomentarTiktokBatch } from "../fetchengagement/fetchCommentTiktok.js";
+import { formatJakartaDisplayTime } from "../../utils/dateJakarta.js";
 
 const DEFAULT_WINDOW_MS = 30 * 60 * 1000;
 
@@ -24,12 +25,7 @@ function formatUploadTime(date) {
     if (Number.isNaN(parsed.getTime())) {
       return null;
     }
-    const formatted = parsed.toLocaleTimeString("id-ID", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-      timeZone: "Asia/Jakarta",
-    });
+    const formatted = formatJakartaDisplayTime(parsed, { second: undefined });
     return formatted.replace(/\./g, ":");
   } catch {
     return null;
@@ -86,12 +82,7 @@ function normalizeSnapshotWindow(snapshotWindowStart, snapshotWindowEnd) {
 
 function formatWibTime(date) {
   try {
-    const formatted = date.toLocaleTimeString("id-ID", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-      timeZone: "Asia/Jakarta",
-    });
+    const formatted = formatJakartaDisplayTime(date, { second: undefined });
     return formatted.replace(/\./g, ":");
   } catch {
     return null;

@@ -3,6 +3,7 @@ import { getUsersByClient, getUsersByDirektorat } from "../../../model/userModel
 import { getShortcodesTodayByClient } from "../../../model/instaPostModel.js";
 import { hariIndo } from "../../../utils/constants.js";
 import { groupByDivision, sortDivisionKeys } from "../../../utils/utilsHelper.js";
+import { formatJakartaDisplayDate, formatJakartaDisplayTime } from "../../../utils/dateJakarta.js";
 
 function normalizeUsername(username) {
   return (username || "")
@@ -38,8 +39,8 @@ export async function absensiKomentarInstagram(client_id, opts = {}) {
 
   const now = new Date();
   const hari = hariIndo[now.getDay()];
-  const tanggal = now.toLocaleDateString("id-ID");
-  const jam = now.toLocaleTimeString("id-ID", { hour12: false });
+  const tanggal = formatJakartaDisplayDate(now, { month: "2-digit" });
+  const jam = formatJakartaDisplayTime(now);
 
   const clientNama = await getClientNama(targetClient);
   const allowedRoles = ["ditbinmas", "ditlantas", "bidhumas"];

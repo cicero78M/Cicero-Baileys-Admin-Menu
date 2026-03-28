@@ -104,6 +104,7 @@ import {
   hasSameClientIdAsAdmin,
 } from "../utils/waHelper.js";
 import {
+import { formatJakartaDisplayDate, formatJakartaDisplayTime } from "../utils/dateJakarta.js";
   IG_PROFILE_REGEX,
   TT_PROFILE_REGEX,
   adminCommands,
@@ -2628,8 +2629,8 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
     ];
     const now = new Date();
     const hari = hariIndo[now.getDay()];
-    const tanggal = now.toLocaleDateString("id-ID");
-    const jam = now.toLocaleTimeString("id-ID", { hour12: false });
+    const tanggal = formatJakartaDisplayDate(now, { month: "2-digit" });
+    const jam = formatJakartaDisplayTime(now);
 
     const kontenLinks = shortcodes.map(
       (sc) => `https://www.instagram.com/p/${sc}`
@@ -2805,8 +2806,8 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
     ];
     const now = new Date();
     const hari = hariIndo[now.getDay()];
-    const tanggal = now.toLocaleDateString("id-ID");
-    const jam = now.toLocaleTimeString("id-ID", { hour12: false });
+    const tanggal = formatJakartaDisplayDate(now, { month: "2-digit" });
+    const jam = formatJakartaDisplayTime(now);
 
     const kontenLinks = posts.map(
       (p) =>

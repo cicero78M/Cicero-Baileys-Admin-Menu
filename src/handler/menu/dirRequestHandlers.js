@@ -97,6 +97,7 @@ import {
   getTaskPostExclusionSet,
 } from "../../model/taskPostExclusionModel.js";
 import { query } from "../../db/index.js";
+import { formatJakartaDisplayDate, formatJakartaDisplayTime } from "../../utils/dateJakarta.js";
 
 const dirRequestGroup = "120363419830216549@g.us";
 const DITBINMAS_CLIENT_ID = "DITBINMAS";
@@ -267,13 +268,8 @@ const isValidYm = (value) => /^\d{4}-\d{2}$/.test(String(value || "").trim());
 
 const getJakartaDayDateLabel = () => {
   const now = new Date();
-  const hari = hariIndo[now.getDay()] || now.toLocaleDateString("id-ID", { weekday: "long" });
-  const tanggal = now.toLocaleDateString("id-ID", {
-    timeZone: "Asia/Jakarta",
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  });
+  const hari = hariIndo[now.getDay()] || formatJakartaDisplayDate(now, { weekday: "long" });
+  const tanggal = formatJakartaDisplayDate(now);
   return `${hari}, ${tanggal}`;
 };
 
@@ -703,12 +699,7 @@ const formatYmdToIndoLong = (ymd) => {
   if (!isValidYmd(ymd)) return ymd;
   const [year, month, day] = String(ymd).split("-").map((v) => Number(v));
   const date = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
-  return date.toLocaleDateString("id-ID", {
-    timeZone: "Asia/Jakarta",
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  });
+  return formatJakartaDisplayDate(date);
 };
 
 const normalizeSocialUsername = (value) =>
@@ -956,16 +947,9 @@ async function formatRekapUserData(clientId, roleFlag = null, options = {}) {
     options?.chakranarayanaSelectedGroup === "jajaran";
   const salam = getGreeting();
   const now = new Date();
-  const hari = now.toLocaleDateString("id-ID", { weekday: "long" });
-  const tanggal = now.toLocaleDateString("id-ID", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  });
-  const jam = now.toLocaleTimeString("id-ID", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const hari = formatJakartaDisplayDate(now, { weekday: "long" });
+  const tanggal = formatJakartaDisplayDate(now);
+  const jam = formatJakartaDisplayTime(now, { second: undefined });
 
   const isDirektoratView =
     clientType === "direktorat" ||
@@ -1450,16 +1434,9 @@ async function formatRekapDataPersonil(clientId, category = "all") {
 
   const salam = getGreeting();
   const now = new Date();
-  const hari = now.toLocaleDateString("id-ID", { weekday: "long" });
-  const tanggal = now.toLocaleDateString("id-ID", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  });
-  const jam = now.toLocaleTimeString("id-ID", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const hari = formatJakartaDisplayDate(now, { weekday: "long" });
+  const tanggal = formatJakartaDisplayDate(now);
+  const jam = formatJakartaDisplayTime(now, { second: undefined });
 
   // Categorize users
   const complete = {};
@@ -1638,16 +1615,9 @@ async function formatRekapBelumLengkapDirektorat(clientId) {
 
   const salam = getGreeting();
   const now = new Date();
-  const hari = now.toLocaleDateString("id-ID", { weekday: "long" });
-  const tanggal = now.toLocaleDateString("id-ID", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  });
-  const jam = now.toLocaleTimeString("id-ID", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const hari = formatJakartaDisplayDate(now, { weekday: "long" });
+  const tanggal = formatJakartaDisplayDate(now);
+  const jam = formatJakartaDisplayTime(now, { second: undefined });
   const incomplete = {};
   targetUsers.forEach((u) => {
     if (u.insta && u.tiktok) return;
@@ -1851,10 +1821,10 @@ const getExecutiveSummaryWindow = (period, rawValue = null, referenceDate = new 
     return {
       startYmd,
       endYmd,
-      periodText: `Bulan ${endDate.toLocaleDateString("id-ID", {
-        timeZone: "Asia/Jakarta",
+      periodText: `Bulan ${formatJakartaDisplayDate(endDate, {
         month: "long",
         year: "numeric",
+        day: undefined,
       })}`,
     };
   }
@@ -2447,11 +2417,7 @@ async function formatRekapAllSosmed(
   const { igRankingData = null, ttRankingData = null } = options || {};
   const now = new Date();
   const hari = hariIndo[now.getDay()];
-  const tanggal = now.toLocaleDateString("id-ID", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  });
+  const tanggal = formatJakartaDisplayDate(now);
   const todayKey = now.toDateString();
 
   const normalizeText = (text) => (text || "").replace(/\r\n/g, "\n");
@@ -2860,14 +2826,7 @@ async function formatRekapAllSosmed(
     try {
       const parsed = new Date(date);
       if (Number.isNaN(parsed.getTime())) return null;
-      return parsed
-        .toLocaleTimeString("id-ID", {
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: false,
-          timeZone: "Asia/Jakarta",
-        })
-        .replace(/\./g, ":");
+      return formatJakartaDisplayTime(parsed, { second: undefined }).replace(/\./g, ":");
     } catch {
       return null;
     }

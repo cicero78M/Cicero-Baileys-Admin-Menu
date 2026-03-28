@@ -540,9 +540,9 @@ export function formatDitbinmasNarrative(stats) {
 export async function lapharDitbinmas(clientId = "DITBINMAS") {
   const now = new Date();
   const hari = hariIndo[now.getDay()];
-  const tanggal = now.toLocaleDateString("id-ID");
+  const tanggal = formatJakartaDisplayDate(now, { month: "2-digit" });
   const dateKey = now.toDateString();
-  const jam = now.toLocaleTimeString("id-ID", { hour12: false });
+  const jam = formatJakartaDisplayTime(now);
   const dateSafe = tanggal.replace(/\//g, "-");
   const timeSafe = jam.replace(/[:.]/g, "-");
   const filename = `Absensi_All_Engagement_Instagram_${hari}_${dateSafe}_${timeSafe}.txt`;

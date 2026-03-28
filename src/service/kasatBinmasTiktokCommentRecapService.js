@@ -5,6 +5,7 @@ import { getRekapKomentarByClient } from "../model/tiktokCommentModel.js";
 import { formatNama } from "../utils/utilsHelper.js";
 import { matchesKasatBinmasJabatan } from "./kasatkerAttendanceService.js";
 import {
+import { formatJakartaDisplayDate } from "../utils/dateJakarta.js";
   extractUsernamesFromComments,
   normalizeUsername,
 } from "../handler/fetchabsensi/tiktok/absensiKomentarTiktok.js";
@@ -105,17 +106,14 @@ function toDateInput(date) {
 
 function formatDateLong(date) {
   const jakartaDate = date instanceof Date ? date : toJakartaDate(date);
-  return jakartaDate.toLocaleDateString("id-ID", {
+  return formatJakartaDisplayDate(jakartaDate, {
     timeZone: "UTC",
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
   });
 }
 
 function formatDayLabel(date) {
   const jakartaDate = date instanceof Date ? date : toJakartaDate(date);
-  const weekday = jakartaDate.toLocaleDateString("id-ID", {
+  const weekday = formatJakartaDisplayDate(jakartaDate, {
     weekday: "long",
     timeZone: "UTC",
   });
@@ -150,10 +148,11 @@ function describePeriod(period = "daily", referenceDate) {
     };
   }
   if (period === "monthly") {
-    const label = today.toLocaleDateString("id-ID", {
+    const label = formatJakartaDisplayDate(today, {
       timeZone: "UTC",
       month: "long",
       year: "numeric",
+      day: undefined,
     });
     const zoned = today instanceof Date ? today : toJakartaDate(today);
     return {

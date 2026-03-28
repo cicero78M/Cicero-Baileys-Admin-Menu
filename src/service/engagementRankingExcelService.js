@@ -10,6 +10,7 @@ import { getCommentsByVideoId } from "../model/tiktokCommentModel.js";
 import { computeDitbinmasLikesStats } from "../handler/fetchabsensi/insta/ditbinmasLikesUtils.js";
 import { hariIndo } from "../utils/constants.js";
 import { filterUsersBySatikDivision } from "../utils/utilsHelper.js";
+import { formatJakartaDisplayDate, formatJakartaQueryDateKey } from "../utils/dateJakarta.js";
 
 const EXPORT_DIR = path.resolve("export_data/engagement_ranking");
 const PERIOD_DESCRIPTIONS = {
@@ -39,30 +40,17 @@ function getJakartaDate(baseDate = new Date()) {
 }
 
 function toDateKey(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return formatJakartaQueryDateKey(date);
 }
 
 function formatDayDate(date) {
-  const hari = hariIndo[date.getDay()] || date.toLocaleDateString("id-ID", {
-    weekday: "long",
-  });
-  const tanggal = date.toLocaleDateString("id-ID", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  });
+  const hari = hariIndo[date.getDay()] || formatJakartaDisplayDate(date, { weekday: "long" });
+  const tanggal = formatJakartaDisplayDate(date);
   return `${hari}, ${tanggal}`;
 }
 
 function formatDateOnly(date) {
-  return date.toLocaleDateString("id-ID", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  });
+  return formatJakartaDisplayDate(date);
 }
 
 function formatDateRangeText(startDate, endDate) {
@@ -157,10 +145,7 @@ function resolvePeriodRange(
     case "this_month": {
       startDateObj = new Date(now.getFullYear(), now.getMonth(), 1);
       endDateObj = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-      const monthLabel = startDateObj.toLocaleDateString("id-ID", {
-        month: "long",
-        year: "numeric",
-      });
+      const monthLabel = formatJakartaDisplayDate(startDateObj, { month: "long", year: "numeric", day: undefined });
       label = `Bulan: ${monthLabel}`;
       fileLabel = `Bulan_${startDateObj.getFullYear()}-${String(
         startDateObj.getMonth() + 1
@@ -170,10 +155,7 @@ function resolvePeriodRange(
     case "last_month": {
       startDateObj = new Date(now.getFullYear(), now.getMonth() - 1, 1);
       endDateObj = new Date(now.getFullYear(), now.getMonth(), 0);
-      const monthLabel = startDateObj.toLocaleDateString("id-ID", {
-        month: "long",
-        year: "numeric",
-      });
+      const monthLabel = formatJakartaDisplayDate(startDateObj, { month: "long", year: "numeric", day: undefined });
       label = `Bulan: ${monthLabel}`;
       fileLabel = `Bulan_${startDateObj.getFullYear()}-${String(
         startDateObj.getMonth() + 1
@@ -517,12 +499,8 @@ export async function saveEngagementRankingExcel({
   });
 
   const now = new Date();
-  const hari = hariIndo[now.getDay()] || now.toLocaleDateString("id-ID", { weekday: "long" });
-  const tanggal = now.toLocaleDateString("id-ID", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  });
+  const hari = hariIndo[now.getDay()] || formatJakartaDisplayDate(now, { weekday: "long" });
+  const tanggal = formatJakartaDisplayDate(now);
 
   const jam = String(now.getHours()).padStart(2, "0");
   const menit = String(now.getMinutes()).padStart(2, "0");
