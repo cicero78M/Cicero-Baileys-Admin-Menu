@@ -1,39 +1,10 @@
 import { query } from '../../../db/index.js';
 import { getWebLoginCountsByActor } from '../../../model/loginLogModel.js';
+import { getJakartaDayRange, getJakartaMonthRange, getJakartaWeekRange } from '../../../utils/jakartaRange.js';
 import { getGreeting } from '../../../utils/utilsHelper.js';
 
 const numberFormatter = new Intl.NumberFormat('id-ID');
 const monthFormatter = new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' });
-
-function startOfDay(date) {
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
-function endOfDay(date) {
-  const d = new Date(date);
-  d.setHours(23, 59, 59, 999);
-  return d;
-}
-
-function startOfMonth(date) {
-  const d = new Date(date);
-  d.setDate(1);
-  return startOfDay(d);
-}
-
-function endOfMonth(date) {
-  const d = new Date(date);
-  d.setMonth(d.getMonth() + 1, 0);
-  return endOfDay(d);
-}
-
-function addDays(date, days) {
-  const d = new Date(date);
-  d.setDate(d.getDate() + days);
-  return d;
-}
 
 function resolveRange({ mode, startTime, endTime }) {
   const normalizedMode = mode === 'mingguan' ? 'mingguan' : 'harian';
@@ -51,16 +22,15 @@ function resolveRange({ mode, startTime, endTime }) {
   if (!start && !end) {
     const now = new Date();
     if (normalizedMode === 'mingguan') {
-      const day = now.getDay() === 0 ? 6 : now.getDay() - 1;
-      start = startOfDay(addDays(now, -day));
-      end = endOfDay(addDays(start, 6));
+      ({ start, end } = getJakartaWeekRange(now, 1));
     } else {
-      start = startOfDay(now);
-      end = endOfDay(now);
+      ({ start, end } = getJakartaDayRange(now));
     }
   } else {
-    start = start ? startOfDay(start) : startOfDay(end);
-    end = end ? endOfDay(end) : endOfDay(start);
+    const startDate = start || end;
+    const endDate = end || start;
+    ({ start } = getJakartaDayRange(startDate));
+    ({ end } = getJakartaDayRange(endDate));
   }
 
   return { start, end, mode: normalizedMode };
@@ -72,8 +42,7 @@ function resolveMonthlyRange({ startTime, endTime }) {
   if (Number.isNaN(parsed.getTime())) {
     throw new Error('Tanggal periode bulanan tidak valid');
   }
-  const start = startOfMonth(baseDate);
-  const end = endOfMonth(baseDate);
+  const { start, end } = getJakartaMonthRange(baseDate);
   return { start, end };
 }
 
