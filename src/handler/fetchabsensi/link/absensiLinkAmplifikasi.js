@@ -11,6 +11,7 @@ import {
 } from "../../../model/linkReportModel.js";
 import { hariIndo } from "../../../utils/constants.js";
 import { groupByDivision, sortDivisionKeys, getGreeting } from "../../../utils/utilsHelper.js";
+import { formatJakartaDisplayDate, formatJakartaDisplayTime } from "../../../utils/dateJakarta.js";
 
 async function getClientInfo(client_id) {
   const res = await query(
@@ -27,8 +28,8 @@ export async function absensiLink(client_id, opts = {}) {
   const { clientFilter, roleFlag } = opts;
   const now = new Date();
   const hari = hariIndo[now.getDay()];
-  const tanggal = now.toLocaleDateString("id-ID");
-  const jam = now.toLocaleTimeString("id-ID", { hour12: false });
+  const tanggal = formatJakartaDisplayDate(now, { month: "2-digit" });
+  const jam = formatJakartaDisplayTime(now);
 
   const { nama: clientNama, clientType } = await getClientInfo(client_id);
   let users;
@@ -190,8 +191,8 @@ export async function absensiLink(client_id, opts = {}) {
 export async function absensiLinkPerPost(client_id, opts = {}) {
   const now = new Date();
   const hari = hariIndo[now.getDay()];
-  const tanggal = now.toLocaleDateString("id-ID");
-  const jam = now.toLocaleTimeString("id-ID", { hour12: false });
+  const tanggal = formatJakartaDisplayDate(now, { month: "2-digit" });
+  const jam = formatJakartaDisplayTime(now);
 
   const { nama: clientNama, clientType } = await getClientInfo(client_id);
   const users =

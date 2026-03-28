@@ -9,10 +9,18 @@ const JAKARTA_TIMEZONE = "Asia/Jakarta";
  * - `formatJakartaDisplayDate` dan `formatJakartaDisplayTime` dipakai untuk narasi/report user.
  */
 export function formatJakartaDisplayDate(date = new Date(), options = {}) {
+  const hasCustomDatePart = ["weekday", "day", "month", "year"].some(
+    (key) => Object.prototype.hasOwnProperty.call(options, key)
+  );
+
   return new Date(date).toLocaleDateString("id-ID", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
+    ...(hasCustomDatePart
+      ? {}
+      : {
+          day: "2-digit",
+          month: "long",
+          year: "numeric",
+        }),
     timeZone: JAKARTA_TIMEZONE,
     ...options,
   });

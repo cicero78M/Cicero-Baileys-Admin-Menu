@@ -6,6 +6,7 @@ import { absensiKomentar } from "../fetchabsensi/tiktok/absensiKomentarTiktok.js
 import { findClientById } from "../../service/clientService.js";
 import { getGreeting, sortDivisionKeys, formatNama } from "../../utils/utilsHelper.js";
 import { appendSubmenuBackInstruction } from "./menuPromptHelpers.js";
+import { formatJakartaDisplayDate, formatJakartaDisplayTime } from "../../utils/dateJakarta.js";
 
 async function formatRekapUserData(clientId, roleFlag = null) {
   const filterRole = ["ditbinmas", "ditlantas", "bidhumas"].includes(
@@ -17,16 +18,9 @@ async function formatRekapUserData(clientId, roleFlag = null) {
   const users = await getUsersSocialByClient(clientId, filterRole);
   const salam = getGreeting();
   const now = new Date();
-  const hari = now.toLocaleDateString("id-ID", { weekday: "long" });
-  const tanggal = now.toLocaleDateString("id-ID", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  });
-  const jam = now.toLocaleTimeString("id-ID", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const hari = formatJakartaDisplayDate(now, { weekday: "long" });
+  const tanggal = formatJakartaDisplayDate(now);
+  const jam = formatJakartaDisplayTime(now, { second: undefined });
 
   const clientType = client?.client_type?.toLowerCase();
   if (clientType === "direktorat") {

@@ -1,6 +1,7 @@
 import { query } from "../../../db/index.js";
 import { hariIndo } from "../../../utils/constants.js";
 import { getGreeting } from "../../../utils/utilsHelper.js";
+import { formatJakartaDisplayDate, formatJakartaDisplayTime } from "../../../utils/dateJakarta.js";
 
 const ROLE_BY_DIREKTORAT_CLIENT = {
   DITBINMAS: "ditbinmas",
@@ -93,8 +94,8 @@ export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS
 
   const now = new Date();
   const hari = hariIndo[now.getDay()];
-  const tanggal = now.toLocaleDateString("id-ID");
-  const jam = now.toLocaleTimeString("id-ID", { hour12: false });
+  const tanggal = formatJakartaDisplayDate(now, { month: "2-digit" });
+  const jam = formatJakartaDisplayTime(now);
   const salam = getGreeting();
 
   const startOfToday = new Date(now);

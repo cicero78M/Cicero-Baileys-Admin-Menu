@@ -2,9 +2,10 @@ import { getRekapLikesByClient } from "../model/instaLikeModel.js";
 import { getUsersByClient } from "../model/userModel.js";
 import { formatNama } from "../utils/utilsHelper.js";
 import { matchesKasatBinmasJabatan } from "./kasatkerAttendanceService.js";
-import { 
-  getPositionIndex, 
-  getRankIndex 
+import { formatJakartaDisplayDate, formatJakartaQueryDateKey } from "../utils/dateJakarta.js";
+import {
+  getPositionIndex,
+  getRankIndex,
 } from "../utils/sortingHelper.js";
 
 const DITBINMAS_CLIENT_ID = "DITBINMAS";
@@ -18,22 +19,15 @@ const STATUS_SECTIONS = [
 ];
 
 function toDateInput(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return formatJakartaQueryDateKey(date);
 }
 
 function formatDateLong(date) {
-  return date.toLocaleDateString("id-ID", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  });
+  return formatJakartaDisplayDate(date);
 }
 
 function formatDayLabel(date) {
-  const weekday = date.toLocaleDateString("id-ID", { weekday: "long" });
+  const weekday = formatJakartaDisplayDate(date, { weekday: "long" });
   return `${weekday}, ${formatDateLong(date)}`;
 }
 
@@ -66,10 +60,7 @@ export function describeKasatBinmasLikesPeriod(period = "daily", referenceDate) 
     };
   }
   if (period === "monthly") {
-    const label = today.toLocaleDateString("id-ID", {
-      month: "long",
-      year: "numeric",
-    });
+    const label = formatJakartaDisplayDate(today, { month: "long", year: "numeric", day: undefined });
     return {
       type: "bulanan",
       label: `Bulan ${label}`,
