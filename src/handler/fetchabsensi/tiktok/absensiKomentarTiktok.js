@@ -6,8 +6,8 @@ import {
 } from "../../../model/userModel.js";
 import { getPostsTodayByClient } from "../../../model/tiktokPostModel.js";
 import { getCommentsByVideoId } from "../../../model/tiktokCommentModel.js";
-import { hariIndo } from "../../../utils/constants.js";
 import { getOperationalAttendanceDate } from "../../../utils/attendanceOperationalDate.js";
+import { formatJakartaQueryDateKey } from "../../../utils/dateJakarta.js";
 import {
   groupByDivision,
   sortDivisionKeys,
@@ -791,10 +791,7 @@ export async function absensiKomentarDitbinmasSimple(clientId = "DITBINMAS", opt
 export async function absensiKomentarDitbinmasReport(clientId = "DITBINMAS") {
   const targetClientId = String(clientId || "DITBINMAS").trim().toUpperCase();
   const roleName = targetClientId.toLowerCase();
-  const now = new Date();
-  const hari = hariIndo[now.getDay()];
-  const tanggal = now.toLocaleDateString("id-ID");
-  const jam = now.toLocaleTimeString("id-ID", { hour12: false });
+  const { hari, tanggal, jam } = getOperationalAttendanceDate();
 
   const { tiktok: mainUsername, nama: clientName, clientType } = await getClientInfo(targetClientId);
 
@@ -983,10 +980,8 @@ export async function absensiKomentarDitbinmasReport(clientId = "DITBINMAS") {
 export async function lapharTiktokDitbinmas(clientId = "DITBINMAS") {
   const roleName = String(clientId || "DITBINMAS").toLowerCase();
   const now = new Date();
-  const hari = hariIndo[now.getDay()];
-  const tanggal = now.toLocaleDateString("id-ID");
-  const dateKey = now.toDateString();
-  const jam = now.toLocaleTimeString("id-ID", { hour12: false });
+  const { hari, tanggal, jam } = getOperationalAttendanceDate(now);
+  const dateKey = formatJakartaQueryDateKey(now);
   const dateSafe = tanggal.replace(/\//g, "-");
   const timeSafe = jam.replace(/[:.]/g, "-");
   const filename = `Absensi_All_Engagement_Tiktok_${hari}_${dateSafe}_${timeSafe}.txt`;
@@ -1331,10 +1326,7 @@ export async function lapharTiktokDitbinmas(clientId = "DITBINMAS") {
 
 // === PER KONTEN ===
 export async function absensiKomentarTiktokPerKonten(client_id, opts = {}) {
-  const now = new Date();
-  const hari = hariIndo[now.getDay()];
-  const tanggal = now.toLocaleDateString("id-ID");
-  const jam = now.toLocaleTimeString("id-ID", { hour12: false });
+  const { hari, tanggal, jam } = getOperationalAttendanceDate();
 
   const clientInfo = await getClientInfo(client_id);
   const clientNama = clientInfo.nama;
