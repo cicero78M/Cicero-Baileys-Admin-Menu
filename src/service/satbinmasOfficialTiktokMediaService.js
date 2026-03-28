@@ -4,14 +4,13 @@ import { fetchTodaySatbinmasOfficialTiktokMediaForOrgClients as fetchOrgClients 
 import { findAllOrgClients } from "../model/clientModel.js";
 import { findActiveByClientAndPlatform } from "../model/satbinmasOfficialAccountModel.js";
 import { summarizeSatbinmasTiktokPostsBySecuids } from "../model/tiktokSnapshotModel.js";
+import { getJakartaDayRange } from "../utils/jakartaRange.js";
 
 function resolveDefaultRange(start, end) {
   if (start && end) return { start, end };
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  const { start: today, end: endOfDay } = getJakartaDayRange(new Date());
+  const tomorrow = new Date(endOfDay.getTime() + 1);
   return { start: start || today, end: end || tomorrow };
 }
 
