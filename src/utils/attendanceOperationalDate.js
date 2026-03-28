@@ -10,9 +10,20 @@ import {
   formatJakartaQueryDateKey,
 } from "./dateJakarta.js";
 
+const OPERATIONAL_DAY_START_HOUR_WIB = 17;
+const OPERATIONAL_DAY_SHIFT_HOURS = 24 - OPERATIONAL_DAY_START_HOUR_WIB;
+
+function toOperationalDateReference(now) {
+  const shifted = new Date(now.getTime());
+  shifted.setUTCHours(shifted.getUTCHours() - OPERATIONAL_DAY_SHIFT_HOURS);
+  return shifted;
+}
+
 export function getOperationalAttendanceDate(now = new Date()) {
   const current = now instanceof Date ? now : new Date(now);
-  const operationalDate = formatJakartaQueryDateKey(current);
+  const operationalDate = formatJakartaQueryDateKey(
+    toOperationalDateReference(current)
+  );
 
   const [year, month, day] = operationalDate.split("-").map(Number);
   const localJakartaDate = new Date(Date.UTC(year, month - 1, day));

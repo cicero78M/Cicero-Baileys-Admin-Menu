@@ -1,5 +1,6 @@
 // src/model/tiktokPostModel.js
 import { query } from '../repository/db.js';
+import { getOperationalAttendanceDate } from '../utils/attendanceOperationalDate.js';
 
 function normalizeClientId(id) {
   return typeof id === "string" ? id.trim().toLowerCase() : id;
@@ -14,7 +15,7 @@ function toInteger(value) {
 function resolveJakartaDate(referenceDate) {
   const baseDate = referenceDate ? new Date(referenceDate) : new Date();
   const validDate = Number.isNaN(baseDate.getTime()) ? new Date() : baseDate;
-  return validDate.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
+  return getOperationalAttendanceDate(validDate).operationalDate;
 }
 
 function normalizeUtcCreatedAt(input) {
@@ -26,6 +27,10 @@ function normalizeUtcCreatedAt(input) {
 
 function jakartaDateCast(columnAlias = "created_at") {
   return `(( ${columnAlias} AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Jakarta')`;
+}
+
+function jakartaOperationalDateCast(columnAlias = "created_at") {
+  return `((${jakartaDateCast(columnAlias)} - INTERVAL '17 hours')::date)`;
 }
 
 /**
@@ -182,7 +187,7 @@ export async function getVideoIdsTodayByClient(client_id, referenceDate) {
   const res = await query(
     `SELECT video_id FROM tiktok_post
      WHERE LOWER(TRIM(client_id)) = $1
-     AND ${jakartaDateCast("created_at")}::date = $2::date`,
+     AND ${jakartaOperationalDateCast("created_at")} = $2::date`,
     [normalizedId, targetDate]
   );
   return res.rows.map((r) => r.video_id);
@@ -197,7 +202,7 @@ export async function getPostsTodayByClient(client_id, referenceDate) {
   const normalizedId = normalizeClientId(client_id);
   const targetDate = resolveJakartaDate(referenceDate);
   const res = await query(
-    `SELECT * FROM tiktok_post WHERE LOWER(TRIM(client_id)) = $1 AND ${jakartaDateCast("created_at")}::date = $2::date ORDER BY created_at ASC, video_id ASC`,
+    `SELECT * FROM tiktok_post WHERE LOWER(TRIM(client_id)) = $1 AND ${jakartaOperationalDateCast("created_at")} = $2::date ORDER BY created_at ASC, video_id ASC`,
     [normalizedId, targetDate]
   );
   return res.rows;
@@ -210,7 +215,7 @@ export async function getOfficialPostsTodayByClient(client_id, referenceDate) {
     `SELECT * FROM tiktok_post
      WHERE LOWER(TRIM(client_id)) = $1
        AND COALESCE(LOWER(TRIM(source_type)), 'cron_fetch') <> 'manual_input'
-       AND ${jakartaDateCast("created_at")}::date = $2::date
+       AND ${jakartaOperationalDateCast("created_at")} = $2::date
      ORDER BY created_at ASC, video_id ASC`,
     [normalizedId, targetDate]
   );
@@ -224,7 +229,7 @@ export async function getManualPostsTodayByClient(client_id, referenceDate) {
     `SELECT * FROM tiktok_post
      WHERE LOWER(TRIM(client_id)) = $1
        AND COALESCE(LOWER(TRIM(source_type)), 'cron_fetch') = 'manual_input'
-       AND ${jakartaDateCast("created_at")}::date = $2::date
+       AND ${jakartaOperationalDateCast("created_at")} = $2::date
      ORDER BY created_at ASC, video_id ASC`,
     [normalizedId, targetDate]
   );

@@ -1,6 +1,7 @@
 // src/model/instaPostModel.js
 import { query, withTransaction } from '../repository/db.js';
 import {
+  getInstagramCreatedAtJakartaTimestampSql,
   getInstagramCreatedAtJakartaDateSql,
   getInstagramNowJakartaDateSql,
 } from '../utils/instagramCreatedAtSql.js';
@@ -43,23 +44,30 @@ async function getInstaPostFetchedAtColumnMeta() {
 
 async function getInstagramOperationalDateSql(columnAlias = 'p') {
   const fetchedAtMeta = await getInstaPostFetchedAtColumnMeta();
+  const operationalShiftSql = "INTERVAL '17 hours'";
 
   if (!fetchedAtMeta.hasColumn) {
-    return getInstagramCreatedAtJakartaDateSql(`${columnAlias}.created_at`);
+    return `((${getInstagramCreatedAtJakartaTimestampSql(
+      `${columnAlias}.created_at`
+    )} - ${operationalShiftSql})::date)`;
   }
 
   if (fetchedAtMeta.dataType === 'timestamp without time zone') {
     // Beberapa deployment lama menyimpan fetched_at sebagai timestamp tanpa timezone.
     // Nilainya diperlakukan sebagai UTC agar konversi tanggal WIB tidak mundur ke H-1.
-    return getInstagramCreatedAtJakartaDateSql(`${columnAlias}.fetched_at`);
+    return `((${getInstagramCreatedAtJakartaTimestampSql(
+      `${columnAlias}.fetched_at`
+    )} - ${operationalShiftSql})::date)`;
   }
 
   if (fetchedAtMeta.dataType === 'timestamp with time zone') {
-    return `(${columnAlias}.fetched_at AT TIME ZONE 'Asia/Jakarta')::date`;
+    return `(((${columnAlias}.fetched_at AT TIME ZONE 'Asia/Jakarta') - ${operationalShiftSql})::date)`;
   }
 
   // Safety-net ketika metadata tipe kolom tidak terdeteksi sesuai ekspektasi.
-  return getInstagramCreatedAtJakartaDateSql(`${columnAlias}.fetched_at`);
+  return `((${getInstagramCreatedAtJakartaTimestampSql(
+    `${columnAlias}.fetched_at`
+  )} - ${operationalShiftSql})::date)`;
 }
 
 function normalizeSourceType(sourceType) {
