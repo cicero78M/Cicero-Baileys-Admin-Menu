@@ -43,6 +43,7 @@ afterEach(() => {
 
 test('adds missing exception usernames to likes result', async () => {
   mockQuery
+    .mockResolvedValueOnce({ rows: [{ has_column: true, data_type: 'timestamp with time zone' }] })
     .mockResolvedValueOnce({ rows: [{ shortcode: 'sc1' }] })
     .mockResolvedValueOnce({ rows: [] })
     .mockResolvedValue({});
@@ -60,22 +61,30 @@ test('adds missing exception usernames to likes result', async () => {
   expect(likes).toEqual(expect.arrayContaining(['user1', 'user2']));
 });
 
-test('uses Jakarta date filter SQL and resolves UTC 23:30 as next Jakarta day', async () => {
+test('uses operational date filter SQL with fetched_at priority', async () => {
   jest.useFakeTimers();
   jest.setSystemTime(new Date('2026-01-01T23:30:00.000Z'));
 
-  mockQuery.mockResolvedValueOnce({ rows: [] });
+  mockQuery
+    .mockResolvedValueOnce({ rows: [{ has_column: true, data_type: 'timestamp with time zone' }] })
+    .mockResolvedValueOnce({ rows: [] })
+    .mockResolvedValue({ rows: [] });
 
   await handleFetchLikesInstagram(null, null, 'clientA');
 
-  const [sql, params] = mockQuery.mock.calls[0];
-  expect(sql).toContain("(((created_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Jakarta')::date) = $2::date");
-  expect(params[1]).toBe('2026-01-02');
+  const queryCall = mockQuery.mock.calls.find((call) =>
+    call[0].includes('FROM insta_post') && call[0].includes('WHERE client_id = $1'),
+  );
+  const [sql, params] = queryCall;
+  expect(sql).toContain("COALESCE((fetched_at AT TIME ZONE 'Asia/Jakarta')");
+  expect(sql).toContain("- INTERVAL '17 hours')::date) = $2::date");
+  expect(params[1]).toBe('2026-01-01');
 });
 
 
 test('manual daily menu query filters manual source types consistently', async () => {
   mockQuery
+    .mockResolvedValueOnce({ rows: [{ has_column: true, data_type: 'timestamp with time zone' }] })
     .mockResolvedValueOnce({ rows: [{ shortcode: 'sc_manual' }] })
     .mockResolvedValueOnce({ rows: [] })
     .mockResolvedValue({});
@@ -84,8 +93,66 @@ test('manual daily menu query filters manual source types consistently', async (
 
   await handleFetchLikesInstagram(null, null, 'clientA', { sourceType: 'manual_input' });
 
-  const [sql, params] = mockQuery.mock.calls[0];
+  const [sql, params] = mockQuery.mock.calls.find((call) =>
+    call[0].includes('FROM insta_post') && call[0].includes('WHERE client_id = $1'),
+  );
   expect(sql).toContain("$3::boolean = false OR");
   expect(sql).toContain("IN ('manual_input', 'manual_fetch')");
   expect(params[2]).toBe(true);
+});
+
+test('operationalDate option overrides filterDate and logs date-source diagnostics', async () => {
+  mockQuery
+    .mockResolvedValueOnce({ rows: [{ has_column: true, data_type: 'timestamp with time zone' }] })
+    .mockResolvedValueOnce({ rows: [{ shortcode: 'sc1', date_source: 'fetched_at' }] })
+    .mockResolvedValueOnce({ rows: [] })
+    .mockResolvedValue({});
+  mockFetchAllInstagramLikes.mockResolvedValueOnce(['user1']);
+
+  await handleFetchLikesInstagram(null, null, 'clientA', {
+    operationalDate: '2026-01-10',
+    filterDate: '2026-01-01',
+  });
+
+  const [, params] = mockQuery.mock.calls.find((call) =>
+    call[0].includes('FROM insta_post') && call[0].includes('WHERE client_id = $1'),
+  );
+  expect(params[1]).toBe('2026-01-10');
+  expect(mockSendDebug).toHaveBeenCalledWith(
+    expect.objectContaining({
+      tag: 'IG FETCH LIKES FILTER',
+      msg: expect.stringContaining('date_source_mode=fetched_at_then_created_at'),
+    }),
+  );
+});
+
+test('supports cross-cutoff operational date explicitly before/after 17:00 WIB', async () => {
+  mockQuery
+    .mockResolvedValueOnce({ rows: [{ has_column: true, data_type: 'timestamp with time zone' }] })
+    .mockResolvedValueOnce({ rows: [] })
+    .mockResolvedValue({ rows: [] });
+
+  await handleFetchLikesInstagram(null, null, 'clientA', {
+    filterDate: '2026-01-10',
+  });
+
+  const firstParams = mockQuery.mock.calls.find((call) =>
+    call[0].includes('FROM insta_post') && call[0].includes('WHERE client_id = $1'),
+  )[1];
+  expect(firstParams[1]).toBe('2026-01-10');
+
+  mockQuery.mockClear();
+  mockQuery
+    .mockResolvedValueOnce({ rows: [{ has_column: true, data_type: 'timestamp with time zone' }] })
+    .mockResolvedValueOnce({ rows: [] })
+    .mockResolvedValue({ rows: [] });
+
+  await handleFetchLikesInstagram(null, null, 'clientA', {
+    filterDate: '2026-01-11',
+  });
+
+  const secondParams = mockQuery.mock.calls.find((call) =>
+    call[0].includes('FROM insta_post') && call[0].includes('WHERE client_id = $1'),
+  )[1];
+  expect(secondParams[1]).toBe('2026-01-11');
 });

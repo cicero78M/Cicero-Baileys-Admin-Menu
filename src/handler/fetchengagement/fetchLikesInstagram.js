@@ -8,18 +8,17 @@ import {
 } from "../../service/instagramApi.js";
 import { getAllExceptionUsers } from "../../model/userModel.js";
 import { saveLikeSnapshotAudit } from "../../model/instaLikeModel.js";
+import { getOperationalAttendanceDate } from "../../utils/attendanceOperationalDate.js";
 import {
+  getInstagramCreatedAtJakartaTimestampSql,
   getInstagramCreatedAtJakartaDateSql,
   getNormalizedInstagramSourceTypeSql,
 } from "../../utils/instagramCreatedAtSql.js";
 
 const SNAPSHOT_INTERVAL_MS = 30 * 60 * 1000;
+const INSTAGRAM_OPERATIONAL_SHIFT_SQL = "INTERVAL '17 hours'";
 
-function getJakartaDateString(date = new Date()) {
-  return date.toLocaleDateString("en-CA", {
-    timeZone: "Asia/Jakarta",
-  });
-}
+let instaPostFetchedAtColumnMetaCache = null;
 
 function normalizeDateInput(value) {
   if (!value) return null;
@@ -42,6 +41,82 @@ function resolveSnapshotWindow(windowOverrides = {}) {
     normalizeDateInput(windowOverrides.captured_at) ||
     now;
   return { snapshotWindowStart, snapshotWindowEnd, capturedAt };
+}
+
+function normalizeOperationalDateInput(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return getOperationalAttendanceDate(parsed).operationalDate;
+}
+
+function resolveOperationalDate(options = {}) {
+  return (
+    normalizeOperationalDateInput(options.operationalDate) ||
+    normalizeOperationalDateInput(options.filterDate) ||
+    getOperationalAttendanceDate().operationalDate
+  );
+}
+
+async function getInstaPostFetchedAtColumnMeta() {
+  if (instaPostFetchedAtColumnMetaCache) {
+    return instaPostFetchedAtColumnMetaCache;
+  }
+
+  const res = await query(
+    `SELECT
+      EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'insta_post'
+          AND column_name = 'fetched_at'
+      ) AS has_column,
+      (
+        SELECT data_type
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'insta_post'
+          AND column_name = 'fetched_at'
+        LIMIT 1
+      ) AS data_type`
+  );
+
+  const row = res.rows[0] || {};
+  instaPostFetchedAtColumnMetaCache = {
+    hasColumn: Boolean(row.has_column),
+    dataType: String(row.data_type || "").toLowerCase(),
+  };
+
+  return instaPostFetchedAtColumnMetaCache;
+}
+
+async function getInstagramOperationalFilterSql() {
+  const fetchedAtMeta = await getInstaPostFetchedAtColumnMeta();
+
+  if (!fetchedAtMeta.hasColumn) {
+    return {
+      operationalDateSql: `((${getInstagramCreatedAtJakartaTimestampSql("created_at")} - ${INSTAGRAM_OPERATIONAL_SHIFT_SQL})::date)`,
+      dateSourceSql: "'created_at'",
+      dateSourceMode: "created_at_only",
+    };
+  }
+
+  if (fetchedAtMeta.dataType === "timestamp with time zone") {
+    return {
+      operationalDateSql: `((COALESCE((fetched_at AT TIME ZONE 'Asia/Jakarta'), ${getInstagramCreatedAtJakartaTimestampSql("created_at")}) - ${INSTAGRAM_OPERATIONAL_SHIFT_SQL})::date)`,
+      dateSourceSql: "CASE WHEN fetched_at IS NOT NULL THEN 'fetched_at' ELSE 'created_at' END",
+      dateSourceMode: "fetched_at_then_created_at",
+    };
+  }
+
+  return {
+    operationalDateSql: `((${getInstagramCreatedAtJakartaTimestampSql("COALESCE(fetched_at, created_at)")} - ${INSTAGRAM_OPERATIONAL_SHIFT_SQL})::date)`,
+    dateSourceSql: "CASE WHEN fetched_at IS NOT NULL THEN 'fetched_at' ELSE 'created_at' END",
+    dateSourceMode: "fetched_at_then_created_at",
+  };
 }
 
 function normalizeUsername(username) {
@@ -76,15 +151,18 @@ function extractCommentUsername(comment) {
 }
 
 
-async function getInstagramLikesFetchDiagnostics(clientId, filterDate, sourceType) {
+async function getInstagramLikesFetchDiagnostics(clientId, filterDate, sourceType, operationalFilterSql = null) {
   const normalizedSourceType = normalizeSourceType(sourceType);
+  const dateFilterSql =
+    operationalFilterSql?.operationalDateSql ||
+    getInstagramCreatedAtJakartaDateSql("created_at");
   const sourceTypeCountsResult = await query(
     `SELECT
        ${getNormalizedInstagramSourceTypeSql('source_type')} AS normalized_source_type,
        COUNT(*)::int AS total
      FROM insta_post
      WHERE client_id = $1
-       AND ${getInstagramCreatedAtJakartaDateSql('created_at')} = $2::date
+       AND ${dateFilterSql} = $2::date
      GROUP BY 1
      ORDER BY 2 DESC, 1 ASC`,
     [clientId, filterDate]
@@ -97,18 +175,18 @@ async function getInstagramLikesFetchDiagnostics(clientId, filterDate, sourceTyp
        COUNT(*)::int AS total_today
      FROM insta_post
      WHERE client_id = $1
-       AND ${getInstagramCreatedAtJakartaDateSql('created_at')} = $2::date`,
+       AND ${dateFilterSql} = $2::date`,
     [clientId, filterDate]
   );
 
   const recentDaysResult = await query(
     `SELECT
-       ${getInstagramCreatedAtJakartaDateSql('created_at')} AS jakarta_date,
+       ${dateFilterSql} AS jakarta_date,
        COUNT(*)::int AS total
      FROM insta_post
      WHERE client_id = $1
-       AND ${getInstagramCreatedAtJakartaDateSql('created_at')} >= ($2::date - INTERVAL '6 days')
-       AND ${getInstagramCreatedAtJakartaDateSql('created_at')} <= $2::date
+       AND ${dateFilterSql} >= ($2::date - INTERVAL '6 days')
+       AND ${dateFilterSql} <= $2::date
      GROUP BY 1
      ORDER BY 1 DESC`,
     [clientId, filterDate]
@@ -305,35 +383,52 @@ export async function handleFetchLikesInstagram(waClient, chatId, client_id, opt
       : [];
 
     const sourceType = normalizeSourceType(options.sourceType);
+    const operationalDate = resolveOperationalDate(options);
     let rows = [];
     if (normalizedShortcodes.length) {
       rows = normalizedShortcodes.map((shortcode) => ({ shortcode }));
     } else {
-      // Ambil semua post IG milik client hari ini
-      const todayJakarta = getJakartaDateString();
+      const operationalFilterSql = await getInstagramOperationalFilterSql();
       const filterManualOnly = sourceType === "manual_input";
       const { rows: fetchedRows } = await query(
-        `SELECT shortcode
+        `SELECT
+           shortcode,
+           ${operationalFilterSql.dateSourceSql} AS date_source
          FROM insta_post
          WHERE client_id = $1
-           AND ${getInstagramCreatedAtJakartaDateSql('created_at')} = $2::date
+           AND ${operationalFilterSql.operationalDateSql} = $2::date
            AND (
              $3::boolean = false OR
              ${getNormalizedInstagramSourceTypeSql('source_type')} IN ('manual_input', 'manual_fetch')
            )`,
-        [client_id, todayJakarta, filterManualOnly]
+        [client_id, operationalDate, filterManualOnly]
       );
       rows = fetchedRows;
+
+      const dateSourceCounts = rows.reduce(
+        (acc, row) => {
+          const sourceKey = row.date_source === "fetched_at" ? "fetched_at" : "created_at";
+          acc[sourceKey] += 1;
+          return acc;
+        },
+        { fetched_at: 0, created_at: 0 }
+      );
+      sendDebug({
+        tag: "IG FETCH LIKES FILTER",
+        msg: `filter_operational_date=${operationalDate}, date_source_mode=${operationalFilterSql.dateSourceMode}, date_source_counts=${JSON.stringify(dateSourceCounts)}`,
+        client_id,
+      });
     }
 
     if (!rows.length) {
       if (!normalizedShortcodes.length) {
         try {
-          const todayJakarta = getJakartaDateString();
+          const operationalFilterSql = await getInstagramOperationalFilterSql();
           const diagnostics = await getInstagramLikesFetchDiagnostics(
             client_id,
-            todayJakarta,
-            sourceType
+            operationalDate,
+            sourceType,
+            operationalFilterSql
           );
           sendDebug({
             tag: "IG FETCH LIKES DIAGNOSTIC",
@@ -347,7 +442,7 @@ export async function handleFetchLikesInstagram(waClient, chatId, client_id, opt
           });
           sendDebug({
             tag: "IG FETCH LIKES DIAGNOSTIC",
-            msg: `Rentang created_at hari berjalan: min=${diagnostics.todayRange.minCreatedAt || "null"}, max=${diagnostics.todayRange.maxCreatedAt || "null"}, total=${diagnostics.todayRange.totalToday}`,
+            msg: `Rentang created_at hari operasional: min=${diagnostics.todayRange.minCreatedAt || "null"}, max=${diagnostics.todayRange.maxCreatedAt || "null"}, total=${diagnostics.todayRange.totalToday}`,
             client_id,
           });
           sendDebug({
