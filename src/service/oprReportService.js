@@ -1,8 +1,8 @@
 // src/service/oprReportService.js
 
 import { query } from '../repository/db.js';
-import { hariIndo } from '../utils/constants.js';
 import { getGreeting } from '../utils/utilsHelper.js';
+import { getOperationalAttendanceDate } from '../utils/attendanceOperationalDate.js';
 
 /**
  * Get operator user IDs for a client
@@ -69,10 +69,7 @@ export async function generateDailyAmplificationReport(clientId) {
     list.tiktok.length +
     list.youtube.length;
   
-  const now = new Date();
-  const hari = hariIndo[now.getDay()];
-  const tanggal = now.toLocaleDateString('id-ID');
-  const jam = now.toLocaleTimeString('id-ID', { hour12: false });
+  const { hari, tanggal, jam } = getOperationalAttendanceDate();
   const salam = getGreeting();
   
   const { rows: nameRows } = await query(
@@ -159,12 +156,10 @@ export async function generateYesterdayAmplificationReport(clientId) {
     list.tiktok.length +
     list.youtube.length;
   
-  const now = new Date();
   const yesterday = new Date();
-  yesterday.setDate(now.getDate() - 1);
-  const hari = hariIndo[yesterday.getDay()];
-  const tanggal = yesterday.toLocaleDateString('id-ID');
-  const jam = now.toLocaleTimeString('id-ID', { hour12: false });
+  yesterday.setDate(yesterday.getDate() - 1);
+  const { hari, tanggal } = getOperationalAttendanceDate(yesterday);
+  const { jam } = getOperationalAttendanceDate();
   const salam = getGreeting();
   
   const { rows: nameRows } = await query(
