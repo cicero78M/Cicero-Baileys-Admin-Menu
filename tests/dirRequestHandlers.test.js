@@ -443,8 +443,54 @@ test('main always sets session to DITBINMAS client', async () => {
   expect(msg).toMatch(/Client: \*DIT BINMAS\*/);
   expect(msg).toContain('3️⃣1️⃣ Top ranking like/komentar personel');
   expect(msg).toContain('3️⃣3️⃣ Absensi Kasatker');
+  expect(msg).toContain('1️⃣3️⃣ Ambil like Instagram (default: data post existing, fallback sinkron otomatis)');
 });
 
+
+
+
+test('choose_instagram_likes_mode mode cepat menjalankan fallback sinkron saat shortcode hari ini kosong', async () => {
+  mockFindClientById.mockResolvedValue({ nama: 'DIT BINMAS', client_type: 'direktorat' });
+  mockGetShortcodesTodayByClient.mockResolvedValue([]);
+
+  const session = {
+    selectedClientId: 'DITBINMAS',
+    dir_client_id: 'DITBINMAS',
+    role: 'ditbinmas',
+  };
+  const waClient = { sendMessage: jest.fn() };
+
+  await dirRequestHandlers.choose_instagram_likes_mode(session, '123', '1', waClient);
+
+  expect(mockHandleFetchLikesInstagram).toHaveBeenCalledTimes(2);
+  expect(mockFetchAndStoreInstaContent).toHaveBeenCalledTimes(1);
+  expect(mockFetchAndStoreInstaContent).toHaveBeenCalledWith(
+    ['shortcode', 'caption', 'like_count', 'timestamp'],
+    waClient,
+    '123',
+    'DITBINMAS'
+  );
+});
+
+test('choose_instagram_likes_mode mode sinkron fetch post dulu sebelum fetch likes', async () => {
+  mockFindClientById.mockResolvedValue({ nama: 'DIT BINMAS', client_type: 'direktorat' });
+  mockGetShortcodesTodayByClient.mockResolvedValue(['SC1']);
+
+  const session = {
+    selectedClientId: 'DITBINMAS',
+    dir_client_id: 'DITBINMAS',
+    role: 'ditbinmas',
+  };
+  const waClient = { sendMessage: jest.fn() };
+
+  await dirRequestHandlers.choose_instagram_likes_mode(session, '123', '2', waClient);
+
+  expect(mockFetchAndStoreInstaContent).toHaveBeenCalledTimes(1);
+  expect(mockHandleFetchLikesInstagram).toHaveBeenCalledTimes(1);
+  expect(mockFetchAndStoreInstaContent.mock.invocationCallOrder[0]).toBeLessThan(
+    mockHandleFetchLikesInstagram.mock.invocationCallOrder[0]
+  );
+});
 
 test('chakranarayana submenu menampilkan pilihan direktorat dan jajaran', async () => {
   const session = { menu: 'chakranarayana', step: 'chakranarayana_choose_submenu' };

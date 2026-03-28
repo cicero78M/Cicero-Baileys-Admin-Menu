@@ -406,6 +406,13 @@ const CHAKRANARAYANA_DIRECTORATE_TIKTOK_SIMPLE_ACTION_MAP = {
   "3": "kurang_belum",
 };
 
+const INSTAGRAM_LIKES_MODE_MENU_TEXT =
+  "Silakan pilih mode Ambil like Instagram (Menu 13):\n" +
+  "1️⃣ Mode cepat (fetch likes dari post existing hari ini)\n" +
+  "2️⃣ Mode sinkron (fetch post dulu lalu likes, seperti Menu 12)\n\n" +
+  "Catatan: default Menu 13 memakai data post existing. Jika shortcode hari ini kosong, bot fallback sinkron otomatis sekali.\n" +
+  "Balas angka pilihan atau ketik batal/back untuk kembali.";
+
 const KASATKER_REPORT_MENU_TEXT = appendSubmenuBackInstruction(
   "Silakan pilih periode Laporan Kasatker:\n" +
     Object.entries(KASATKER_REPORT_PERIOD_MAP)
@@ -3192,14 +3199,43 @@ async function performAction(
       break;
     }
     case "13": {
+      const { fetchAndStoreInstaContent } = await import("../fetchpost/instaFetchPost.js");
       const { handleFetchLikesInstagram } = await import("../fetchengagement/fetchLikesInstagram.js");
       const targetId = (clientId || DITBINMAS_CLIENT_ID).toUpperCase();
       const targetClient = await findClientById(targetId);
       const targetLabel = targetClient?.nama
         ? `${formatNama(targetClient.nama)} (${targetId})`
         : targetId;
+      const likesMode = String(context?.instagramLikesMode || "fast").toLowerCase() === "sync"
+        ? "sync"
+        : "fast";
+
+      if (likesMode === "sync") {
+        await fetchAndStoreInstaContent(
+          ["shortcode", "caption", "like_count", "timestamp"],
+          waClient,
+          chatId,
+          targetId
+        );
+      }
+
       await handleFetchLikesInstagram(waClient, chatId, targetId);
-      msg = `✅ Selesai fetch likes Instagram ${targetLabel}.`;
+
+      let fallbackSyncUsed = false;
+      const shortcodesToday = await getShortcodesTodayByClient(targetId);
+      if (!Array.isArray(shortcodesToday) || shortcodesToday.length === 0) {
+        fallbackSyncUsed = true;
+        await fetchAndStoreInstaContent(
+          ["shortcode", "caption", "like_count", "timestamp"],
+          waClient,
+          chatId,
+          targetId
+        );
+        await handleFetchLikesInstagram(waClient, chatId, targetId);
+      }
+
+      const modeLabel = likesMode === "sync" ? "sinkron" : "cepat";
+      msg = `✅ Selesai fetch likes Instagram ${targetLabel} (mode ${modeLabel})${fallbackSyncUsed ? " dengan fallback sinkron otomatis." : "."}`;
       break;
     }
     case "14": {
@@ -4180,7 +4216,7 @@ export const dirRequestHandlers = {
         "5️⃣6️⃣ Rekap TikTok Jajaran Perpost\n\n" +
         "📥 *Pengambilan Data*\n" +
         "1️⃣2️⃣ Ambil konten & like Instagram\n" +
-        "1️⃣3️⃣ Ambil like Instagram saja\n" +
+        "1️⃣3️⃣ Ambil like Instagram (default: data post existing, fallback sinkron otomatis)\n" +
         "1️⃣4️⃣ Ambil konten & komentar TikTok\n" +
         "1️⃣5️⃣ Ambil komentar TikTok saja\n" +
         "1️⃣6️⃣ Ambil semua sosmed & buat tugas\n\n" +
@@ -4633,6 +4669,12 @@ export const dirRequestHandlers = {
       return;
     }
 
+    if (choice === "13") {
+      session.step = "choose_instagram_likes_mode";
+      await waClient.sendMessage(chatId, INSTAGRAM_LIKES_MODE_MENU_TEXT);
+      return;
+    }
+
     if (
       session.menu === "chakranarayana" &&
       session.chakranarayanaSelectedGroup === "direktorat" &&
@@ -4657,6 +4699,54 @@ export const dirRequestHandlers = {
         chakranarayanaSelectedGroup: session.chakranarayanaSelectedGroup,
       }
     );
+    session.step = "main";
+    await dirRequestHandlers.main(session, chatId, "", waClient);
+  },
+
+  async choose_instagram_likes_mode(session, chatId, text, waClient) {
+    const choice = String(text || "").trim().toLowerCase();
+
+    if (!choice) {
+      await waClient.sendMessage(chatId, INSTAGRAM_LIKES_MODE_MENU_TEXT);
+      return;
+    }
+
+    if (choice === "batal" || choice === "back") {
+      session.step = "main";
+      await dirRequestHandlers.main(session, chatId, "", waClient);
+      return;
+    }
+
+    const modeMap = {
+      "1": "fast",
+      "2": "sync",
+    };
+    const instagramLikesMode = modeMap[choice];
+
+    if (!instagramLikesMode) {
+      await waClient.sendMessage(chatId, "❌ Pilihan mode tidak valid.");
+      await waClient.sendMessage(chatId, INSTAGRAM_LIKES_MODE_MENU_TEXT);
+      return;
+    }
+
+    const userClientId = session.selectedClientId;
+    const taskClientId = session.dir_client_id || userClientId || DITBINMAS_CLIENT_ID;
+
+    await performAction(
+      "13",
+      taskClientId,
+      waClient,
+      chatId,
+      session.role,
+      userClientId,
+      {
+        username: session.username || session.user?.username,
+        menuName: session.menu,
+        chakranarayanaSelectedGroup: session.chakranarayanaSelectedGroup,
+        instagramLikesMode,
+      }
+    );
+
     session.step = "main";
     await dirRequestHandlers.main(session, chatId, "", waClient);
   },
