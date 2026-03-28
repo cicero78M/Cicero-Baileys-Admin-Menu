@@ -1,4 +1,5 @@
 import { query } from '../repository/db.js';
+import { formatJakartaQueryDateKey } from '../utils/dateJakarta.js';
 
 export async function upsertIgUser(user) {
   if (!user || !user.id) return;
@@ -111,26 +112,20 @@ export async function upsertTaggedUsers(mediaId, tags=[]) {
 
 export async function getPostIdsTodayByUsername(username) {
   if (!username) return [];
-  const today = new Date();
-  const yyyy = today.getFullYear();
-  const mm = String(today.getMonth() + 1).padStart(2, "0");
-  const dd = String(today.getDate()).padStart(2, "0");
+  const queryDateKey = formatJakartaQueryDateKey(new Date());
   const res = await query(
-    `SELECT p.post_id FROM ig_ext_posts p JOIN ig_ext_users u ON u.user_id = p.user_id WHERE u.username = $1 AND DATE(p.created_at) = $2`,
-    [username, `${yyyy}-${mm}-${dd}`]
+    `SELECT p.post_id FROM ig_ext_posts p JOIN ig_ext_users u ON u.user_id = p.user_id WHERE u.username = $1 AND (p.created_at AT TIME ZONE 'Asia/Jakarta')::date = $2::date`,
+    [username, queryDateKey]
   );
   return res.rows.map(r => r.post_id);
 }
 
 export async function getPostIdShortcodePairsTodayByUsername(username) {
   if (!username) return [];
-  const today = new Date();
-  const yyyy = today.getFullYear();
-  const mm = String(today.getMonth() + 1).padStart(2, '0');
-  const dd = String(today.getDate()).padStart(2, '0');
+  const queryDateKey = formatJakartaQueryDateKey(new Date());
   const res = await query(
-    `SELECT p.post_id, p.shortcode FROM ig_ext_posts p JOIN ig_ext_users u ON u.user_id = p.user_id WHERE u.username = $1 AND DATE(p.created_at) = $2`,
-    [username, `${yyyy}-${mm}-${dd}`]
+    `SELECT p.post_id, p.shortcode FROM ig_ext_posts p JOIN ig_ext_users u ON u.user_id = p.user_id WHERE u.username = $1 AND (p.created_at AT TIME ZONE 'Asia/Jakarta')::date = $2::date`,
+    [username, queryDateKey]
   );
   return res.rows;
 }
@@ -150,4 +145,3 @@ export async function savePostWithMedia(post) {
     }
   }
 }
-
