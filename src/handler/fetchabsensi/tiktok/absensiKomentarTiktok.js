@@ -632,10 +632,7 @@ export async function absensiKomentar(client_id, opts = {}) {
 export async function absensiKomentarDitbinmasSimple(clientId = "DITBINMAS", opts = {}) {
   const targetClientId = String(clientId || "DITBINMAS").trim().toUpperCase();
   const roleName = targetClientId.toLowerCase();
-  const now = new Date();
-  const hari = hariIndo[now.getDay()];
-  const tanggal = now.toLocaleDateString("id-ID");
-  const jam = now.toLocaleTimeString("id-ID", { hour12: false });
+  const { hari, tanggal, jam } = getOperationalAttendanceDate();
 
   const { tiktok: mainUsername, nama: clientName, clientType } = await getClientInfo(targetClientId);
   const clientNameUpper = String(clientName || targetClientId).toUpperCase();
