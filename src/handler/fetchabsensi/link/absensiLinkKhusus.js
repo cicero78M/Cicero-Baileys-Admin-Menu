@@ -7,9 +7,8 @@ import {
   getReportsTodayByClient,
   getReportsTodayByShortcode,
 } from "../../../model/linkReportKhususModel.js";
-import { hariIndo } from "../../../utils/constants.js";
 import { groupByDivision, sortDivisionKeys, getGreeting } from "../../../utils/utilsHelper.js";
-import { formatJakartaDisplayDate, formatJakartaDisplayTime } from "../../../utils/dateJakarta.js";
+import { getOperationalAttendanceDate } from "../../../utils/attendanceOperationalDate.js";
 
 async function getClientInfo(client_id) {
   const res = await query(
@@ -23,10 +22,7 @@ async function getClientInfo(client_id) {
 }
 
 export async function absensiLinkKhusus(client_id, opts = {}) {
-  const now = new Date();
-  const hari = hariIndo[now.getDay()];
-  const tanggal = formatJakartaDisplayDate(now, { month: "2-digit" });
-  const jam = formatJakartaDisplayTime(now);
+  const { hari, tanggal, jam } = getOperationalAttendanceDate();
 
   const { nama: clientNama, clientType } = await getClientInfo(client_id);
   const roleFlag = opts.roleFlag?.toLowerCase() === "operator" ? "operator" : null;
@@ -132,10 +128,7 @@ export async function absensiLinkKhusus(client_id, opts = {}) {
 }
 
 export async function absensiLinkKhususPerPost(client_id, opts = {}) {
-  const now = new Date();
-  const hari = hariIndo[now.getDay()];
-  const tanggal = formatJakartaDisplayDate(now, { month: "2-digit" });
-  const jam = formatJakartaDisplayTime(now);
+  const { hari, tanggal, jam } = getOperationalAttendanceDate();
 
   const { nama: clientNama, clientType } = await getClientInfo(client_id);
   const roleFlag = opts.roleFlag?.toLowerCase() === "operator" ? "operator" : null;

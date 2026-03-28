@@ -103,8 +103,8 @@ import {
   sendWithClientFallback,
   hasSameClientIdAsAdmin,
 } from "../utils/waHelper.js";
+import { getOperationalAttendanceDate } from "../utils/attendanceOperationalDate.js";
 import {
-import { formatJakartaDisplayDate, formatJakartaDisplayTime } from "../utils/dateJakarta.js";
   IG_PROFILE_REGEX,
   TT_PROFILE_REGEX,
   adminCommands,
@@ -2618,19 +2618,7 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
       return;
     }
 
-    const hariIndo = [
-      "Minggu",
-      "Senin",
-      "Selasa",
-      "Rabu",
-      "Kamis",
-      "Jumat",
-      "Sabtu",
-    ];
-    const now = new Date();
-    const hari = hariIndo[now.getDay()];
-    const tanggal = formatJakartaDisplayDate(now, { month: "2-digit" });
-    const jam = formatJakartaDisplayTime(now);
+    const { hari, tanggal, jam } = getOperationalAttendanceDate();
 
     const kontenLinks = shortcodes.map(
       (sc) => `https://www.instagram.com/p/${sc}`
@@ -2795,19 +2783,7 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
       return;
     }
 
-    const hariIndo = [
-      "Minggu",
-      "Senin",
-      "Selasa",
-      "Rabu",
-      "Kamis",
-      "Jumat",
-      "Sabtu",
-    ];
-    const now = new Date();
-    const hari = hariIndo[now.getDay()];
-    const tanggal = formatJakartaDisplayDate(now, { month: "2-digit" });
-    const jam = formatJakartaDisplayTime(now);
+    const { hari, tanggal, jam } = getOperationalAttendanceDate();
 
     const kontenLinks = posts.map(
       (p) =>

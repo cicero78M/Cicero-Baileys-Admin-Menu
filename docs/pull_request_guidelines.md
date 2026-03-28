@@ -22,4 +22,16 @@ This document summarizes how to properly format a pull request for the **Cicero_
 - Keep the description short but informative.
 - When adding or updating cron jobs, register them in `src/cron/cronManifest.js` so documentation and runtime buckets stay in sync.
 
+## Internal Time/Date Review Checklist (Wajib)
+
+Untuk modul absensi dan narasi report harian:
+
+- Semua output hari/tanggal/jam **wajib** memakai `getOperationalAttendanceDate()` dari `src/utils/attendanceOperationalDate.js`.
+- Jangan gunakan pola manual berikut di kode baru/revisi:
+  - `const now = new Date();` untuk menyusun narasi operasional.
+  - `hariIndo[now.getDay()]`.
+  - `toLocaleDateString("id-ID", ...)` langsung pada modul absensi/report.
+  - `toLocaleTimeString("id-ID", ...)` langsung pada modul absensi/report.
+- Saat code-review, tolak perubahan yang belum memakai helper operasional Jakarta terpusat.
+
 Refer to [docs/naming_conventions.md](naming_conventions.md) for code style guidelines.

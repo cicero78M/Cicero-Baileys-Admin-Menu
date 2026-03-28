@@ -1,9 +1,8 @@
 import { query } from "../../../db/index.js";
 import { getShortcodesTodayByClient } from "../../../model/instaPostModel.js";
 import { getReportsTodayByClient } from "../../../model/linkReportModel.js";
-import { hariIndo } from "../../../utils/constants.js";
 import { getGreeting } from "../../../utils/utilsHelper.js";
-import { formatJakartaDisplayDate, formatJakartaDisplayTime } from "../../../utils/dateJakarta.js";
+import { getOperationalAttendanceDate } from "../../../utils/attendanceOperationalDate.js";
 
 async function getClientName(clientId) {
   const { rows } = await query(
@@ -35,10 +34,7 @@ export async function rekapLink(clientId) {
     list.twitter.length +
     list.tiktok.length +
     list.youtube.length;
-  const now = new Date();
-  const hari = hariIndo[now.getDay()];
-  const tanggal = formatJakartaDisplayDate(now, { month: "2-digit" });
-  const jam = formatJakartaDisplayTime(now);
+  const { hari, tanggal, jam } = getOperationalAttendanceDate();
   const salam = getGreeting();
   const clientName = await getClientName(clientId);
   const kontenLinks = shortcodes.map((sc) => `https://www.instagram.com/p/${sc}`);
