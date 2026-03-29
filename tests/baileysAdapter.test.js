@@ -103,6 +103,9 @@ beforeEach(() => {
   delete process.env.WA_AUTH_DATA_PATH;
   delete process.env.WA_AUTH_CLEAR_SESSION_ON_REINIT;
   delete process.env.WA_DEBUG_LOGGING;
+  delete process.env.WA_BAILEYS_SEND_BUDGET_MS;
+  delete process.env.WA_BAILEYS_SEND_RETRY_COUNT;
+  delete process.env.WA_BAILEYS_SEND_RETRY_DELAY_MS;
 });
 
 test('baileys adapter creates client and emits ready event', async () => {
@@ -252,6 +255,36 @@ test('baileys adapter does not retry non-timeout send message errors', async () 
   expect(mockSock.sendMessage).toHaveBeenCalledTimes(1);
 });
 
+test('baileys adapter stops retry when send budget is exceeded', async () => {
+  process.env.WA_BAILEYS_SEND_BUDGET_MS = '8';
+  process.env.WA_BAILEYS_SEND_RETRY_COUNT = '5';
+  process.env.WA_BAILEYS_SEND_RETRY_DELAY_MS = '0';
+  const nowSpy = jest.spyOn(Date, 'now');
+  try {
+    nowSpy
+      .mockReturnValueOnce(0) // budgetStartedAt
+      .mockReturnValueOnce(0) // attemptStartedAt #1
+      .mockReturnValueOnce(5) // attemptDurationMs #1
+      .mockReturnValueOnce(5) // totalElapsedMs #1
+      .mockReturnValueOnce(9) // elapsedBeforeAttempt #2 (budget exhausted)
+      .mockImplementation(() => 9);
+
+    const client = await createBaileysClient();
+
+    mockSock.sendMessage.mockRejectedValue(new Error('timed out waiting for message'));
+
+    await expect(
+      client.sendMessage('1234567890@s.whatsapp.net', 'Fail on budget')
+    ).rejects.toMatchObject({
+      code: 'WA_SEND_TIMEOUT_BUDGET_EXCEEDED',
+    });
+
+    expect(mockSock.sendMessage).toHaveBeenCalledTimes(1);
+  } finally {
+    nowSpy.mockRestore();
+  }
+});
+
 test('baileys adapter handles QR code generation', async () => {
   const client = await createBaileysClient();
   
@@ -282,7 +315,11 @@ test('baileys adapter handles disconnection', async () => {
       handler({ 
         connection: 'close',
         lastDisconnect: {
-          error: new Error('Connection closed'),
+          error: {
+            output: {
+              statusCode: 401,
+            },
+          },
         },
       })
     );

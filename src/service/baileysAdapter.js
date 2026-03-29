@@ -64,6 +64,7 @@ const DEFAULT_AUTH_DATA_DIR = 'baileys_auth';
 const DEFAULT_AUTH_DATA_PARENT_DIR = '.cicero';
 const DEFAULT_SEND_MESSAGE_RETRY_COUNT = 2;
 const DEFAULT_SEND_MESSAGE_RETRY_DELAY_MS = 1500;
+const DEFAULT_SEND_MESSAGE_BUDGET_MS = 10000;
 const DEFAULT_QUERY_TIMEOUT_MS = 15000;
 const DEFAULT_SYNC_HISTORY = false;
 
@@ -218,6 +219,10 @@ export async function createBaileysClient(clientId = 'wa-admin') {
   const sendMessageRetryDelayMs = parsePositiveIntegerEnv(
     'WA_BAILEYS_SEND_RETRY_DELAY_MS',
     DEFAULT_SEND_MESSAGE_RETRY_DELAY_MS
+  );
+  const sendMessageBudgetMs = parsePositiveIntegerEnv(
+    'WA_BAILEYS_SEND_BUDGET_MS',
+    DEFAULT_SEND_MESSAGE_BUDGET_MS
   );
   const queryTimeoutMs = parsePositiveIntegerEnv(
     'WA_BAILEYS_QUERY_TIMEOUT_MS',
@@ -507,11 +512,48 @@ export async function createBaileysClient(clientId = 'wa-admin') {
         }
       }
 
+      const budgetStartedAt = Date.now();
+      let lastSendError = null;
       for (let attempt = 0; attempt <= sendMessageRetryCount; attempt++) {
+        const attemptStartedAt = Date.now();
+        const elapsedBeforeAttemptMs = Math.max(0, attemptStartedAt - budgetStartedAt);
+        const remainingBudgetBeforeAttemptMs = Math.max(0, sendMessageBudgetMs - elapsedBeforeAttemptMs);
+
+        if (remainingBudgetBeforeAttemptMs <= 0) {
+          const timeoutBudgetError = new Error('sendMessage exceeded total timeout budget');
+          timeoutBudgetError.code = 'WA_SEND_TIMEOUT_BUDGET_EXCEEDED';
+          timeoutBudgetError.jid = jid;
+          timeoutBudgetError.clientId = clientId;
+          timeoutBudgetError.attempt = attempt + 1;
+          timeoutBudgetError.budgetMs = sendMessageBudgetMs;
+          timeoutBudgetError.elapsedMs = elapsedBeforeAttemptMs;
+          timeoutBudgetError.lastError = lastSendError;
+
+          writeStructuredLog('error', buildStructuredLog({
+            clientId,
+            event: 'send_message_timeout_budget_exceeded',
+            jid,
+            attempt: attempt + 1,
+            maxAttempts: sendMessageRetryCount + 1,
+            attemptDurationMs: 0,
+            totalElapsedMs: elapsedBeforeAttemptMs,
+            remainingBudgetMs: 0,
+            budgetMs: sendMessageBudgetMs,
+            errorCode: timeoutBudgetError.code,
+            error: timeoutBudgetError.message,
+            lastError: lastSendError?.message || null,
+          }));
+          throw timeoutBudgetError;
+        }
+
         try {
           const result = await sock.sendMessage(jid, payload);
           return normalizeOutgoingMessage(result);
         } catch (err) {
+          lastSendError = err;
+          const attemptDurationMs = Math.max(0, Date.now() - attemptStartedAt);
+          const totalElapsedMs = Math.max(0, Date.now() - budgetStartedAt);
+          const remainingBudgetMs = Math.max(0, sendMessageBudgetMs - totalElapsedMs);
           const isRetryable = isTimedOutWaitingForMessageError(err) && attempt < sendMessageRetryCount;
 
           writeStructuredLog(isRetryable ? 'warn' : 'error', buildStructuredLog({
@@ -521,7 +563,38 @@ export async function createBaileysClient(clientId = 'wa-admin') {
             error: err.message,
             attempt: attempt + 1,
             maxAttempts: sendMessageRetryCount + 1,
+            attemptDurationMs,
+            totalElapsedMs,
+            remainingBudgetMs,
+            budgetMs: sendMessageBudgetMs,
           }));
+
+          if (remainingBudgetMs <= 0) {
+            const timeoutBudgetError = new Error('sendMessage exceeded total timeout budget');
+            timeoutBudgetError.code = 'WA_SEND_TIMEOUT_BUDGET_EXCEEDED';
+            timeoutBudgetError.jid = jid;
+            timeoutBudgetError.clientId = clientId;
+            timeoutBudgetError.attempt = attempt + 1;
+            timeoutBudgetError.budgetMs = sendMessageBudgetMs;
+            timeoutBudgetError.elapsedMs = totalElapsedMs;
+            timeoutBudgetError.lastError = err;
+
+            writeStructuredLog('error', buildStructuredLog({
+              clientId,
+              event: 'send_message_timeout_budget_exceeded',
+              jid,
+              attempt: attempt + 1,
+              maxAttempts: sendMessageRetryCount + 1,
+              attemptDurationMs,
+              totalElapsedMs,
+              remainingBudgetMs: 0,
+              budgetMs: sendMessageBudgetMs,
+              errorCode: timeoutBudgetError.code,
+              error: timeoutBudgetError.message,
+              lastError: err.message,
+            }));
+            throw timeoutBudgetError;
+          }
 
           if (isTimedOutWaitingForMessageError(err)) {
             try {
@@ -540,6 +613,34 @@ export async function createBaileysClient(clientId = 'wa-admin') {
           }
 
           if (sendMessageRetryDelayMs > 0) {
+            const elapsedBeforeDelayMs = Math.max(0, Date.now() - budgetStartedAt);
+            const remainingBudgetBeforeDelayMs = Math.max(0, sendMessageBudgetMs - elapsedBeforeDelayMs);
+            if (remainingBudgetBeforeDelayMs <= 0) {
+              const timeoutBudgetError = new Error('sendMessage exceeded total timeout budget');
+              timeoutBudgetError.code = 'WA_SEND_TIMEOUT_BUDGET_EXCEEDED';
+              timeoutBudgetError.jid = jid;
+              timeoutBudgetError.clientId = clientId;
+              timeoutBudgetError.attempt = attempt + 1;
+              timeoutBudgetError.budgetMs = sendMessageBudgetMs;
+              timeoutBudgetError.elapsedMs = elapsedBeforeDelayMs;
+              timeoutBudgetError.lastError = err;
+
+              writeStructuredLog('error', buildStructuredLog({
+                clientId,
+                event: 'send_message_timeout_budget_exceeded',
+                jid,
+                attempt: attempt + 1,
+                maxAttempts: sendMessageRetryCount + 1,
+                attemptDurationMs,
+                totalElapsedMs: elapsedBeforeDelayMs,
+                remainingBudgetMs: 0,
+                budgetMs: sendMessageBudgetMs,
+                errorCode: timeoutBudgetError.code,
+                error: timeoutBudgetError.message,
+                lastError: err.message,
+              }));
+              throw timeoutBudgetError;
+            }
             await delay(sendMessageRetryDelayMs);
           }
         }
