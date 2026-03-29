@@ -366,3 +366,8 @@ WA_BAILEYS_SYNC_HISTORY=false
 2. Restart service.
 3. Pantau log, pastikan ada penurunan warn timeout dan tidak ada lonjakan `send_message_error`.
 4. Jika masih sering timeout, cek kualitas jaringan host dan status koneksi WhatsApp account (reauth bila perlu).
+
+
+## Runbook operasi produksi (PM2 menu)
+
+Untuk SOP verifikasi env PM2, baseline tuning konservatif, dan perbandingan log sebelum/sesudah deploy, lihat `docs/wa_menu_baileys_production_runbook.md`.
