@@ -11,8 +11,11 @@ const mockGetShortcodesTodayByClient = jest.fn();
 const mockGetInstaPostsTodayByClient = jest.fn();
 const mockGetVideoIdsTodayByClient = jest.fn();
 const mockGetTiktokPostsTodayByClient = jest.fn();
+const mockGetTiktokPostsByDateRange = jest.fn();
 const mockGetRekapLikesByClient = jest.fn();
 const mockGetRekapKomentarByClient = jest.fn();
+const mockGetLikeUsernamesByShortcode = jest.fn();
+const mockGetCommentsByVideoId = jest.fn();
 const mockAbsensiLikes = jest.fn();
 const mockAbsensiLikesDitbinmasReport = jest.fn();
 const mockAbsensiLikesDitbinmasSimple = jest.fn();
@@ -128,9 +131,19 @@ jest.unstable_mockModule('../src/model/instaPostModel.js', () => ({
 jest.unstable_mockModule('../src/model/tiktokPostModel.js', () => ({
   getVideoIdsTodayByClient: mockGetVideoIdsTodayByClient,
   getPostsTodayByClient: mockGetTiktokPostsTodayByClient,
-  getPostsByClientAndDateRange: jest.fn().mockResolvedValue([]),
+  getPostsByClientAndDateRange: mockGetTiktokPostsByDateRange,
   findPostByVideoId: jest.fn(),
   deletePostByVideoId: jest.fn(),
+}));
+jest.unstable_mockModule('../src/model/instaLikeModel.js', () => ({
+  getLikeUsernamesByShortcode: mockGetLikeUsernamesByShortcode,
+  getLikesByShortcode: mockGetLikeUsernamesByShortcode,
+  getRekapLikesByClient: mockGetRekapLikesByClient,
+}));
+jest.unstable_mockModule('../src/model/tiktokCommentModel.js', () => ({
+  getCommentsByVideoId: mockGetCommentsByVideoId,
+  findByVideoId: mockGetCommentsByVideoId,
+  getRekapKomentarByClient: mockGetRekapKomentarByClient,
 }));
 jest.unstable_mockModule('../src/handler/fetchabsensi/insta/absensiLikesInsta.js', () => ({
   absensiLikes: mockAbsensiLikes,
@@ -375,9 +388,13 @@ beforeEach(() => {
   mockGetStandardInstagramTaskPostsByDate.mockReset();
   mockGetStandardInstagramTaskPostsToday.mockReset();
   mockGetStandardInstagramTaskShortcodesByRange.mockReset();
+  mockGetTiktokPostsByDateRange.mockReset();
   mockGetStandardInstagramTaskPostsByDate.mockResolvedValue([]);
   mockGetStandardInstagramTaskPostsToday.mockResolvedValue([]);
   mockGetStandardInstagramTaskShortcodesByRange.mockResolvedValue([]);
+  mockGetTiktokPostsByDateRange.mockResolvedValue([]);
+  mockGetLikeUsernamesByShortcode.mockResolvedValue([]);
+  mockGetCommentsByVideoId.mockResolvedValue([]);
 });
 
 
@@ -631,6 +648,70 @@ test('choose_menu option 9 pada chakranarayana direktorat membuka submenu jenis 
     '123',
     expect.stringContaining('Silakan pilih jenis laporan Absensi Tiktok Direktorat/Bidang Simple')
   );
+});
+
+test('perpost tiktok tidak memakai cache opsi lintas tanggal saat user memilih hari ini', async () => {
+  jest.useFakeTimers();
+  jest.setSystemTime(new Date('2026-03-29T04:00:00Z'));
+
+  const oldDate = '2026-03-28';
+  const todayDate = '2026-03-29';
+  const oldVideoId = 'video-old';
+  const oldLink = 'https://www.tiktok.com/@acct/video/video-old';
+
+  mockGetTiktokPostsByDateRange
+    .mockResolvedValueOnce([
+      {
+        video_id: oldVideoId,
+        link: oldLink,
+        caption: 'Post lama',
+        like_count: 10,
+        comments_count: 3,
+      },
+    ])
+    .mockResolvedValueOnce([]);
+
+  const session = {
+    selectedClientId: 'DITBINMAS',
+    dir_client_id: 'DITBINMAS',
+    role: 'ditbinmas',
+    perpostPlatform: 'tiktok',
+    perpostSelectedDate: oldDate,
+    step: 'choose_jajaran_perpost_post',
+  };
+  const waClient = { sendMessage: jest.fn() };
+
+  await dirRequestHandlers.choose_jajaran_perpost_post(session, '123', '', waClient);
+  expect(session.perpostOptions).toBeDefined();
+  expect(session.perpostOptions.length).toBe(1);
+  expect(session.perpostOptionsKey).toBe(`tiktok:${oldDate}:DITBINMAS`);
+  expect(waClient.sendMessage).toHaveBeenCalledWith('123', expect.stringContaining(oldLink));
+
+  waClient.sendMessage.mockClear();
+  await dirRequestHandlers.choose_jajaran_perpost_date_option(session, '123', '1', waClient);
+
+  expect(mockGetTiktokPostsByDateRange).toHaveBeenNthCalledWith(
+    1,
+    'DITBINMAS',
+    oldDate,
+    oldDate
+  );
+  expect(mockGetTiktokPostsByDateRange).toHaveBeenNthCalledWith(
+    2,
+    'DITBINMAS',
+    todayDate,
+    todayDate
+  );
+  expect(waClient.sendMessage).toHaveBeenCalledWith(
+    '123',
+    expect.stringContaining('Tidak ada post TikTok pada')
+  );
+  expect(waClient.sendMessage).not.toHaveBeenCalledWith('123', expect.stringContaining(oldLink));
+  expect(session.perpostOptions).toBeUndefined();
+  expect(session.perpostOptionsKey).toBeUndefined();
+  expect(session.step).toBe('choose_menu');
+
+  jest.useRealTimers();
 });
 
 test('submenu tiktok simple chakranarayana meneruskan detail mode sesuai pilihan', async () => {

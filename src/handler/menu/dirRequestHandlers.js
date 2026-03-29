@@ -4605,6 +4605,9 @@ export const dirRequestHandlers = {
 
     if (choice === "55") {
       session.perpostPlatform = "instagram";
+      session.perpostOptions = undefined;
+      session.perpostSelectedDate = undefined;
+      session.perpostOptionsKey = undefined;
       session.step = "choose_jajaran_perpost_date_option";
       await waClient.sendMessage(chatId, PERPOST_DATE_MENU_TEXT);
       return;
@@ -4612,6 +4615,9 @@ export const dirRequestHandlers = {
 
     if (choice === "56") {
       session.perpostPlatform = "tiktok";
+      session.perpostOptions = undefined;
+      session.perpostSelectedDate = undefined;
+      session.perpostOptionsKey = undefined;
       session.step = "choose_jajaran_perpost_date_option";
       await waClient.sendMessage(chatId, PERPOST_DATE_MENU_TEXT);
       return;
@@ -6543,6 +6549,8 @@ export const dirRequestHandlers = {
 
     if (input === "batal") {
       session.perpostPlatform = undefined;
+      session.perpostOptions = undefined;
+      session.perpostOptionsKey = undefined;
       session.perpostSelectedDate = undefined;
       session.step = "main";
       await dirRequestHandlers.main(session, chatId, "", waClient);
@@ -6551,6 +6559,8 @@ export const dirRequestHandlers = {
 
     if (input === "1") {
       session.perpostSelectedDate = getJakartaYmd();
+      session.perpostOptions = undefined;
+      session.perpostOptionsKey = undefined;
       session.step = "choose_jajaran_perpost_post";
       await dirRequestHandlers.choose_jajaran_perpost_post(session, chatId, "", waClient);
       return;
@@ -6588,6 +6598,8 @@ export const dirRequestHandlers = {
     }
 
     session.perpostSelectedDate = input;
+    session.perpostOptions = undefined;
+    session.perpostOptionsKey = undefined;
     session.step = "choose_jajaran_perpost_post";
     await dirRequestHandlers.choose_jajaran_perpost_post(session, chatId, "", waClient);
   },
@@ -6596,6 +6608,7 @@ export const dirRequestHandlers = {
     const platform = session.perpostPlatform;
     const targetClientId = session.dir_client_id || session.selectedClientId || DITBINMAS_CLIENT_ID;
     const selectedDate = session.perpostSelectedDate || getJakartaYmd();
+    const optionsKey = `${platform}:${selectedDate}:${targetClientId}`;
 
     if (!platform) {
       await waClient.sendMessage(chatId, "❌ Platform rekap perpost belum dipilih.");
@@ -6604,7 +6617,10 @@ export const dirRequestHandlers = {
       return;
     }
 
-    if (!session.perpostOptions || !Array.isArray(session.perpostOptions)) {
+    const hasCachedOptions =
+      Array.isArray(session.perpostOptions) &&
+      session.perpostOptionsKey === optionsKey;
+    if (!hasCachedOptions) {
       let posts = [];
       if (platform === "instagram") {
         posts = await getStandardInstagramTaskPostsByDate(targetClientId, selectedDate);
@@ -6617,6 +6633,8 @@ export const dirRequestHandlers = {
           chatId,
           `ℹ️ Tidak ada post ${platform === "instagram" ? "Instagram" : "TikTok"} pada ${formatYmdToIndoLong(selectedDate)}.`
         );
+        session.perpostOptions = undefined;
+        session.perpostOptionsKey = undefined;
         session.step = "main";
         await dirRequestHandlers.main(session, chatId, "", waClient);
         return;
@@ -6631,6 +6649,7 @@ export const dirRequestHandlers = {
           posts.map((post, index) => enrichTiktokPerpostOption(post, index + 1))
         );
       }
+      session.perpostOptionsKey = optionsKey;
     }
 
     const input = String(text || "").trim().toLowerCase();
@@ -6667,6 +6686,7 @@ export const dirRequestHandlers = {
 
     if (input === "batal") {
       session.perpostOptions = undefined;
+      session.perpostOptionsKey = undefined;
       session.step = "main";
       await dirRequestHandlers.main(session, chatId, "", waClient);
       return;
@@ -6690,6 +6710,7 @@ export const dirRequestHandlers = {
       selectedPost
     );
     session.perpostOptions = undefined;
+    session.perpostOptionsKey = undefined;
     session.perpostPlatform = undefined;
     session.perpostSelectedDate = undefined;
     session.step = "main";
