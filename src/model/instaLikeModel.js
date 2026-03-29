@@ -2,9 +2,9 @@
 import { query } from '../repository/db.js';
 import { buildPriorityOrderClause } from '../utils/sqlPriority.js';
 import {
-  getInstagramCreatedAtJakartaDateSql,
   getInstagramNowJakartaDateSql,
 } from '../utils/instagramCreatedAtSql.js';
+import { getInstagramOperationalDateSql } from './instaPostModel.js';
 
 const DEFAULT_ACTIVITY_START = '2025-09-01';
 
@@ -317,14 +317,14 @@ export async function getRekapLikesByClient(
     String(resolvedUserRole).toLowerCase() === String(resolvedPostRoleName).toLowerCase();
   const sharedRoleParamIdx = hasSharedRoleParam ? addParam(resolvedUserRole) : null;
 
-  const buildTanggalFilter = addParamFn => {
-    let filter =
-      `${getInstagramCreatedAtJakartaDateSql('p.created_at')} = ${getInstagramNowJakartaDateSql()}`;
+  const buildTanggalFilter = async (addParamFn) => {
+    const operationalDateSql = await getInstagramOperationalDateSql('p');
+    let filter = `${operationalDateSql} = ${getInstagramNowJakartaDateSql()}`;
     if (start_date && end_date) {
       const startIdx = addParamFn(start_date);
       const endIdx = addParamFn(end_date);
       filter =
-        `${getInstagramCreatedAtJakartaDateSql('p.created_at')} BETWEEN $${startIdx}::date AND $${endIdx}::date`;
+        `${operationalDateSql} BETWEEN $${startIdx}::date AND $${endIdx}::date`;
     } else if (periode === 'bulanan') {
       if (tanggal) {
         const monthDate = tanggal.length === 7 ? `${tanggal}-01` : tanggal;
@@ -347,13 +347,13 @@ export async function getRekapLikesByClient(
       filter = '1=1';
     } else if (tanggal) {
       const idx = addParamFn(tanggal);
-      filter = `${getInstagramCreatedAtJakartaDateSql('p.created_at')} = $${idx}::date`;
+      filter = `${operationalDateSql} = $${idx}::date`;
     }
     return filter;
   };
 
-  const tanggalFilter = buildTanggalFilter(addParam);
-  const postTanggalFilter = buildTanggalFilter(addPostParam);
+  const tanggalFilter = await buildTanggalFilter(addParam);
+  const postTanggalFilter = await buildTanggalFilter(addPostParam);
 
   const buildPostFilters = (
     addParamFn,

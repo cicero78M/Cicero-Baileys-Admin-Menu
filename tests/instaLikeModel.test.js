@@ -6,6 +6,13 @@ const mockQuery = jest.fn();
 
 jest.unstable_mockModule('../src/repository/db.js', () => ({
   query: mockQuery,
+  withTransaction: jest.fn(),
+}));
+
+jest.unstable_mockModule('../src/model/instaPostModel.js', () => ({
+  getInstagramOperationalDateSql: jest
+    .fn()
+    .mockResolvedValue("(p.created_at AT TIME ZONE 'Asia/Jakarta')::date"),
 }));
 
 let getRekapLikesByClient;
@@ -29,8 +36,9 @@ test('harian with specific date uses date filter', async () => {
   mockQuery.mockResolvedValueOnce({ rows: [] });
   mockQuery.mockResolvedValueOnce({ rows: [{ total_post: 0 }] });
   await getRekapLikesByClient('1', 'harian', '2023-10-05');
-  const expected = "p.created_at::date = $2::date";
-  expect(mockQuery).toHaveBeenNthCalledWith(1, expect.stringContaining(expected), expect.any(Array));
+  const sql = mockQuery.mock.calls[0][0];
+  expect(sql).toContain('= $2::date');
+  expect(sql).toContain("AT TIME ZONE 'Asia/Jakarta'");
   expectPriorityParams(mockQuery.mock.calls[0][1], ['1', '2023-10-05']);
 });
 
@@ -64,8 +72,7 @@ test('date range uses between filter', async () => {
   mockQuery.mockResolvedValueOnce({ rows: [] });
   mockQuery.mockResolvedValueOnce({ rows: [{ total_post: 0 }] });
   await getRekapLikesByClient('1', 'harian', undefined, '2023-10-01', '2023-10-07');
-  const expected = "(p.created_at AT TIME ZONE 'Asia/Jakarta')::date BETWEEN $2::date AND $3::date";
-  expect(mockQuery).toHaveBeenNthCalledWith(1, expect.stringContaining(expected), expect.any(Array));
+  expect(mockQuery.mock.calls[0][0]).toContain('BETWEEN $2::date AND $3::date');
   expectPriorityParams(mockQuery.mock.calls[0][1], ['1', '2023-10-01', '2023-10-07']);
 });
 
