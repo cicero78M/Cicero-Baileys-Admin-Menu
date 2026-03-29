@@ -1,6 +1,6 @@
 // src/model/tiktokPostModel.js
 import { query } from '../repository/db.js';
-import { getOperationalAttendanceDate } from '../utils/attendanceOperationalDate.js';
+import { formatJakartaQueryDateKey } from '../utils/dateJakarta.js';
 
 function normalizeClientId(id) {
   return typeof id === "string" ? id.trim().toLowerCase() : id;
@@ -15,7 +15,7 @@ function toInteger(value) {
 function resolveJakartaDate(referenceDate) {
   const baseDate = referenceDate ? new Date(referenceDate) : new Date();
   const validDate = Number.isNaN(baseDate.getTime()) ? new Date() : baseDate;
-  return getOperationalAttendanceDate(validDate).operationalDate;
+  return formatJakartaQueryDateKey(validDate);
 }
 
 function normalizeUtcCreatedAt(input) {

@@ -5,7 +5,7 @@ import {
   getInstagramCreatedAtJakartaDateSql,
   getInstagramNowJakartaDateSql,
 } from '../utils/instagramCreatedAtSql.js';
-import { getOperationalAttendanceDate } from '../utils/attendanceOperationalDate.js';
+import { formatJakartaQueryDateKey } from '../utils/dateJakarta.js';
 
 let instaPostFetchedAtColumnMetaCache = null;
 
@@ -275,7 +275,7 @@ export async function deletePostByShortcode(shortcode, clientId = null) {
 }
 
 export async function getShortcodesTodayByClient(identifier) {
-  const { operationalDate: today } = getOperationalAttendanceDate();
+  const today = formatJakartaQueryDateKey(new Date());
   const operationalDateSql = await getInstagramOperationalDateSql('p');
 
   const typeRes = await query(
