@@ -10,13 +10,8 @@ import {
   formatJakartaQueryDateKey,
 } from "./dateJakarta.js";
 
-const OPERATIONAL_DAY_START_HOUR_WIB = 17;
-const OPERATIONAL_DAY_SHIFT_HOURS = 24 - OPERATIONAL_DAY_START_HOUR_WIB;
-
 function toOperationalDateReference(now) {
-  const shifted = new Date(now.getTime());
-  shifted.setUTCHours(shifted.getUTCHours() - OPERATIONAL_DAY_SHIFT_HOURS);
-  return shifted;
+  return new Date(now.getTime());
 }
 
 export function getOperationalAttendanceDate(now = new Date()) {

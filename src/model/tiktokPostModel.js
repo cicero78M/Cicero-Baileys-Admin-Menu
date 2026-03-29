@@ -30,7 +30,7 @@ function jakartaDateCast(columnAlias = "created_at") {
 }
 
 function jakartaOperationalDateCast(columnAlias = "created_at") {
-  return `((${jakartaDateCast(columnAlias)} - INTERVAL '17 hours')::date)`;
+  return `(${jakartaDateCast(columnAlias)}::date)`;
 }
 
 /**

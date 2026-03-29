@@ -44,12 +44,11 @@ async function getInstaPostFetchedAtColumnMeta() {
 
 async function getInstagramOperationalDateSql(columnAlias = 'p') {
   const fetchedAtMeta = await getInstaPostFetchedAtColumnMeta();
-  const operationalShiftSql = "INTERVAL '17 hours'";
 
   if (!fetchedAtMeta.hasColumn) {
     return `((${getInstagramCreatedAtJakartaTimestampSql(
       `${columnAlias}.created_at`
-    )} - ${operationalShiftSql})::date)`;
+    )})::date)`;
   }
 
   if (fetchedAtMeta.dataType === 'timestamp without time zone') {
@@ -57,17 +56,17 @@ async function getInstagramOperationalDateSql(columnAlias = 'p') {
     // Nilainya diperlakukan sebagai UTC agar konversi tanggal WIB tidak mundur ke H-1.
     return `((${getInstagramCreatedAtJakartaTimestampSql(
       `${columnAlias}.fetched_at`
-    )} - ${operationalShiftSql})::date)`;
+    )})::date)`;
   }
 
   if (fetchedAtMeta.dataType === 'timestamp with time zone') {
-    return `(((${columnAlias}.fetched_at AT TIME ZONE 'Asia/Jakarta') - ${operationalShiftSql})::date)`;
+    return `(((${columnAlias}.fetched_at AT TIME ZONE 'Asia/Jakarta'))::date)`;
   }
 
   // Safety-net ketika metadata tipe kolom tidak terdeteksi sesuai ekspektasi.
   return `((${getInstagramCreatedAtJakartaTimestampSql(
     `${columnAlias}.fetched_at`
-  )} - ${operationalShiftSql})::date)`;
+  )})::date)`;
 }
 
 function normalizeSourceType(sourceType) {
