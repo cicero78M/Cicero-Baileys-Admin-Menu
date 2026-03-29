@@ -42,7 +42,7 @@ async function getInstaPostFetchedAtColumnMeta() {
   return instaPostFetchedAtColumnMetaCache;
 }
 
-async function getInstagramOperationalDateSql(columnAlias = 'p') {
+export async function getInstagramOperationalDateSql(columnAlias = 'p') {
   const fetchedAtMeta = await getInstaPostFetchedAtColumnMeta();
 
   if (!fetchedAtMeta.hasColumn) {
@@ -67,6 +67,48 @@ async function getInstagramOperationalDateSql(columnAlias = 'p') {
   return `((${getInstagramCreatedAtJakartaTimestampSql(
     `${columnAlias}.fetched_at`
   )})::date)`;
+}
+
+async function buildInstagramOperationalDateFilterSql({
+  addParamFn,
+  periode = 'harian',
+  tanggal = null,
+  startDate = null,
+  endDate = null,
+  columnAlias = 'p',
+}) {
+  const operationalDateSql = await getInstagramOperationalDateSql(columnAlias);
+  let filter = `${operationalDateSql} = ${getInstagramNowJakartaDateSql()}`;
+
+  if (startDate && endDate) {
+    const startIdx = addParamFn(startDate);
+    const endIdx = addParamFn(endDate);
+    filter = `${operationalDateSql} BETWEEN ${startIdx}::date AND ${endIdx}::date`;
+  } else if (periode === 'semua') {
+    filter = '1=1';
+  } else if (periode === 'mingguan') {
+    if (tanggal) {
+      const tanggalIdx = addParamFn(tanggal);
+      filter = `date_trunc('week', p.created_at) = date_trunc('week', ${tanggalIdx}::date)`;
+    } else {
+      filter = "date_trunc('week', p.created_at) = date_trunc('week', NOW())";
+    }
+  } else if (periode === 'bulanan') {
+    if (tanggal) {
+      const monthDate = tanggal.length === 7 ? `${tanggal}-01` : tanggal;
+      const monthIdx = addParamFn(monthDate);
+      filter =
+        `date_trunc('month', p.created_at AT TIME ZONE 'Asia/Jakarta') = date_trunc('month', ${monthIdx}::date)`;
+    } else {
+      filter =
+        "date_trunc('month', p.created_at AT TIME ZONE 'Asia/Jakarta') = date_trunc('month', NOW() AT TIME ZONE 'Asia/Jakarta')";
+    }
+  } else if (tanggal) {
+    const tanggalIdx = addParamFn(tanggal);
+    filter = `${operationalDateSql} = ${tanggalIdx}::date`;
+  }
+
+  return filter;
 }
 
 function normalizeSourceType(sourceType) {
@@ -400,7 +442,7 @@ export async function getShortcodesByDateRange(identifier, startDate, endDate) {
 
   let sql;
   let params;
-  const createdAtJakartaDateSql = getInstagramCreatedAtJakartaDateSql('p.created_at');
+  const operationalDateSql = await getInstagramOperationalDateSql('p');
 
   if (
     typeRes.rows.length === 0 ||
@@ -412,14 +454,14 @@ export async function getShortcodesByDateRange(identifier, startDate, endDate) {
         FROM insta_post p
         JOIN insta_post_roles pr ON pr.shortcode = p.shortcode
         WHERE LOWER(pr.role_name) = LOWER($1)
-          AND ${createdAtJakartaDateSql} BETWEEN $2::date AND $3::date
+          AND ${operationalDateSql} BETWEEN $2::date AND $3::date
 
         UNION
 
         SELECT p.shortcode, p.created_at
         FROM insta_post p
         WHERE LOWER(p.client_id) = LOWER($1)
-          AND ${createdAtJakartaDateSql} BETWEEN $2::date AND $3::date
+          AND ${operationalDateSql} BETWEEN $2::date AND $3::date
       ) merged
       ORDER BY created_at ASC, shortcode ASC
     `;
@@ -429,7 +471,7 @@ export async function getShortcodesByDateRange(identifier, startDate, endDate) {
       SELECT p.shortcode
       FROM insta_post p
       WHERE LOWER(p.client_id) = LOWER($1)
-        AND ${createdAtJakartaDateSql} BETWEEN $2::date AND $3::date
+        AND ${operationalDateSql} BETWEEN $2::date AND $3::date
       ORDER BY p.created_at ASC, p.shortcode ASC
     `;
     params = [identifier, startBound, endBound];
@@ -531,38 +573,6 @@ export async function getPostsByFilters(
     clientType = typeRes.rows[0]?.client_type?.toLowerCase() || null;
   }
 
-  const addDateFilter = (addParamFn) => {
-    let filter = `${getInstagramCreatedAtJakartaDateSql('p.created_at')} = ${getInstagramNowJakartaDateSql()}`;
-    if (startDate && endDate) {
-      const startIdx = addParamFn(startDate);
-      const endIdx = addParamFn(endDate);
-      filter = `${getInstagramCreatedAtJakartaDateSql('p.created_at')} BETWEEN ${startIdx}::date AND ${endIdx}::date`;
-    } else if (periode === 'semua') {
-      filter = '1=1';
-    } else if (periode === 'mingguan') {
-      if (tanggal) {
-        const tanggalIdx = addParamFn(tanggal);
-        filter = `date_trunc('week', p.created_at) = date_trunc('week', ${tanggalIdx}::date)`;
-      } else {
-        filter = "date_trunc('week', p.created_at) = date_trunc('week', NOW())";
-      }
-    } else if (periode === 'bulanan') {
-      if (tanggal) {
-        const monthDate = tanggal.length === 7 ? `${tanggal}-01` : tanggal;
-        const monthIdx = addParamFn(monthDate);
-        filter =
-          `date_trunc('month', p.created_at AT TIME ZONE 'Asia/Jakarta') = date_trunc('month', ${monthIdx}::date)`;
-      } else {
-        filter =
-          "date_trunc('month', p.created_at AT TIME ZONE 'Asia/Jakarta') = date_trunc('month', NOW() AT TIME ZONE 'Asia/Jakarta')";
-      }
-    } else if (tanggal) {
-      const tanggalIdx = addParamFn(tanggal);
-      filter = `${getInstagramCreatedAtJakartaDateSql('p.created_at')} = ${tanggalIdx}::date`;
-    }
-    return filter;
-  };
-
   const shouldUseRoleFilter =
     Boolean(normalizedRole) &&
     (normalizedScope === 'direktorat' || clientType === 'direktorat');
@@ -592,7 +602,14 @@ export async function getPostsByFilters(
       whereClauses.push(`UPPER(c.regional_id) = ${regionalIdx}`);
     }
 
-    const dateFilter = addDateFilter(addParam);
+    const dateFilter = await buildInstagramOperationalDateFilterSql({
+      addParamFn: addParam,
+      periode,
+      tanggal,
+      startDate,
+      endDate,
+      columnAlias: 'p',
+    });
     if (dateFilter) {
       whereClauses.push(dateFilter);
     }

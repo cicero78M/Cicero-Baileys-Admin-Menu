@@ -120,6 +120,16 @@ describe('generateKasatBinmasLikesRecap', () => {
     const narrative = await generateKasatBinmasLikesRecap({ period: 'daily' });
 
     expect(narrative).toContain('Belum ada konten Instagram Ditbinmas');
+    expect(narrative).toContain('periode ini');
+    expect(mockGetRekapLikesByClient).toHaveBeenCalledTimes(1);
+    expect(mockGetRekapLikesByClient).toHaveBeenCalledWith(
+      'DITBINMAS',
+      'harian',
+      '2024-05-22',
+      undefined,
+      undefined,
+      'ditbinmas'
+    );
   });
 
   test('mengurutkan daftar berdasarkan jumlah like lalu pangkat dan nama untuk rekap harian', async () => {

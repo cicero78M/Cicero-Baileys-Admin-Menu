@@ -3147,6 +3147,10 @@ async function performAction(
           startDate,
           endDate,
         });
+        if (!Array.isArray(shortcodes) || shortcodes.length === 0) {
+          msg = "Belum ada konten Instagram pada periode ini.";
+          break;
+        }
         msg = await absensiLikesDitbinmasSimple(attendanceClientId, {
           shortcodes: shortcodes
             .map((shortcode) => String(shortcode || "").trim())
@@ -6485,6 +6489,14 @@ export const dirRequestHandlers = {
           (post) => post.shortcode
         ),
       });
+      if (!Number(data?.totalKonten || 0)) {
+        const fallbackName = String(data?.clientName || targetClientId || "").trim() || "target";
+        const noContentMsg = `Belum ada konten Instagram ${fallbackName} pada periode ini.`;
+        await waClient.sendMessage(chatId, noContentMsg);
+        session.step = "main";
+        await dirRequestHandlers.main(session, chatId, "", waClient);
+        return;
+      }
       const report = formatInstagramJajaranReport(data);
       
       await waClient.sendMessage(chatId, report);

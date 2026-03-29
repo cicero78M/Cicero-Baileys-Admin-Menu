@@ -123,6 +123,7 @@ jest.unstable_mockModule('../src/model/instaPostModel.js', () => ({
   deletePostByShortcode: jest.fn(),
   getAttendancePostsByClientAndDate: jest.fn().mockResolvedValue([]),
   getPostsByFilters: jest.fn().mockResolvedValue([]),
+  getInstagramOperationalDateSql: jest.fn().mockResolvedValue("(p.created_at AT TIME ZONE 'Asia/Jakarta')::date"),
 }));
 jest.unstable_mockModule('../src/model/tiktokPostModel.js', () => ({
   getVideoIdsTodayByClient: mockGetVideoIdsTodayByClient,
@@ -417,6 +418,32 @@ test('choose_menu action 6 uses range shortcode source and forwards shortcodes',
     })
   );
   expect(mockGetStandardInstagramTaskPostsToday).not.toHaveBeenCalled();
+
+  jest.useRealTimers();
+});
+
+test('choose_menu action 6 returns no-content message for daily period without fallback', async () => {
+  jest.useFakeTimers();
+  jest.setSystemTime(new Date('2026-01-31T08:00:00Z'));
+
+  mockFindClientById.mockResolvedValue({ nama: 'DIT BINMAS', client_type: 'direktorat' });
+  mockGetStandardInstagramTaskShortcodesByRange.mockResolvedValue([]);
+  mockAbsensiLikesDitbinmasSimple.mockResolvedValue('should-not-be-called');
+
+  const session = {
+    selectedClientId: 'DITBINMAS',
+    dir_client_id: 'DITBINMAS',
+    role: 'ditbinmas',
+  };
+  const waClient = { sendMessage: jest.fn() };
+
+  await dirRequestHandlers.choose_menu(session, '123', '6', waClient);
+
+  expect(mockAbsensiLikesDitbinmasSimple).not.toHaveBeenCalled();
+  expect(waClient.sendMessage).toHaveBeenCalledWith(
+    '123',
+    expect.stringContaining('Belum ada konten Instagram pada periode ini.')
+  );
 
   jest.useRealTimers();
 });
