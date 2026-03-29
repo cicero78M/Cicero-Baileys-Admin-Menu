@@ -596,20 +596,45 @@ export async function createBaileysClient(clientId = 'wa-admin') {
             throw timeoutBudgetError;
           }
 
-          if (isTimedOutWaitingForMessageError(err)) {
-            try {
-              await reinitializeClient('send_message_timeout');
-            } catch (reinitErr) {
+          if (!isRetryable) {
+            if (isTimedOutWaitingForMessageError(err)) {
               writeStructuredLog('error', buildStructuredLog({
                 clientId,
-                event: 'reinitialize_after_send_timeout_failed',
-                error: reinitErr.message,
+                event: 'send_message_final_timeout_no_reinit',
+                jid,
+                error: err.message,
+                attempt: attempt + 1,
+                maxAttempts: sendMessageRetryCount + 1,
+                attemptDurationMs,
+                totalElapsedMs,
+                remainingBudgetMs,
+                budgetMs: sendMessageBudgetMs,
               }));
             }
+            throw err;
           }
 
-          if (!isRetryable) {
-            throw err;
+          writeStructuredLog('warn', buildStructuredLog({
+            clientId,
+            event: 'send_message_retry_with_reinit',
+            jid,
+            error: err.message,
+            attempt: attempt + 1,
+            maxAttempts: sendMessageRetryCount + 1,
+            attemptDurationMs,
+            totalElapsedMs,
+            remainingBudgetMs,
+            budgetMs: sendMessageBudgetMs,
+          }));
+
+          try {
+            await reinitializeClient('send_message_timeout');
+          } catch (reinitErr) {
+            writeStructuredLog('error', buildStructuredLog({
+              clientId,
+              event: 'reinitialize_after_send_timeout_failed',
+              error: reinitErr.message,
+            }));
           }
 
           if (sendMessageRetryDelayMs > 0) {
