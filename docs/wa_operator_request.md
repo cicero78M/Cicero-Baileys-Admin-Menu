@@ -42,6 +42,9 @@ Seluruh laporan di menu ini hanya menampilkan data user dengan role **operator**
    - 1️⃣ Absensi Likes Instagram (hanya jika Instagram client aktif)
    - 2️⃣ Absensi Komentar TikTok (hanya jika TikTok client aktif)
    - 3️⃣ Fetch Post Engagement (muncul jika Instagram dan TikTok client sama-sama aktif; menjalankan fetch post+likes Instagram dan fetch post+komentar TikTok)
+   - 4️⃣/5️⃣ Tugas Hari Ini (nomor mengikuti susunan menu dinamis; menampilkan daftar link tugas engagement hari berjalan)
+   - 5️⃣/6️⃣ Input Manual Multi Link (nomor mengikuti susunan menu dinamis; menambahkan multi link IG/TikTok sekaligus)
+   - 6️⃣/7️⃣ Hapus Multi Link Tugas (nomor mengikuti susunan menu dinamis; menghapus multi link dari daftar tugas hari ini)
 
 ## Menu Manajemen Engagement
 Menu ini hanya muncul jika client memiliki kanal engagement yang aktif. Aturan aksesnya:
@@ -49,6 +52,9 @@ Menu ini hanya muncul jika client memiliki kanal engagement yang aktif. Aturan a
 - **Absensi Komentar TikTok** tersedia jika `client_tiktok_status` aktif.
 - Jika hanya salah satu platform aktif, bot hanya menampilkan submenu tersebut. Jika kedua status aktif, kedua submenu tampil di menu yang sama.
 - **Fetch Post Engagement** hanya muncul saat kedua platform aktif, lalu bot menjalankan sinkronisasi berurutan: post Instagram → likes Instagram → post TikTok → komentar TikTok.
+- **Tugas Hari Ini** menampilkan daftar link engagement Instagram dan TikTok yang tercatat untuk hari berjalan.
+- **Input Manual Multi Link** menerima banyak link sekaligus (boleh campur narasi) dan memproses fetch post + engagement sesuai platform.
+- **Hapus Multi Link Tugas** menerima banyak link sekaligus untuk menandai pengecualian tugas harian (`task_post_exclusions`) sekaligus mencoba menghapus data pendukung dari `insta_post` / `tiktok_post`.
 
 ## Konvensi Penamaan Menu
 - **Menu** dipakai untuk level utama (contoh: *Menu Kelola User*, *Menu Laporan Amplifikasi*).

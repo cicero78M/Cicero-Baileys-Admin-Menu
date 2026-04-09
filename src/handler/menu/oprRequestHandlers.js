@@ -90,6 +90,53 @@ function extractEngagementManualLinksFromInput(text) {
   };
 }
 
+function extractInstagramShortcodeFromLink(link) {
+  const sanitizedLink = String(link || "").trim();
+  if (!sanitizedLink) return "";
+  const match = sanitizedLink.match(/instagram\.com\/(?:p|reel|tv)\/([^/?#]+)/i);
+  return match?.[1] ? String(match[1]).trim() : "";
+}
+
+function extractTiktokVideoIdFromLink(link) {
+  const sanitizedLink = String(link || "").trim();
+  if (!sanitizedLink) return "";
+  const match = sanitizedLink.match(/video\/(\d{8,21})/i);
+  return match?.[1] ? String(match[1]).trim() : "";
+}
+
+function extractEngagementDeleteTargetsFromInput(text) {
+  const { instagramLinks, tiktokLinks, ignoredUrlCount } =
+    extractEngagementManualLinksFromInput(text);
+  const instagramShortcodes = [];
+  const tiktokVideoIds = [];
+  const invalidLinks = [];
+
+  for (const instagramLink of instagramLinks) {
+    const shortcode = extractInstagramShortcodeFromLink(instagramLink);
+    if (shortcode) {
+      instagramShortcodes.push({ shortcode, sourceLink: instagramLink });
+    } else {
+      invalidLinks.push(instagramLink);
+    }
+  }
+
+  for (const tiktokLink of tiktokLinks) {
+    const videoId = extractTiktokVideoIdFromLink(tiktokLink);
+    if (videoId) {
+      tiktokVideoIds.push({ videoId, sourceLink: tiktokLink });
+    } else {
+      invalidLinks.push(tiktokLink);
+    }
+  }
+
+  return {
+    instagramShortcodes,
+    tiktokVideoIds,
+    invalidLinks,
+    ignoredUrlCount,
+  };
+}
+
 function normalizeAccessNumbers(rawNumber) {
   const digitsOnly = String(rawNumber || "").replace(/\D/g, "");
   if (!digitsOnly) return [];
@@ -583,6 +630,10 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
 
         engagementMenuItems.push(`${engagementMenuNumber}️⃣ Input Manual Multi Link`);
         engagementMenuMapping[engagementMenuNumber] = "manual_multi_link";
+        engagementMenuNumber += 1;
+
+        engagementMenuItems.push(`${engagementMenuNumber}️⃣ Hapus Multi Link Tugas`);
+        engagementMenuMapping[engagementMenuNumber] = "hapus_multi_link_tugas";
 
         session.engagementMenuMapping = engagementMenuMapping;
         session.step = "kelolaEngagement_menu";
@@ -723,6 +774,7 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
       3: "fetch_post",
       4: "tugas_hari_ini",
       5: "manual_multi_link",
+      6: "hapus_multi_link_tugas",
     };
 
     if (/^(menu|kembali|back|0)$/i.test(text.trim())) {
@@ -897,6 +949,31 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
       return;
     }
 
+    if (selectedMenu === "hapus_multi_link_tugas") {
+      const access = await ensureEngagementMenuAccess(session, chatId, waClient, pool);
+      if (!access) {
+        if (isAdminWhatsApp(chatId)) {
+          delete session.selected_client_id;
+        }
+        session.step = "main";
+        return oprRequestHandlers.main(session, chatId, "", waClient, pool, userModel);
+      }
+
+      session.step = "kelolaEngagement_hapusManualMultiLink";
+      await waClient.sendMessage(
+        chatId,
+        appendSubmenuBackInstruction(
+          "Kirim link post Instagram/TikTok yang ingin *dihapus dari tugas hari ini*.\n\n" +
+            "Boleh kirim *multi link* sekaligus (campur narasi juga boleh).\n" +
+            "Sistem akan menghapus link dari daftar tugas harian engagement.\n" +
+            "Contoh IG: https://www.instagram.com/p/XXXXXXXXXXX/\n" +
+            "Contoh TikTok: https://www.tiktok.com/@username/video/1234567890123456789\n" +
+            "Ketik *menu* untuk kembali, atau *batal* untuk keluar."
+        )
+      );
+      return;
+    }
+
     const maxMenuNumber = Math.max(...Object.keys(menuMapping).map(Number));
     await waClient.sendMessage(
       chatId,
@@ -1034,6 +1111,143 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
 
     session.step = "main";
     return oprRequestHandlers.main(session, chatId, "", waClient, pool, userModel);
+  },
+
+  kelolaEngagement_hapusManualMultiLink: async (
+    session,
+    chatId,
+    text,
+    waClient,
+    pool,
+    userModel
+  ) => {
+    const trimmedText = (text || "").trim();
+
+    if (/^(menu|kembali|back|0)$/i.test(trimmedText)) {
+      session.step = "kelolaEngagement_menu";
+      return oprRequestHandlers.kelolaEngagement_menu(
+        session,
+        chatId,
+        "",
+        waClient,
+        pool,
+        userModel
+      );
+    }
+
+    if (/^(batal|cancel|exit)$/i.test(trimmedText)) {
+      session.menu = null;
+      session.step = null;
+      delete session.engagementMenuMapping;
+      delete session.absensi_engagement_client_id;
+      delete session.absensi_engagement_type;
+      await waClient.sendMessage(chatId, "❎ Keluar dari menu operator.");
+      return;
+    }
+
+    const clientId = await resolveClientId(session, chatId, pool);
+    if (!clientId) {
+      await waClient.sendMessage(chatId, "❌ Client tidak ditemukan untuk nomor ini.");
+      session.step = "main";
+      return oprRequestHandlers.main(session, chatId, "", waClient, pool, userModel);
+    }
+
+    const { instagramShortcodes, tiktokVideoIds, invalidLinks, ignoredUrlCount } =
+      extractEngagementDeleteTargetsFromInput(trimmedText);
+
+    if (!instagramShortcodes.length && !tiktokVideoIds.length) {
+      await waClient.sendMessage(
+        chatId,
+        "❌ Tidak ada link Instagram/TikTok yang valid. Kirim ulang link valid atau ketik *menu* untuk kembali."
+      );
+      return;
+    }
+
+    await waClient.sendMessage(chatId, "⏳ Proses hapus multi-link tugas dimulai.");
+
+    try {
+      const { addTaskPostExclusion } = await import("../../model/taskPostExclusionModel.js");
+      const { deletePostByShortcode } = await import("../../model/instaPostModel.js");
+      const { deletePostByVideoId } = await import("../../model/tiktokPostModel.js");
+
+      let instagramDeletedCount = 0;
+      let tiktokDeletedCount = 0;
+      const instagramFailures = [];
+      const tiktokFailures = [];
+
+      for (const { shortcode, sourceLink } of instagramShortcodes) {
+        try {
+          await addTaskPostExclusion({
+            clientId,
+            platform: "instagram",
+            contentId: shortcode,
+            sourceLink,
+          });
+          const deletedRows = await deletePostByShortcode(shortcode, clientId);
+          instagramDeletedCount += deletedRows;
+        } catch (error) {
+          instagramFailures.push(`- ${sourceLink} => ${error.message}`);
+        }
+      }
+
+      for (const { videoId, sourceLink } of tiktokVideoIds) {
+        try {
+          await addTaskPostExclusion({
+            clientId,
+            platform: "tiktok",
+            contentId: videoId,
+            sourceLink,
+          });
+          const deletedRows = await deletePostByVideoId(videoId, clientId);
+          tiktokDeletedCount += deletedRows;
+        } catch (error) {
+          tiktokFailures.push(`- ${sourceLink} => ${error.message}`);
+        }
+      }
+
+      const summaryLines = [
+        "✅ Proses hapus multi-link tugas selesai.",
+        `Client: *${clientId}*`,
+        "",
+        `Instagram diproses: ${instagramShortcodes.length} link`,
+        `- Berhasil ditandai hapus tugas: ${
+          instagramShortcodes.length - instagramFailures.length
+        }`,
+        `- Baris insta_post terhapus: ${instagramDeletedCount}`,
+        "",
+        `TikTok diproses: ${tiktokVideoIds.length} link`,
+        `- Berhasil ditandai hapus tugas: ${tiktokVideoIds.length - tiktokFailures.length}`,
+        `- Baris tiktok_post terhapus: ${tiktokDeletedCount}`,
+      ];
+
+      if (ignoredUrlCount > 0) {
+        summaryLines.push("", `⚠️ URL non-Instagram/TikTok diabaikan: ${ignoredUrlCount}`);
+      }
+      if (invalidLinks.length > 0) {
+        summaryLines.push("", `⚠️ Link tidak valid: ${invalidLinks.length}`);
+      }
+      if (instagramFailures.length > 0) {
+        summaryLines.push(
+          "",
+          `⚠️ Gagal memproses ${instagramFailures.length} link Instagram:`,
+          ...instagramFailures
+        );
+      }
+      if (tiktokFailures.length > 0) {
+        summaryLines.push(
+          "",
+          `⚠️ Gagal memproses ${tiktokFailures.length} link TikTok:`,
+          ...tiktokFailures
+        );
+      }
+
+      await waClient.sendMessage(chatId, summaryLines.join("\n"));
+    } catch (error) {
+      await waClient.sendMessage(chatId, `❌ Gagal hapus multi-link tugas: ${error.message}`);
+    }
+
+    session.step = "kelolaEngagement_menu";
+    return oprRequestHandlers.kelolaEngagement_menu(session, chatId, "", waClient, pool, userModel);
   },
 
   kelolaAmplifikasi_menu: async (session, chatId, text, waClient, pool, userModel) => {
