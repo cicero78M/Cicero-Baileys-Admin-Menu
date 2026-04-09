@@ -266,12 +266,14 @@ describe('oprRequestHandlers - Conditional Menu Display', () => {
 
       const sentMessage = mockWaClient.sendMessage.mock.calls[0][1];
       expect(sentMessage).toContain('Tugas Hari Ini');
+      expect(sentMessage).toContain('Hapus Multi Link Tugas');
       expect(mockSession.engagementMenuMapping).toEqual({
         1: 'likes',
         2: 'komentar',
         3: 'fetch_post',
         4: 'tugas_hari_ini',
-        5: 'manual_multi_link'
+        5: 'manual_multi_link',
+        6: 'hapus_multi_link_tugas'
       });
     });
 
@@ -296,7 +298,8 @@ describe('oprRequestHandlers - Conditional Menu Display', () => {
         2: 'komentar',
         3: 'fetch_post',
         4: 'tugas_hari_ini',
-        5: 'manual_multi_link'
+        5: 'manual_multi_link',
+        6: 'hapus_multi_link_tugas'
       };
 
       await oprRequestHandlers.kelolaEngagement_menu(
