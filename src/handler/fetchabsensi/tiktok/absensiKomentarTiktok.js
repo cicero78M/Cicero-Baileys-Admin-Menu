@@ -296,9 +296,11 @@ export async function absensiKomentar(client_id, opts = {}) {
 
     if (mode === "all" || mode === "sudah") {
       msg += `✅ *Melaksanakan lengkap* (${summary.lengkap} user)\n`;
+    }
+    if (mode === "all" || mode === "sudah" || mode === "kurang_belum") {
       msg += `⚠️ *Melaksanakan kurang lengkap* (${summary.kurang} user)\n`;
     }
-    if (mode === "all" || mode === "belum") {
+    if (mode === "all" || mode === "belum" || mode === "kurang_belum") {
       msg += `❌ *Belum melaksanakan* (${summary.belum} user)\n`;
     }
     msg += "\n";
@@ -315,17 +317,20 @@ export async function absensiKomentar(client_id, opts = {}) {
         if (mode === "all" || mode === "sudah") {
           msg += `✅ Lengkap (${data.lengkap.length} user):\n`;
           const lengkapUsers = sortUsersByRankAndName(data.lengkap);
-          const kurangUsers = sortUsersByRankAndName(data.kurang);
           msg += data.lengkap.length
             ? lengkapUsers.map(formatUserLine).join("\n") + "\n"
             : "-\n";
+        }
+
+        if (mode === "all" || mode === "sudah" || mode === "kurang_belum") {
+          const kurangUsers = sortUsersByRankAndName(data.kurang);
           msg += `⚠️ Kurang (${data.kurang.length} user):\n`;
           msg += data.kurang.length
             ? kurangUsers.map(formatUserLine).join("\n") + "\n"
             : "-\n";
         }
 
-        if (mode === "all" || mode === "belum") {
+        if (mode === "all" || mode === "belum" || mode === "kurang_belum") {
           const belumUsers = sortUsersByRankAndName(data.belum);
           msg += `❌ Belum (${data.belum.length} user):\n`;
           msg += data.belum.length
