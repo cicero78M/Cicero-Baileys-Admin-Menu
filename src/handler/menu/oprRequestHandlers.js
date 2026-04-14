@@ -3298,7 +3298,7 @@ Balas *angka* (1/2) sesuai status baru, atau *batal* untuk keluar.
     await waClient.sendMessage(
       chatId,
       appendSubmenuBackInstruction(
-        "Pilih tipe absensi engagement:\n1. Semua\n2. Sudah\n3. Belum\nBalas angka di atas."
+        "Pilih tipe absensi engagement:\n1. Semua\n2. Sudah\n3. Belum/Kurang\nBalas angka di atas."
       )
     );
     session.step = "absensiEngagement_menu";
@@ -3334,7 +3334,7 @@ Balas *angka* (1/2) sesuai status baru, atau *batal* untuk keluar.
     let mode = null;
     if (pilihan === 1) mode = "all";
     else if (pilihan === 2) mode = "sudah";
-    else if (pilihan === 3) mode = "belum";
+    else if (pilihan === 3) mode = "kurang_belum";
     else {
       await waClient.sendMessage(chatId, "Pilihan tidak valid. Balas 1-3.");
       return;
