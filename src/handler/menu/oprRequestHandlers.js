@@ -618,6 +618,14 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
         engagementMenuMapping[engagementMenuNumber] = "komentar";
         engagementMenuNumber += 1;
 
+        engagementMenuItems.push(`${engagementMenuNumber}️⃣ Absensi IG Belum/Kurang`);
+        engagementMenuMapping[engagementMenuNumber] = "likes_kurang_belum";
+        engagementMenuNumber += 1;
+
+        engagementMenuItems.push(`${engagementMenuNumber}️⃣ Absensi TT Belum/Kurang`);
+        engagementMenuMapping[engagementMenuNumber] = "komentar_kurang_belum";
+        engagementMenuNumber += 1;
+
         if (instagramActive && tiktokActive) {
           engagementMenuItems.push(`${engagementMenuNumber}️⃣ Fetch Post Engagement`);
           engagementMenuMapping[engagementMenuNumber] = "fetch_post";
@@ -771,10 +779,12 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
     const menuMapping = session.engagementMenuMapping || {
       1: "likes",
       2: "komentar",
-      3: "fetch_post",
-      4: "tugas_hari_ini",
-      5: "manual_multi_link",
-      6: "hapus_multi_link_tugas",
+      3: "likes_kurang_belum",
+      4: "komentar_kurang_belum",
+      5: "fetch_post",
+      6: "tugas_hari_ini",
+      7: "manual_multi_link",
+      8: "hapus_multi_link_tugas",
     };
 
     if (/^(menu|kembali|back|0)$/i.test(text.trim())) {
@@ -904,6 +914,92 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
           chatId,
           `❌ Gagal fetch post engagement: ${error.message}`
         );
+      }
+
+      session.step = "main";
+      return oprRequestHandlers.main(session, chatId, "", waClient, pool, userModel);
+    }
+
+    if (selectedMenu === "likes_kurang_belum") {
+      const access = await ensureEngagementMenuAccess(
+        session,
+        chatId,
+        waClient,
+        pool,
+        { platform: "instagram" }
+      );
+      if (!access) {
+        if (isAdminWhatsApp(chatId)) {
+          delete session.selected_client_id;
+        }
+        session.step = "main";
+        return oprRequestHandlers.main(session, chatId, "", waClient, pool, userModel);
+      }
+
+      const clientId =
+        session.absensi_engagement_client_id || (await resolveClientId(session, chatId, pool));
+      if (!clientId) {
+        await waClient.sendMessage(chatId, "❌ Client tidak ditemukan untuk nomor ini.");
+        session.step = "main";
+        return oprRequestHandlers.main(session, chatId, "", waClient, pool, userModel);
+      }
+
+      try {
+        const { absensiLikes } = await import("../fetchabsensi/insta/absensiLikesInsta.js");
+        const msg = await absensiLikes(clientId, {
+          mode: "kurang_belum",
+          roleFlag: OPERATOR_ROLE,
+        });
+        await waClient.sendMessage(
+          chatId,
+          appendSubmenuBackInstruction(msg || "Data tidak ditemukan.")
+        );
+      } catch (error) {
+        await waClient.sendMessage(chatId, `❌ Error: ${error.message}`);
+      }
+
+      session.step = "main";
+      return oprRequestHandlers.main(session, chatId, "", waClient, pool, userModel);
+    }
+
+    if (selectedMenu === "komentar_kurang_belum") {
+      const access = await ensureEngagementMenuAccess(
+        session,
+        chatId,
+        waClient,
+        pool,
+        { platform: "tiktok" }
+      );
+      if (!access) {
+        if (isAdminWhatsApp(chatId)) {
+          delete session.selected_client_id;
+        }
+        session.step = "main";
+        return oprRequestHandlers.main(session, chatId, "", waClient, pool, userModel);
+      }
+
+      const clientId =
+        session.absensi_engagement_client_id || (await resolveClientId(session, chatId, pool));
+      if (!clientId) {
+        await waClient.sendMessage(chatId, "❌ Client tidak ditemukan untuk nomor ini.");
+        session.step = "main";
+        return oprRequestHandlers.main(session, chatId, "", waClient, pool, userModel);
+      }
+
+      try {
+        const { absensiKomentar } = await import(
+          "../fetchabsensi/tiktok/absensiKomentarTiktok.js"
+        );
+        const msg = await absensiKomentar(clientId, {
+          mode: "kurang_belum",
+          roleFlag: OPERATOR_ROLE,
+        });
+        await waClient.sendMessage(
+          chatId,
+          appendSubmenuBackInstruction(msg || "Data tidak ditemukan.")
+        );
+      } catch (error) {
+        await waClient.sendMessage(chatId, `❌ Error: ${error.message}`);
       }
 
       session.step = "main";
