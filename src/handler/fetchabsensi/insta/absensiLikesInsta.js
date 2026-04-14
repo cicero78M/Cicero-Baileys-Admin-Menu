@@ -353,27 +353,45 @@ export async function absensiLikes(client_id, opts = {}) {
     return `- ${u.title ? u.title + " " : ""}${u.nama} : ${handle} ${progress}`.trim();
   };
 
-  if (mode === "all" || mode === "sudah") {
+  const showLengkap = mode === "all" || mode === "sudah";
+  const showKurang = mode === "all" || mode === "sudah" || mode === "kurang_belum";
+  const showBelum = mode === "all" || mode === "belum" || mode === "kurang_belum";
+
+  if (showLengkap) {
     msg += `✅ *Melaksanakan lengkap* (${summary.lengkap} user)\n`;
   }
-  if (mode === "all" || mode === "sudah" || mode === "kurang_belum") {
+  if (showKurang) {
     msg += `⚠️ *Melaksanakan kurang lengkap* (${summary.kurang} user)\n`;
   }
-  if (mode === "all" || mode === "belum" || mode === "kurang_belum") {
+  if (showBelum) {
     msg += `❌ *Belum melaksanakan* (${summary.belum} user)\n`;
   }
   msg += "\n";
 
-  if (!divisionKeys.length) {
+  const filteredDivisionKeys = divisionKeys.filter((div) => {
+    const data = statusByDivision[div];
+    if (showLengkap && !showKurang && !showBelum) return data.lengkap.length > 0;
+    if (!showLengkap && showKurang && showBelum) {
+      return data.kurang.length > 0 || data.belum.length > 0;
+    }
+    if (!showLengkap && !showKurang && showBelum) return data.belum.length > 0;
+    return (
+      (showLengkap && data.lengkap.length > 0) ||
+      (showKurang && data.kurang.length > 0) ||
+      (showBelum && data.belum.length > 0)
+    );
+  });
+
+  if (!filteredDivisionKeys.length) {
     msg += "-\n\n";
   } else {
-    divisionKeys.forEach((div, idx, arr) => {
+    filteredDivisionKeys.forEach((div, idx, arr) => {
       const data = statusByDivision[div];
       const totalDiv =
         data.lengkap.length + data.kurang.length + data.belum.length;
       msg += `*${div}* (${totalDiv} user):\n`;
 
-      if (mode === "all" || mode === "sudah") {
+      if (showLengkap) {
         const lengkapUsers = sortUsersByRankAndName(data.lengkap);
         msg += `✅ Lengkap (${data.lengkap.length} user):\n`;
         msg += data.lengkap.length
@@ -381,7 +399,7 @@ export async function absensiLikes(client_id, opts = {}) {
           : "-\n";
       }
 
-      if (mode === "all" || mode === "sudah" || mode === "kurang_belum") {
+      if (showKurang) {
         const kurangUsers = sortUsersByRankAndName(data.kurang);
         msg += `⚠️ Kurang (${data.kurang.length} user):\n`;
         msg += data.kurang.length
@@ -389,7 +407,7 @@ export async function absensiLikes(client_id, opts = {}) {
           : "-\n";
       }
 
-      if (mode === "all" || mode === "belum" || mode === "kurang_belum") {
+      if (showBelum) {
         const belumUsers = sortUsersByRankAndName(data.belum);
         msg += `❌ Belum (${data.belum.length} user):\n`;
         msg += data.belum.length
