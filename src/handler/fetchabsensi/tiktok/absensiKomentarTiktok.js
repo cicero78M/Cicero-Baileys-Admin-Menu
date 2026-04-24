@@ -4,7 +4,10 @@ import {
   getUsersByDirektorat,
   getClientsByRole,
 } from "../../../model/userModel.js";
-import { getPostsTodayByClient } from "../../../model/tiktokPostModel.js";
+import {
+  getPostsOperationalTodayByClient,
+  getPostsTodayByClient,
+} from "../../../model/tiktokPostModel.js";
 import { getCommentsByVideoId } from "../../../model/tiktokCommentModel.js";
 import { getOperationalAttendanceDate } from "../../../utils/attendanceOperationalDate.js";
 import { formatJakartaQueryDateKey } from "../../../utils/dateJakarta.js";
@@ -196,7 +199,7 @@ export async function absensiKomentar(client_id, opts = {}) {
   }
   // Filter out sat intelkam users for direktorat clients
   const users = filterAttendanceUsers(allUsers, clientType);
-  const posts = await getPostsTodayByClient(client_id);
+  const posts = await getPostsOperationalTodayByClient(client_id);
 
   sendDebug({
     tag: "ABSEN TTK",
@@ -661,7 +664,7 @@ export async function absensiKomentarDitbinmasSimple(clientId = "DITBINMAS", opt
   const clientNameUpper = String(clientName || targetClientId).toUpperCase();
   const posts = Array.isArray(opts?.posts)
     ? opts.posts.filter((post) => post?.video_id)
-    : await getPostsTodayByClient(targetClientId);
+    : await getPostsOperationalTodayByClient(targetClientId);
   const periodLabel = String(opts?.periodLabel || "hari ini").trim();
   if (!posts.length)
     return `Tidak ada konten TikTok pada akun Official ${clientNameUpper} untuk periode ${periodLabel}.`;
@@ -818,7 +821,7 @@ export async function absensiKomentarDitbinmasReport(clientId = "DITBINMAS") {
 
   const { tiktok: mainUsername, nama: clientName, clientType } = await getClientInfo(targetClientId);
 
-  const posts = await getPostsTodayByClient(targetClientId);
+  const posts = await getPostsOperationalTodayByClient(targetClientId);
   if (!posts.length)
     return `Tidak ada konten TikTok pada akun Official ${clientName.toUpperCase()} hari ini.`;
   const kontenLinks = posts.map(
@@ -1013,7 +1016,7 @@ export async function lapharTiktokDitbinmas(clientId = "DITBINMAS") {
   const { tiktok: mainUsername, nama: clientName } = await getClientInfo(clientId);
   const clientNameUpper = String(clientName || clientId || roleName).toUpperCase();
 
-  const posts = await getPostsTodayByClient(roleName);
+  const posts = await getPostsOperationalTodayByClient(roleName);
   if (!posts.length)
     return { filename, text: `Tidak ada konten TikTok untuk ${clientNameUpper} hari ini.` };
   const kontenLinks = [];
@@ -1362,7 +1365,7 @@ export async function absensiKomentarTiktokPerKonten(client_id, opts = {}) {
   const allUsers = await getUsersByClient(client_id);
   // Filter out sat intelkam users for direktorat clients
   const users = filterAttendanceUsers(allUsers, clientType);
-  const posts = await getPostsTodayByClient(client_id);
+  const posts = await getPostsOperationalTodayByClient(client_id);
   sendDebug({
     tag: "ABSEN TTK",
     msg: `Start per-konten absensi. Posts=${posts.length} users=${users.length}`,

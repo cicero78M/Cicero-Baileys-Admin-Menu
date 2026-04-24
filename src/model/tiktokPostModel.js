@@ -33,6 +33,18 @@ function jakartaOperationalDateCast(columnAlias = "created_at") {
   return `(${jakartaDateCast(columnAlias)}::date)`;
 }
 
+function jakartaShiftedOperationalDateCast(columnAlias = "created_at") {
+  return `((${jakartaDateCast(columnAlias)} - INTERVAL '17 hours')::date)`;
+}
+
+function resolveShiftedOperationalReferenceDate(referenceDate) {
+  const parsedReferenceDate = referenceDate ? new Date(referenceDate) : new Date();
+  const baseDate = Number.isNaN(parsedReferenceDate.getTime())
+    ? new Date()
+    : parsedReferenceDate;
+  return new Date(baseDate.getTime() - (17 * 60 * 60 * 1000));
+}
+
 /**
  * Ambil satu post TikTok berdasarkan video_id.
  * @param {string} video_id
@@ -203,6 +215,28 @@ export async function getPostsTodayByClient(client_id, referenceDate) {
   const targetDate = resolveJakartaDate(referenceDate);
   const res = await query(
     `SELECT * FROM tiktok_post WHERE LOWER(TRIM(client_id)) = $1 AND ${jakartaOperationalDateCast("created_at")} = $2::date ORDER BY created_at ASC, video_id ASC`,
+    [normalizedId, targetDate]
+  );
+  return res.rows;
+}
+
+/**
+ * Ambil semua TikTok post (row) pada tanggal operasional (cutoff 17:00 WIB)
+ * berdasarkan client_id.
+ *
+ * Contoh: request sebelum jam 17:00 WIB akan membaca data tanggal kalender H-1
+ * untuk menjaga kesinambungan operasional absensi amplifikasi.
+ *
+ * @param {string} client_id
+ * @param {Date|string|number} referenceDate
+ * @returns {Array} Array of post object
+ */
+export async function getPostsOperationalTodayByClient(client_id, referenceDate) {
+  const normalizedId = normalizeClientId(client_id);
+  const shiftedReferenceDate = resolveShiftedOperationalReferenceDate(referenceDate);
+  const targetDate = resolveJakartaDate(shiftedReferenceDate);
+  const res = await query(
+    `SELECT * FROM tiktok_post WHERE LOWER(TRIM(client_id)) = $1 AND ${jakartaShiftedOperationalDateCast("created_at")} = $2::date ORDER BY created_at ASC, video_id ASC`,
     [normalizedId, targetDate]
   );
   return res.rows;
