@@ -199,7 +199,12 @@ export async function absensiKomentar(client_id, opts = {}) {
   }
   // Filter out sat intelkam users for direktorat clients
   const users = filterAttendanceUsers(allUsers, clientType);
-  const posts = await getPostsOperationalTodayByClient(client_id);
+  // Menu OPR "Tugas Hari Ini" menampilkan post berdasarkan tanggal kalender
+  // Jakarta. Gunakan sumber tanggal yang sama untuk absensi operator agar jumlah
+  // target dan daftar link tidak berbeda setelah cutoff operasional pukul 17.00.
+  const posts = isOperatorRole
+    ? await getPostsTodayByClient(client_id)
+    : await getPostsOperationalTodayByClient(client_id);
 
   sendDebug({
     tag: "ABSEN TTK",
