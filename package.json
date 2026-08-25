@@ -30,6 +30,7 @@
     "express-rate-limit": "^6.9.0",
     "express-session": "^1.17.3",
     "jsonwebtoken": "^9.0.0",
+    "link-preview-js": "^3.2.0",
     "md-to-pdf": "^5.2.4",
     "mime-types": "^2.1.35",
     "morgan": "^1.11.0",
