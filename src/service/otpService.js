@@ -13,7 +13,7 @@ function hashOtp(code) {
 export async function generateOtp(nrp, email) {
   const key = normalizeUserId(nrp);
   const em = normalizeEmail(email);
-  const otp = String(Math.floor(100000 + Math.random() * 900000));
+  const otp = String(crypto.randomInt(100000, 1000000));
   const value = JSON.stringify({ hash: hashOtp(otp), email: em, attempts: 0 });
   await redis.set(`otp:${key}`, value, { EX: OTP_TTL_SEC });
   return otp;

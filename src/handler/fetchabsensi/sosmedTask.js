@@ -121,6 +121,11 @@ function pickUniqueBy(items, keyExtractor, sourceExtractor) {
   return Array.from(map.values());
 }
 
+function isManualPost(post) {
+  const source = String(post?.source_type || post?.source || '').toLowerCase();
+  return source.includes('manual');
+}
+
 async function fetchLikesWithAudit(shortcodes, snapshotWindow) {
   if (!Array.isArray(shortcodes) || shortcodes.length === 0) {
     return { likesList: [], auditUsed: false };
@@ -272,9 +277,15 @@ export async function generateSosmedTaskMessage(
   }
 
   const mergedInstaPosts = pickUniqueBy(
-    [...(allInstaPosts || []), ...(additionalInstaPosts || [])],
+    [
+      ...(allInstaPosts || []),
+      ...(additionalInstaPosts || []).map((post) => ({
+        ...post,
+        source_type: post?.source_type || 'manual_input',
+      })),
+    ],
     (post) => post?.shortcode,
-    () => "all"
+    (post) => isManualPost(post) ? "manual" : "official"
   );
   const instaShortcodes = mergedInstaPosts.map((post) => post.shortcode);
   const { likesList: likeResults } = await fetchLikesWithAudit(
@@ -301,6 +312,13 @@ export async function generateSosmedTaskMessage(
     (acc, post) => acc + (likesCountByShortcode.get(post.shortcode) || 0),
     0
   );
+  const officialInstaPosts = mergedInstaPosts.filter((post) => !isManualPost(post));
+  const manualInstaPosts = mergedInstaPosts.filter(isManualPost);
+  const officialIgTotalLikes = officialInstaPosts.reduce(
+    (acc, post) => acc + (likesCountByShortcode.get(post.shortcode) || 0),
+    0
+  );
+  const manualIgTotalLikes = allIgTotalLikes - officialIgTotalLikes;
 
   let mergedTiktokPosts = [];
   try {
@@ -308,7 +326,7 @@ export async function generateSosmedTaskMessage(
     mergedTiktokPosts = pickUniqueBy(
       allTiktokPosts || [],
       (post) => post?.video_id,
-      () => "all"
+      (post) => isManualPost(post) ? "manual" : "official"
     );
     if (!skipTiktokFetch) {
       await handleFetchKomentarTiktokBatch(null, null, clientId, {
@@ -345,6 +363,13 @@ export async function generateSosmedTaskMessage(
     (acc, post) => acc + (commentsCountByVideoId.get(post.video_id) || 0),
     0
   );
+  const officialTiktokPosts = mergedTiktokPosts.filter((post) => !isManualPost(post));
+  const manualTiktokPosts = mergedTiktokPosts.filter(isManualPost);
+  const officialTiktokTotalComments = officialTiktokPosts.reduce(
+    (acc, post) => acc + (commentsCountByVideoId.get(post.video_id) || 0),
+    0
+  );
+  const manualTiktokTotalComments = allTotalComments - officialTiktokTotalComments;
 
   const allIgCount = mergedInstaPosts.length;
   const allTiktokCount = mergedTiktokPosts.length;
@@ -359,6 +384,11 @@ export async function generateSosmedTaskMessage(
     `Total likes semua konten: ${allTotalLikes} \n` +
     `Jumlah konten Tiktok hari ini (total): ${allTiktokCount} \n` +
     `Total komentar semua konten: ${allTotalComments}\n\n` +
+    "Ringkasan sumber:\n" +
+    `- Instagram: ${officialInstaPosts.length} konten | Total likes: ${officialIgTotalLikes}\n` +
+    `- Instagram (manual): ${manualInstaPosts.length} konten | Total likes: ${manualIgTotalLikes}\n` +
+    `- TikTok: ${officialTiktokPosts.length} konten | Total komentar: ${officialTiktokTotalComments}\n` +
+    `- TikTok (manual): ${manualTiktokPosts.length} konten | Total komentar: ${manualTiktokTotalComments}\n\n` +
     "Rincian Instagram:\n";
 
   msg += allIgDetails.length ? allIgDetails.join("\n") : "-";

@@ -3,6 +3,10 @@ import { getShortcodesTodayByClient } from "../../model/instaPostModel.js";
 import { hariIndo } from "../../utils/constants.js";
 import { formatNama } from "../../utils/utilsHelper.js";
 import {
+  formatJakartaDisplayDate,
+  formatJakartaDisplayTime,
+} from "../../utils/dateJakarta.js";
+import {
   normalizeUsername,
   getLikesSets,
   groupUsersByClientDivision,
@@ -25,8 +29,8 @@ export async function getClientInfo(clientId) {
     if (process.env.NODE_ENV !== "test") throw error;
   }
   const info = {
-    nama: res.rows[0]?.nama || clientId,
-    clientType: res.rows[0]?.client_type || null,
+    nama: res?.rows?.[0]?.nama || clientId,
+    clientType: res?.rows?.[0]?.client_type || null,
   };
   if (process.env.NODE_ENV !== "test") {
     clientInfoCache.set(key, info);
@@ -592,4 +596,3 @@ export async function lapharDitbinmas(clientId = "DITBINMAS") {
     textBelum,
   };
 }
-

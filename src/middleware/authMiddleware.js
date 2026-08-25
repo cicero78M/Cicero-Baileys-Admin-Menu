@@ -13,6 +13,8 @@ const operatorAllowlist = [
   { path: '/users', type: 'exact' },
   { path: '/users/create', type: 'exact' },
   { path: '/users/list', type: 'exact' },
+  { path: '/dashboard/stats', type: 'exact' },
+  { path: '/dashboard/login-web/recap', type: 'exact' },
 ];
 
 const operatorMethodAllowlist = [
@@ -21,7 +23,40 @@ const operatorMethodAllowlist = [
   { method: 'POST', pattern: /^\/link-reports-khusus$/ },
   { method: 'PUT', pattern: /^\/link-reports\/[^/]+$/ },
   { method: 'PUT', pattern: /^\/link-reports-khusus\/[^/]+$/ },
+  { method: 'POST', pattern: /^\/dashboard\/komplain\/(insta|tiktok)$/ },
 ];
+
+const readOnlyRoles = new Set([
+  'user',
+  'client',
+  'ditbinmas',
+  'ditlantas',
+  'bidhumas',
+  'ditsamapta',
+  'ditintelkam',
+]);
+
+const reportMutationPatterns = [
+  { method: 'POST', pattern: /^\/link-reports(?:-khusus)?$/ },
+  { method: 'PUT', pattern: /^\/link-reports(?:-khusus)?\/[^/]+$/ },
+];
+
+function isReadOnlyRoleAllowed(req, role) {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return true;
+
+  if (
+    role === 'user' &&
+    req.method === 'PUT' &&
+    /^\/users\/[^/]+\/wa-notification$/.test(req.path)
+  ) {
+    const requestedUserId = req.path.split('/')[2];
+    return String(req.user?.user_id || '') === decodeURIComponent(requestedUserId);
+  }
+
+  return reportMutationPatterns.some(
+    ({ method, pattern }) => method === req.method && pattern.test(req.path)
+  );
+}
 
 function isOperatorAllowedPath(method, pathname) {
   const isPathAllowed = operatorAllowlist.some(({ path, type }) => {
@@ -47,12 +82,20 @@ export function authRequired(req, res, next) {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = decoded;
-    if (decoded.role === 'operator' && !isOperatorAllowedPath(req.method, req.path)) {
+    const role = String(decoded.role || '').toLowerCase();
+    const isScopedClientRole = Boolean(decoded.client_id) &&
+      role === String(decoded.client_id).toLowerCase();
+    if (role === 'operator' && !isOperatorAllowedPath(req.method, req.path)) {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
+    if ((readOnlyRoles.has(role) || isScopedClientRole) && !isReadOnlyRoleAllowed(req, role)) {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
+    if (role !== 'operator' && !readOnlyRoles.has(role) && !isScopedClientRole) {
       return res.status(403).json({ success: false, message: 'Forbidden' });
     }
     next();
-  } catch (err) {
-    // Bisa log err di backend untuk trace
-    return res.status(401).json({ success: false, message: 'Invalid token', error: err.message });
+  } catch {
+    return res.status(401).json({ success: false, message: 'Invalid token' });
   }
 }

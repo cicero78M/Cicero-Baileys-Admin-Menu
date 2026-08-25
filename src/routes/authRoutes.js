@@ -159,9 +159,17 @@ router.post('/user-register', async (req, res) => {
     whatsapp: normalizedWhatsapp,
     divisi,
     jabatan,
-    title
+    title,
+    status: false,
   });
-  return res.status(201).json({ success: true, user_id: user.user_id });
+  queueAdminNotification(
+    `Permintaan registrasi user baru: ${user.user_id} - ${user.nama}`
+  );
+  return res.status(202).json({
+    success: true,
+    user_id: user.user_id,
+    status: 'pending_approval',
+  });
 });
 
 router.post('/user-login', async (req, res) => {
@@ -175,7 +183,7 @@ router.post('/user-login', async (req, res) => {
   const wa = normalizeWhatsappNumber(waInput);
   const rawWa = String(waInput).replace(/\D/g, "");
   const { rows } = await query(
-    'SELECT user_id, nama FROM "user" WHERE user_id = $1 AND (whatsapp = $2 OR whatsapp = $3)',
+    'SELECT user_id, nama, status FROM "user" WHERE user_id = $1 AND status = true AND (whatsapp = $2 OR whatsapp = $3)',
     [nrp, wa, rawWa]
   );
   const user = rows[0];

@@ -12,6 +12,7 @@ import { notFound, errorHandler } from './src/middleware/errorHandler.js';
 import { authRequired } from './src/middleware/authMiddleware.js';
 import { dedupRequest } from './src/middleware/dedupRequestMiddleware.js';
 import { sensitivePathGuard } from './src/middleware/sensitivePathGuard.js';
+import { authLimiter, claimLimiter } from './src/middleware/rateLimiters.js';
 import { startOtpWorker } from './src/service/otpQueue.js';
 
 startOtpWorker().catch(err => console.error('[OTP] worker error', err));
@@ -35,9 +36,9 @@ app.get('/healthz', (req, res) => res.status(200).json({ status: 'ok' }));
 app.all('/_next/dev/', (req, res) => res.status(200).json({ status: 'ok' }));
 
 // ===== ROUTE LOGIN (TANPA TOKEN) =====
-app.use('/api/auth', authRoutes);
-app.use('/api/claim', claimRoutes);
-app.use('/api/health/wa', waHealthRoutes);
+app.use('/api/auth', authLimiter, authRoutes);
+app.use('/api/claim', claimLimiter, claimRoutes);
+app.use('/api/health/wa', authRequired, waHealthRoutes);
 
 // ===== ROUTE LAIN (WAJIB TOKEN) =====
 app.use('/api', authRequired, routes);

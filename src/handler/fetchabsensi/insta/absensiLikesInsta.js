@@ -283,7 +283,8 @@ export async function absensiLikes(client_id, opts = {}) {
   const allUsers = await getUsersByClient(clientFilter || client_id, roleFlag);
   // Filter out excluded satfung users for direktorat clients (sat intel/sat intelkam)
   const users = filterAttendanceUsers(allUsers, clientType);
-  const targetClient = clientFilter || client_id;
+  const targetClient = clientFilter ||
+    (allowedRoles.includes(normalizedRole) ? normalizedRole : client_id);
   let shortcodes;
   try {
     shortcodes = await getShortcodesTodayByClient(targetClient);

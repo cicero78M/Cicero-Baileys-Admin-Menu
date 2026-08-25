@@ -223,7 +223,7 @@ const DIGIT_EMOJI = {
 };
 
 const CHAKRANARAYANA_MENU_GROUPS = {
-  direktorat: ["2", "3", "6", "9", "28", "20", "22", "46", "53", "54"],
+  direktorat: ["2", "3", "6", "9", "20", "22", "28", "46", "53", "54"],
   jajaran: ["1", "48", "49", "55", "56"],
 };
 

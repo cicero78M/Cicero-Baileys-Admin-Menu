@@ -31,6 +31,9 @@ describe('authRequired middleware', () => {
     router.put('/link-reports/abc123', (req, res) => res.json({ success: true }));
     router.put('/link-reports-khusus/xyz789', (req, res) => res.json({ success: true }));
     router.get('/other', (req, res) => res.json({ success: true }));
+    router.post('/other', (req, res) => res.json({ success: true }));
+    router.put('/users/u1/wa-notification', (req, res) => res.json({ success: true }));
+    router.put('/users/u2/wa-notification', (req, res) => res.json({ success: true }));
     app.use('/api', authRequired, router);
   });
 
@@ -207,5 +210,38 @@ describe('authRequired middleware', () => {
       .set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
+  });
+
+  test('blocks user role from mutating arbitrary API routes', async () => {
+    const token = jwt.sign({ user_id: 'u1', role: 'user' }, process.env.JWT_SECRET);
+    const res = await request(app)
+      .post('/api/other')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(403);
+    expect(res.body.success).toBe(false);
+  });
+
+  test('allows user to update their own WhatsApp notification preference', async () => {
+    const token = jwt.sign({ user_id: 'u1', role: 'user' }, process.env.JWT_SECRET);
+    const res = await request(app)
+      .put('/api/users/u1/wa-notification')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+  });
+
+  test('blocks user from updating another user WhatsApp notification preference', async () => {
+    const token = jwt.sign({ user_id: 'u1', role: 'user' }, process.env.JWT_SECRET);
+    const res = await request(app)
+      .put('/api/users/u2/wa-notification')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(403);
+  });
+
+  test('blocks unknown roles by default', async () => {
+    const token = jwt.sign({ user_id: 'x1', role: 'unknown' }, process.env.JWT_SECRET);
+    const res = await request(app)
+      .get('/api/other')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(403);
   });
 });
