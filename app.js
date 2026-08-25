@@ -31,6 +31,7 @@ app.use(dedupRequest);
 app.use(sensitivePathGuard);
 
 app.all('/', (req, res) => res.status(200).json({ status: 'ok' }));
+app.get('/healthz', (req, res) => res.status(200).json({ status: 'ok' }));
 app.all('/_next/dev/', (req, res) => res.status(200).json({ status: 'ok' }));
 
 // ===== ROUTE LOGIN (TANPA TOKEN) =====

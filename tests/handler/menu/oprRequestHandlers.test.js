@@ -270,10 +270,12 @@ describe('oprRequestHandlers - Conditional Menu Display', () => {
       expect(mockSession.engagementMenuMapping).toEqual({
         1: 'likes',
         2: 'komentar',
-        3: 'fetch_post',
-        4: 'tugas_hari_ini',
-        5: 'manual_multi_link',
-        6: 'hapus_multi_link_tugas'
+        3: 'likes_kurang_belum',
+        4: 'komentar_kurang_belum',
+        5: 'fetch_post',
+        6: 'tugas_hari_ini',
+        7: 'manual_multi_link',
+        8: 'hapus_multi_link_tugas'
       });
     });
 
