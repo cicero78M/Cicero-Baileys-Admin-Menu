@@ -6,7 +6,7 @@ import { EventEmitter } from 'events';
 import makeWASocket, {
   DisconnectReason,
   useMultiFileAuthState,
-  fetchLatestBaileysVersion,
+  fetchLatestWaWebVersion,
   makeCacheableSignalKeyStore,
   Browsers,
   delay,
@@ -66,7 +66,8 @@ const DEFAULT_SEND_MESSAGE_RETRY_COUNT = 2;
 const DEFAULT_SEND_MESSAGE_RETRY_DELAY_MS = 1500;
 const DEFAULT_SEND_MESSAGE_BUDGET_MS = 10000;
 const DEFAULT_QUERY_TIMEOUT_MS = 15000;
-const DEFAULT_SYNC_HISTORY = false;
+const DEFAULT_SYNC_HISTORY = true;
+const DEFAULT_PAIRING_CODE_DELAY_MS = 5000;
 
 function parsePositiveIntegerEnv(varName, fallback) {
   const raw = process.env[varName];
@@ -129,6 +130,10 @@ function shouldClearAuthSession() {
   return process.env.WA_AUTH_CLEAR_SESSION_ON_REINIT === 'true';
 }
 
+function isBusinessAccount() {
+  return process.env.WA_BAILEYS_BUSINESS_ACCOUNT === 'true';
+}
+
 const LOGOUT_DISCONNECT_REASONS = new Set([
   DisconnectReason.loggedOut,
   DisconnectReason.badSession,
@@ -182,7 +187,7 @@ export async function createBaileysClient(clientId = 'wa-admin') {
   const msgRetryCounterCache = new NodeCache();
 
   // Fetch latest version info
-  const { version, isLatest } = await fetchLatestBaileysVersion();
+  const { version, isLatest } = await fetchLatestWaWebVersion();
   writeStructuredLog('info', buildStructuredLog({
     clientId,
     event: 'baileys_version_fetched',
@@ -378,7 +383,10 @@ export async function createBaileysClient(clientId = 'wa-admin') {
         keys: makeCacheableSignalKeyStore(state.keys, logger),
       },
       printQRInTerminal: false, // We handle QR ourselves
-      browser: Browsers.ubuntu(clientId),
+      // WhatsApp validates companion_platform_display during code pairing.
+      // Chrome (Windows) is accepted by the current production protocol;
+      // dynamic product names and Chrome (Ubuntu) can be rejected silently.
+      browser: Browsers.windows('Chrome'),
       msgRetryCounterCache,
       defaultQueryTimeoutMs: queryTimeoutMs,
       connectTimeoutMs: 60000,
@@ -477,6 +485,43 @@ export async function createBaileysClient(clientId = 'wa-admin') {
           error: err.message,
         }));
       }
+    },
+
+    async requestPairingCode(phoneNumber) {
+      if (!sock) {
+        throw new Error('Socket not initialized');
+      }
+      if (state.creds.registered) {
+        const error = new Error(
+          `Session ${clientId} sudah terhubung. Gunakan client ID baru agar sesi aktif tidak tertimpa.`
+        );
+        error.code = 'WA_SESSION_ALREADY_REGISTERED';
+        throw error;
+      }
+
+      const normalizedNumber = String(phoneNumber || '').replace(/\D/g, '');
+      if (!/^\d{8,15}$/.test(normalizedNumber)) {
+        const error = new Error('Nomor WhatsApp harus berisi 8-15 digit dengan kode negara.');
+        error.code = 'WA_INVALID_PAIRING_NUMBER';
+        throw error;
+      }
+
+      const pairingDelayMs = parsePositiveIntegerEnv(
+        'WA_BAILEYS_PAIRING_DELAY_MS',
+        DEFAULT_PAIRING_CODE_DELAY_MS
+      );
+      if (pairingDelayMs > 0) {
+        await delay(pairingDelayMs);
+      }
+
+      const code = await sock.requestPairingCode(normalizedNumber);
+      writeStructuredLog('info', buildStructuredLog({
+        clientId,
+        event: 'pairing_code_generated',
+        phoneNumberSuffix: normalizedNumber.slice(-4),
+      }));
+      emitter.emit('pairing_code', code);
+      return code;
     },
 
     async sendMessage(jid, content, options = {}) {

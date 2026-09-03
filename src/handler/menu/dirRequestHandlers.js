@@ -53,6 +53,7 @@ import { saveWeeklyCommentRecapExcel } from "../../service/weeklyCommentRecapExc
 import { generateWeeklyInstagramHighLowReport } from "../../service/weeklyInstagramHighLowService.js";
 import { generateWeeklyTiktokHighLowReport } from "../../service/weeklyTiktokHighLowService.js";
 import { saveMonthlyLikesRecapExcel } from "../../service/monthlyLikesRecapExcelService.js";
+import { saveMonthlyCommentRecapExcel } from "../../service/monthlyCommentRecapExcelService.js";
 import { saveSatkerUpdateMatrixExcel } from "../../service/satkerUpdateMatrixService.js";
 import { saveEngagementRankingExcel } from "../../service/engagementRankingExcelService.js";
 import { generateKasatkerReport } from "../../service/kasatkerReportService.js";
@@ -3789,6 +3790,37 @@ async function performAction(
         }
         break;
       }
+      case "57": {
+        let filePath;
+        try {
+          filePath = await saveMonthlyCommentRecapExcel(clientId);
+          if (!filePath) {
+            msg = "Tidak ada data.";
+            break;
+          }
+          const buffer = await readFile(filePath);
+          await sendWAFile(
+            waClient,
+            buffer,
+            basename(filePath),
+            chatId,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          );
+          msg = "✅ File Excel rekap TikTok bulanan dikirim.";
+        } catch (error) {
+          console.error("Gagal mengirim rekap TikTok bulanan:", error);
+          msg = "❌ Gagal mengirim rekap TikTok bulanan.";
+        } finally {
+          if (filePath) {
+            try {
+              await unlink(filePath);
+            } catch (err) {
+              console.error("Gagal menghapus file sementara:", err);
+            }
+          }
+        }
+        break;
+      }
       case "28": {
         const recapPeriodOptions = context?.recapPeriodOptions || {};
         const shortcodes = await getStandardInstagramTaskShortcodesByRange(clientId, {
@@ -4244,6 +4276,7 @@ export const dirRequestHandlers = {
         "2️⃣6️⃣ Instagram Top and Bottom (Top 5 & Bottom 5)\n\n" +
         "🗓️ *Laporan Bulanan*\n" +
         "2️⃣7️⃣ Rekap file Instagram bulanan\n" +
+        "5️⃣7️⃣ Rekap file TikTok bulanan\n" +
         "2️⃣8️⃣ Rekap like Instagram per konten (Excel)\n" +
         "2️⃣9️⃣ Rekap komentar TikTok per konten (Excel)\n\n" +
         "📦 *Rekap All Data*\n" +
@@ -4442,6 +4475,7 @@ export const dirRequestHandlers = {
           "54",
           "55",
           "56",
+          "57",
         ].includes(choice)
     ) {
       await waClient.sendMessage(chatId, "Pilihan tidak valid. Ketik angka menu.");

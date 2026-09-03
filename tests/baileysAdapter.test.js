@@ -34,7 +34,7 @@ const useMultiFileAuthStateMock = jest.fn().mockResolvedValue({
   state: { creds: {}, keys: {} },
   saveCreds: jest.fn(),
 });
-const fetchLatestBaileysVersionMock = jest.fn().mockResolvedValue({
+const fetchLatestWaWebVersionMock = jest.fn().mockResolvedValue({
   version: [2, 3000, 0],
   isLatest: true,
 });
@@ -50,10 +50,12 @@ jest.unstable_mockModule('@whiskeysockets/baileys', () => ({
     timedOut: 408,
   },
   useMultiFileAuthState: useMultiFileAuthStateMock,
-  fetchLatestBaileysVersion: fetchLatestBaileysVersionMock,
+  fetchLatestWaWebVersion: fetchLatestWaWebVersionMock,
   makeCacheableSignalKeyStore: makeCacheableSignalKeyStoreMock,
   Browsers: {
     ubuntu: (name) => ['Ubuntu', '20.04', name],
+    windows: (name) => ['Windows', name, '10.0.22631'],
+    android: (name) => [name, 'Android', ''],
   },
   delay: jest.fn((ms) => new Promise(resolve => setTimeout(resolve, ms))),
   downloadMediaMessage: jest.fn().mockResolvedValue(Buffer.from('test-media')),
@@ -106,6 +108,7 @@ beforeEach(() => {
   delete process.env.WA_BAILEYS_SEND_BUDGET_MS;
   delete process.env.WA_BAILEYS_SEND_RETRY_COUNT;
   delete process.env.WA_BAILEYS_SEND_RETRY_DELAY_MS;
+  process.env.WA_BAILEYS_PAIRING_DELAY_MS = '0';
 });
 
 test('baileys adapter creates client and emits ready event', async () => {
@@ -113,7 +116,7 @@ test('baileys adapter creates client and emits ready event', async () => {
   
   expect(makeWASocketMock).toHaveBeenCalled();
   expect(useMultiFileAuthStateMock).toHaveBeenCalled();
-  expect(fetchLatestBaileysVersionMock).toHaveBeenCalled();
+  expect(fetchLatestWaWebVersionMock).toHaveBeenCalled();
   
   const readyHandler = jest.fn();
   client.on('ready', readyHandler);
@@ -301,6 +304,24 @@ test('baileys adapter handles QR code generation', async () => {
   }
   
   expect(qrHandler).toHaveBeenCalledWith(qrCode);
+});
+
+test('baileys adapter requests pairing code with normalized international number', async () => {
+  mockSock.requestPairingCode = jest.fn().mockResolvedValue('12345678');
+  const client = await createBaileysClient('pairing-client');
+
+  await expect(client.requestPairingCode('+62 811-3074-4170')).resolves.toBe('12345678');
+  expect(mockSock.requestPairingCode).toHaveBeenCalledWith('6281130744170');
+});
+
+test('baileys adapter rejects an invalid pairing number', async () => {
+  mockSock.requestPairingCode = jest.fn();
+  const client = await createBaileysClient('pairing-client');
+
+  await expect(client.requestPairingCode('123')).rejects.toMatchObject({
+    code: 'WA_INVALID_PAIRING_NUMBER',
+  });
+  expect(mockSock.requestPairingCode).not.toHaveBeenCalled();
 });
 
 test('baileys adapter handles disconnection', async () => {

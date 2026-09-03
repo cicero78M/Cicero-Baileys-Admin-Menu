@@ -2,6 +2,7 @@ import { mkdir } from 'fs/promises';
 import path from 'path';
 import XLSX from 'xlsx';
 import { getRekapKomentarByClient } from '../model/tiktokCommentModel.js';
+import { findAllClientsByType } from './clientService.js';
 
 const MONTH_NAMES_ID = [
   'Januari',
@@ -44,6 +45,12 @@ export function buildMonthRange(now = new Date()) {
 function toNumber(value) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function getSatkerKey(clientId, clientName) {
+  return String(clientId || clientName || '')
+    .trim()
+    .toLowerCase();
 }
 
 function computeColumnWidths(tableRows) {
@@ -100,6 +107,24 @@ export async function generateTiktokAllDataRecap({
   const polresMap = new Map();
   const monthlyTotals = Array(months.length).fill(0);
 
+  const allOrgClients = (await findAllClientsByType('org')) || [];
+  allOrgClients
+    .filter((client) => {
+      if (!regionalId) return true;
+      return String(client?.regional_id || '').toUpperCase() ===
+        String(regionalId).toUpperCase();
+    })
+    .forEach((client) => {
+      const polresName = client?.nama || client?.client_id;
+      const satkerKey = getSatkerKey(client?.client_id, polresName);
+      if (!satkerKey || polresMap.has(satkerKey)) return;
+      polresMap.set(satkerKey, {
+        polres: polresName,
+        monthly: Array(months.length).fill(0),
+        total: 0,
+      });
+    });
+
   for (let i = 0; i < months.length; i += 1) {
     const monthKey = months[i].key;
     // eslint-disable-next-line no-await-in-loop
@@ -116,15 +141,16 @@ export async function generateTiktokAllDataRecap({
     const monthRows = Array.isArray(rows) ? rows : [];
     monthRows.forEach((row) => {
       const polresName = row?.client_name || 'Tidak diketahui';
+      const satkerKey = getSatkerKey(row?.client_id, polresName);
       const commentCount = toNumber(row?.jumlah_komentar);
-      if (!polresMap.has(polresName)) {
-        polresMap.set(polresName, {
+      if (!polresMap.has(satkerKey)) {
+        polresMap.set(satkerKey, {
           polres: polresName,
           monthly: Array(months.length).fill(0),
           total: 0,
         });
       }
-      const current = polresMap.get(polresName);
+      const current = polresMap.get(satkerKey);
       current.monthly[i] += commentCount;
       current.total += commentCount;
       monthlyTotals[i] += commentCount;

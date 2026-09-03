@@ -2501,6 +2501,31 @@ test('choose_menu option 27 reports no data when service returns null', async ()
   );
 });
 
+test('choose_menu option 57 generates monthly TikTok recap excel and sends file', async () => {
+  mockSaveMonthlyCommentRecapExcel.mockResolvedValue('/tmp/monthly-tiktok.xlsx');
+  mockReadFile.mockResolvedValue(Buffer.from('excel'));
+  const session = { selectedClientId: 'ditbinmas', clientName: 'DIT BINMAS' };
+  const chatId = '9921';
+  const waClient = { sendMessage: jest.fn() };
+
+  await dirRequestHandlers.choose_menu(session, chatId, '57', waClient);
+
+  expect(mockSaveMonthlyCommentRecapExcel).toHaveBeenCalledWith('ditbinmas');
+  expect(mockReadFile).toHaveBeenCalledWith('/tmp/monthly-tiktok.xlsx');
+  expect(mockSendWAFile).toHaveBeenCalledWith(
+    waClient,
+    expect.any(Buffer),
+    path.basename('/tmp/monthly-tiktok.xlsx'),
+    chatId,
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  );
+  expect(mockUnlink).toHaveBeenCalledWith('/tmp/monthly-tiktok.xlsx');
+  expect(waClient.sendMessage).toHaveBeenCalledWith(
+    chatId,
+    expect.stringContaining('rekap TikTok bulanan dikirim')
+  );
+});
+
 test('choose_menu option 30 opens Kasatker report submenu', async () => {
   const session = {
     selectedClientId: 'ditbinmas',

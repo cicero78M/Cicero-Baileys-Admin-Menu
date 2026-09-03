@@ -1,9 +1,8 @@
-import { getUsersByClient } from "../model/userModel.js";
 import { getCommentsByVideoId } from "../model/tiktokCommentModel.js";
 import { getPostsTodayByClient } from "../model/tiktokPostModel.js";
 import { getRekapKomentarByClient } from "../model/tiktokCommentModel.js";
 import { formatNama } from "../utils/utilsHelper.js";
-import { matchesKasatBinmasJabatan } from "./kasatkerAttendanceService.js";
+import { buildKasatBinmasRoster } from "./kasatBinmasRosterService.js";
 import { formatJakartaDisplayDate } from "../utils/dateJakarta.js";
 import {
   extractUsernamesFromComments,
@@ -19,6 +18,7 @@ const STATUS_SECTIONS = [
   { key: "sebagian", icon: "🟡", label: "Sebagian (belum semua konten)" },
   { key: "belum", icon: "❌", label: "Belum komentar" },
   { key: "noUsername", icon: "⚠️❌", label: "Belum update akun TikTok" },
+  { key: "noActiveAccount", icon: "🚫", label: "Belum tersedia akun aktif Kasat Binmas" },
 ];
 
 const PANGKAT_ORDER = [
@@ -174,6 +174,11 @@ export function describeKasatBinmasTiktokCommentPeriod(period = "daily", referen
 
 function sortKasatEntries(entries) {
   return entries.slice().sort((a, b) => {
+    if (!a.user || !b.user) {
+      const polresA = String(a.client?.nama || a.client?.client_id || "");
+      const polresB = String(b.client?.nama || b.client?.client_id || "");
+      return polresA.localeCompare(polresB, "id-ID", { sensitivity: "base" });
+    }
     const countA = Number(a.count) || 0;
     const countB = Number(b.count) || 0;
     const countDiff = countB - countA;
@@ -273,12 +278,11 @@ export async function generateKasatBinmasTiktokCommentRecap({
 } = {}) {
   const periodInfo = describePeriod(period, referenceDate);
 
-  const users = await getUsersByClient(DITBINMAS_CLIENT_ID, TARGET_ROLE);
-  const kasatUsers = (users || []).filter((user) => matchesKasatBinmasJabatan(user?.jabatan));
+  const roster = await buildKasatBinmasRoster();
+  const kasatUsers = roster.activeKasatUsers;
 
-  if (!kasatUsers.length) {
-    const totalUsers = users?.length || 0;
-    return `Dari ${totalUsers} user aktif ${DITBINMAS_CLIENT_ID} (${TARGET_ROLE}), tidak ditemukan data Kasat Binmas.`;
+  if (!kasatUsers.length && roster.totalPolres === 0) {
+    return `Dari ${roster.totalPolres} Polres jajaran, belum tersedia akun aktif Kasat Binmas.`;
   }
 
   const recapRows = await getRekapKomentarByClient(
@@ -325,13 +329,14 @@ export async function generateKasatBinmasTiktokCommentRecap({
     }
   }
 
-  const grouped = { lengkap: [], sebagian: [], belum: [], noUsername: [] };
+  const grouped = { lengkap: [], sebagian: [], belum: [], noUsername: [], noActiveAccount: [] };
   const totals = {
     total: kasatUsers.length,
     lengkap: 0,
     sebagian: 0,
     belum: 0,
     noUsername: 0,
+    noActiveAccount: roster.missingPolres.length,
   };
 
   kasatUsers.forEach((user) => {
@@ -348,6 +353,8 @@ export async function generateKasatBinmasTiktokCommentRecap({
     totals[key] += 1;
     grouped[key].push({ user, count });
   });
+  totals.total = roster.totalPolres;
+  grouped.noActiveAccount = roster.missingPolres.map((client) => ({ client }));
 
   const sectionsText = STATUS_SECTIONS.map(({ key, icon, label }) => {
     const entries = sortKasatEntries(grouped[key] || []);
@@ -355,9 +362,13 @@ export async function generateKasatBinmasTiktokCommentRecap({
     if (!entries.length) {
       return header;
     }
-    const lines = entries.map(
-      (entry, idx) => `   ${formatEntryLine(entry, idx + 1, totalKonten)}`
-    );
+    const lines = entries.map((entry, idx) => {
+      if (key === "noActiveAccount") {
+        const polres = String(entry.client?.nama || entry.client?.client_id || "Polres tidak diketahui").toUpperCase();
+        return `   ${idx + 1}. ${polres} — Belum tersedia akun aktif Kasat Binmas`;
+      }
+      return `   ${formatEntryLine(entry, idx + 1, totalKonten)}`;
+    });
     return [header, ...lines].join("\n");
   });
 
@@ -375,18 +386,27 @@ export async function generateKasatBinmasTiktokCommentRecap({
       : "";
 
   const summaryLines = [
-    "📋 *Absensi Komentar TikTok Kasat Binmas*",
+    "*LAPORAN HARIAN ABSENSI MEDIA SOSIAL*",
+    "*KASAT BINMAS JAJARAN POLDA JAWA TIMUR*",
     "",
+    "📋 *Absensi Engagement Kasat Binmas*",
+    "🏢 Satuan: Ditbinmas Polda Jawa Timur",
+    "📱 Platform: TikTok",
+    "📝 Aktivitas: Likes dan Komentar",
     `🗓️ Periode: ${periodInfo.label}`,
+    "━━━━━━━━━━━━━━━━━━━━",
+    "",
     warningMessage,
     "",
     "*Ringkasan:*",
     `- ${totalKontenLine}`,
-    `- Total Kasat Binmas: ${totals.total} pers`,
+    `- Total Polres jajaran: ${roster.totalPolres}`,
+    `- Kasat Binmas dengan akun aktif: ${roster.totalActiveKasat} pers`,
     `- Lengkap: ${totals.lengkap}/${totals.total} pers`,
     `- Sebagian: ${totals.sebagian}/${totals.total} pers`,
     `- Belum komentar: ${totals.belum}/${totals.total} pers`,
     `- Belum update akun TikTok: ${totals.noUsername} pers`,
+    `- Belum tersedia akun aktif Kasat Binmas: ${totals.noActiveAccount} Polres`,
     noKontenNote ? `- ${noKontenNote}` : "",
   ];
 

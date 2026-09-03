@@ -566,7 +566,7 @@ const findSessionCaseMismatch = (authDataPath, clientId) => {
 
 
 // Initialize WhatsApp client via Baileys
-export let waClient = await createBaileysClient();
+export let waClient = await createBaileysClient(env.ADMIN_WA_CLIENT_ID);
 
 const clientReadiness = new Map();
 const adminNotificationQueue = [];

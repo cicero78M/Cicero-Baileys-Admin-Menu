@@ -2,6 +2,7 @@ import { mkdir } from 'fs/promises';
 import path from 'path';
 import XLSX from 'xlsx';
 import { getRekapLikesByClient } from '../model/instaLikeModel.js';
+import { findAllClientsByType } from './clientService.js';
 
 const MONTH_NAMES_ID = [
   'Januari',
@@ -44,6 +45,12 @@ function buildMonthRange(now = new Date()) {
 function toNumber(value) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function getSatkerKey(clientId, clientName) {
+  return String(clientId || clientName || '')
+    .trim()
+    .toLowerCase();
 }
 
 function computeColumnWidths(tableRows) {
@@ -99,6 +106,29 @@ export async function generateInstagramAllDataRecap({
   const months = buildMonthRange();
   const polresMap = new Map();
   const monthlyTotals = Array(months.length).fill(0);
+  const effectiveRoleFlag =
+    String(clientId).trim().toLowerCase() === 'ditbinmas'
+      ? 'ditbinmas'
+      : roleFlag;
+
+  const allOrgClients = (await findAllClientsByType('org')) || [];
+  allOrgClients
+    .filter((client) => {
+      if (!regionalId) return true;
+      return String(client?.regional_id || '').toUpperCase() ===
+        String(regionalId).toUpperCase();
+    })
+    .forEach((client) => {
+      const polresName = client?.nama || client?.client_id;
+      const satkerKey = getSatkerKey(client?.client_id, polresName);
+      if (!satkerKey || polresMap.has(satkerKey)) return;
+      polresMap.set(satkerKey, {
+        clientId: client?.client_id || '',
+        polres: polresName,
+        monthly: Array(months.length).fill(0),
+        total: 0,
+      });
+    });
 
   for (let i = 0; i < months.length; i += 1) {
     const monthKey = months[i].key;
@@ -109,21 +139,23 @@ export async function generateInstagramAllDataRecap({
       monthKey,
       null,
       null,
-      roleFlag,
+      effectiveRoleFlag,
       { regionalId }
     );
 
     rows.forEach((row) => {
       const polresName = row?.client_name || 'Tidak diketahui';
+      const satkerKey = getSatkerKey(row?.client_id, polresName);
       const likeCount = toNumber(row?.jumlah_like);
-      if (!polresMap.has(polresName)) {
-        polresMap.set(polresName, {
+      if (!polresMap.has(satkerKey)) {
+        polresMap.set(satkerKey, {
+          clientId: row?.client_id || '',
           polres: polresName,
           monthly: Array(months.length).fill(0),
           total: 0,
         });
       }
-      const current = polresMap.get(polresName);
+      const current = polresMap.get(satkerKey);
       current.monthly[i] += likeCount;
       current.total += likeCount;
       monthlyTotals[i] += likeCount;

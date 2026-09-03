@@ -3,9 +3,13 @@ import { unlink } from 'fs/promises';
 import XLSX from 'xlsx';
 
 const mockGetRekapKomentarByClient = jest.fn();
+const mockFindAllClientsByType = jest.fn();
 
 jest.unstable_mockModule('../src/model/tiktokCommentModel.js', () => ({
   getRekapKomentarByClient: mockGetRekapKomentarByClient,
+}));
+jest.unstable_mockModule('../src/service/clientService.js', () => ({
+  findAllClientsByType: mockFindAllClientsByType,
 }));
 
 const {
@@ -22,14 +26,19 @@ test('buildMonthRange starts from previous September before September', () => {
 test('generateTiktokAllDataRecap aggregates, sorts, and appends totals', async () => {
   jest.useFakeTimers().setSystemTime(new Date('2024-12-15T00:00:00Z'));
   try {
+    mockFindAllClientsByType.mockResolvedValue([
+      { client_id: 'POLRES_A', nama: 'POLRES A', client_type: 'org' },
+      { client_id: 'POLRES_B', nama: 'POLRES B', client_type: 'org' },
+      { client_id: 'POLRES_C', nama: 'POLRES C', client_type: 'org' },
+    ]);
     const monthlyData = {
-      '2024-09': [{ client_name: 'POLRES B', jumlah_komentar: 5 }],
-      '2024-10': [{ client_name: 'POLRES A', jumlah_komentar: 2 }],
+      '2024-09': [{ client_id: 'POLRES_B', client_name: 'POLRES B', jumlah_komentar: 5 }],
+      '2024-10': [{ client_id: 'POLRES_A', client_name: 'POLRES A', jumlah_komentar: 2 }],
       '2024-11': [
-        { client_name: 'POLRES B', jumlah_komentar: 3 },
-        { client_name: 'POLRES A', jumlah_komentar: 7 },
+        { client_id: 'POLRES_B', client_name: 'POLRES B', jumlah_komentar: 3 },
+        { client_id: 'POLRES_A', client_name: 'POLRES A', jumlah_komentar: 7 },
       ],
-      '2024-12': [{ client_name: 'POLRES A', jumlah_komentar: '4' }],
+      '2024-12': [{ client_id: 'POLRES_A', client_name: 'POLRES A', jumlah_komentar: '4' }],
     };
 
     mockGetRekapKomentarByClient.mockImplementation(async (_clientId, _periode, monthKey) => {
@@ -56,6 +65,8 @@ test('generateTiktokAllDataRecap aggregates, sorts, and appends totals', async (
     expect(dataRows[0].at(-1)).toBe(13);
     expect(dataRows[1][0]).toBe('POLRES B');
     expect(dataRows[1].at(-1)).toBe(8);
+    expect(dataRows[2][0]).toBe('POLRES C');
+    expect(dataRows[2].at(-1)).toBe(0);
 
     const totalRow = aoa.at(-1);
     expect(totalRow[0]).toBe('TOTAL');
@@ -70,6 +81,7 @@ test('generateTiktokAllDataRecap aggregates, sorts, and appends totals', async (
 test('generateTiktokAllDataRecap throws when no data found', async () => {
   jest.useFakeTimers().setSystemTime(new Date('2024-10-05T00:00:00Z'));
   try {
+    mockFindAllClientsByType.mockResolvedValue([]);
     mockGetRekapKomentarByClient.mockResolvedValue([]);
 
     await expect(
