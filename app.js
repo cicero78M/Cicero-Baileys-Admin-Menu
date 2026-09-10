@@ -14,6 +14,7 @@ import { dedupRequest } from './src/middleware/dedupRequestMiddleware.js';
 import { sensitivePathGuard } from './src/middleware/sensitivePathGuard.js';
 import { authLimiter, claimLimiter } from './src/middleware/rateLimiters.js';
 import { startOtpWorker } from './src/service/otpQueue.js';
+import { getWaReadinessSummary } from './src/service/waService.js';
 
 startOtpWorker().catch(err => console.error('[OTP] worker error', err));
 
@@ -33,6 +34,27 @@ app.use(sensitivePathGuard);
 
 app.all('/', (req, res) => res.status(200).json({ status: 'ok' }));
 app.get('/healthz', (req, res) => res.status(200).json({ status: 'ok' }));
+app.get('/readyz', async (_req, res) => {
+  try {
+    const summary = await getWaReadinessSummary();
+    const clients = Object.values(summary?.clients || {}).map((client) => ({
+      label: client.label,
+      ready: Boolean(client.ready),
+      observedState: client.observedState || null,
+      lastLifecycleEvent: client.lastLifecycleEvent || null,
+      lastLifecycleAt: client.lastLifecycleAt || null,
+      awaitingQrScan: Boolean(client.awaitingQrScan),
+    }));
+    const ready = clients.length > 0 && clients.every((client) => client.ready);
+    return res.status(ready ? 200 : 503).json({
+      status: ready ? 'ok' : 'degraded',
+      shouldInitWhatsAppClients: Boolean(summary?.shouldInitWhatsAppClients),
+      clients,
+    });
+  } catch (err) {
+    return res.status(503).json({ status: 'down', message: err?.message || 'WA readiness unavailable' });
+  }
+});
 app.all('/_next/dev/', (req, res) => res.status(200).json({ status: 'ok' }));
 
 // ===== ROUTE LOGIN (TANPA TOKEN) =====
