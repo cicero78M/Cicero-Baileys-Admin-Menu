@@ -7,7 +7,7 @@ describe('oprRequestHandlers - Conditional Menu Display', () => {
   let mockUserModel;
   let mockSession;
   let mockGetShortcodesTodayByClient;
-  let mockGetPostsTodayByClient;
+  let mockGetPostsOperationalTodayByClient;
   
   beforeEach(async () => {
     // Reset all modules before each test
@@ -46,9 +46,9 @@ describe('oprRequestHandlers - Conditional Menu Display', () => {
       getShortcodesTodayByClient: mockGetShortcodesTodayByClient
     }));
 
-    mockGetPostsTodayByClient = jest.fn();
+    mockGetPostsOperationalTodayByClient = jest.fn();
     jest.unstable_mockModule('../../../src/model/tiktokPostModel.js', () => ({
-      getPostsTodayByClient: mockGetPostsTodayByClient
+      getPostsOperationalTodayByClient: mockGetPostsOperationalTodayByClient
     }));
     
     const module = await import('../../../src/handler/menu/oprRequestHandlers.js');
@@ -292,7 +292,7 @@ describe('oprRequestHandlers - Conditional Menu Display', () => {
       });
 
       mockGetShortcodesTodayByClient.mockResolvedValue(['IG123']);
-      mockGetPostsTodayByClient.mockResolvedValue([{ video_id: 'TT999' }]);
+      mockGetPostsOperationalTodayByClient.mockResolvedValue([{ video_id: 'TT999' }]);
 
       mockSession.step = 'kelolaEngagement_menu';
       mockSession.engagementMenuMapping = {
@@ -317,6 +317,9 @@ describe('oprRequestHandlers - Conditional Menu Display', () => {
       expect(sentMessage).toContain('*Tugas Hari Ini*');
       expect(sentMessage).toContain('https://www.instagram.com/p/IG123');
       expect(sentMessage).toContain('https://www.tiktok.com/@testuser/video/TT999');
+      expect(mockGetPostsOperationalTodayByClient).toHaveBeenCalledWith(
+        'TEST_CLIENT'
+      );
     });
   });
 });

@@ -49,7 +49,7 @@ export async function getTiktokComments(req, res, next) {
     const client_id =
       req.query.client_id ||
       req.user?.client_id ||
-      req.headers['x-client-id'];
+      req.headers?.['x-client-id'];
     if (!client_id) {
       return res
         .status(400)
@@ -77,7 +77,7 @@ export async function getTiktokPosts(req, res) {
     const client_id =
       req.query.client_id ||
       req.user?.client_id ||
-      req.headers["x-client-id"];
+      req.headers?.["x-client-id"];
     if (!client_id) {
       return res
         .status(400)
@@ -98,7 +98,7 @@ export async function getTiktokRekapKomentar(req, res) {
   let client_id =
     req.query.client_id ||
     req.user?.client_id ||
-    req.headers['x-client-id'];
+    req.headers?.['x-client-id'];
   const periode = req.query.periode || 'harian';
   const tanggal = req.query.tanggal;
   const startDate = req.query.start_date || req.query.tanggal_mulai;

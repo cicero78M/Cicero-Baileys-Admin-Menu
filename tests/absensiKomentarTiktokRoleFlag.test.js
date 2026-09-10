@@ -49,12 +49,12 @@ test('uses getUsersByDirektorat when roleFlag is a directorate', async () => {
   expect(mockGetUsersByClient).not.toHaveBeenCalled();
 });
 
-test('operator attendance uses the same Jakarta calendar-day posts as Tugas Hari Ini', async () => {
+test('operator attendance uses operational-day posts across the 17:00 WIB cutoff', async () => {
   mockQuery.mockResolvedValueOnce({
     rows: [{ nama: 'POLRES ABC', client_tiktok: '@abc', client_type: 'org' }],
   });
   mockGetUsersByClient.mockResolvedValueOnce([]);
-  mockGetPostsTodayByClient.mockResolvedValueOnce([
+  mockGetPostsOperationalTodayByClient.mockResolvedValueOnce([
     { video_id: '1' },
     { video_id: '2' },
     { video_id: '3' },
@@ -69,8 +69,8 @@ test('operator attendance uses the same Jakarta calendar-day posts as Tugas Hari
     roleFlag: 'operator',
   });
 
-  expect(mockGetPostsTodayByClient).toHaveBeenCalledWith('POLRES');
-  expect(mockGetPostsOperationalTodayByClient).not.toHaveBeenCalled();
+  expect(mockGetPostsOperationalTodayByClient).toHaveBeenCalledWith('POLRES');
+  expect(mockGetPostsTodayByClient).not.toHaveBeenCalled();
   expect(message).toContain('*Jumlah Konten:* 6');
   expect(message).toContain('https://www.tiktok.com/@abc/video/6');
 });

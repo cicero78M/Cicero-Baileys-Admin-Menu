@@ -7,6 +7,7 @@ jest.unstable_mockModule('../src/repository/db.js', () => ({
 }));
 
 let getPostsTodayByClient;
+let getPostsOperationalTodayByClient;
 let getVideoIdsTodayByClient;
 let countPostsByClient;
 
@@ -14,7 +15,7 @@ const toJakartaDateInput = (date) =>
   new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(date);
 
 beforeAll(async () => {
-  ({ getPostsTodayByClient, getVideoIdsTodayByClient, countPostsByClient } = await import(
+  ({ getPostsTodayByClient, getPostsOperationalTodayByClient, getVideoIdsTodayByClient, countPostsByClient } = await import(
     '../src/model/tiktokPostModel.js'
   ));
 });
@@ -60,6 +61,24 @@ test('getPostsTodayByClient respects Jakarta-normalized referenceDate on non-WIB
   } finally {
     process.env.TZ = originalTZ;
   }
+});
+
+test('getPostsOperationalTodayByClient keeps post-upload bucket across 17:00 WIB cutoff', async () => {
+  mockQuery
+    .mockResolvedValueOnce({ rows: [] })
+    .mockResolvedValueOnce({ rows: [] });
+  const afterCutoff = new Date('2026-09-09T14:00:00.000Z'); // 21:00 WIB
+  const beforeNextCutoff = new Date('2026-09-10T03:00:00.000Z'); // 10:00 WIB
+
+  await getPostsOperationalTodayByClient('JOMBANG', afterCutoff);
+  await getPostsOperationalTodayByClient('JOMBANG', beforeNextCutoff);
+
+  const [sql, afterCutoffParams] = mockQuery.mock.calls[0];
+  const [, beforeNextCutoffParams] = mockQuery.mock.calls[1];
+  expect(sql).toMatch(/INTERVAL '17 hours'/i);
+  expect(sql).toMatch(/ORDER BY\s+created_at\s+ASC,\s+video_id\s+ASC/i);
+  expect(afterCutoffParams).toEqual(['jombang', '2026-09-09']);
+  expect(beforeNextCutoffParams).toEqual(['jombang', '2026-09-09']);
 });
 
 test('getVideoIdsTodayByClient applies Jakarta date filter for reference date', async () => {
