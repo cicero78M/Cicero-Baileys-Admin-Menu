@@ -10,6 +10,12 @@ export const env = cleanEnv(process.env, {
   DB_NAME: str({ default: '' }),
   DB_PASS: str({ default: '' }),
   DB_PORT: port({ default: 5432 }),
+  // Keep this service from consuming the database capacity needed by the
+  // web backend and other CICERO workers.
+  DB_POOL_MAX: num({ default: 5 }),
+  DB_IDLE_TIMEOUT_MS: num({ default: 30000 }),
+  DB_CONNECT_TIMEOUT_MS: num({ default: 5000 }),
+  DB_QUERY_TIMEOUT_MS: num({ default: 12000 }),
   DB_DRIVER: str({ default: 'postgres' }),
   REDIS_URL: str({ default: 'redis://localhost:6379' }),
   CORS_ORIGIN: str({ default: '*' }),
