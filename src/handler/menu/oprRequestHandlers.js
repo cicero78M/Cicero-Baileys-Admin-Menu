@@ -343,13 +343,13 @@ async function sendTodayEngagementTasks(session, chatId, waClient, pool) {
   }
 
   const { getShortcodesTodayByClient } = await import("../../model/instaPostModel.js");
-  const { getPostsOperationalTodayByClient } = await import(
+  const { getPostsTodayByClient } = await import(
     "../../model/tiktokPostModel.js"
   );
 
   const [instagramShortcodes, tiktokPosts] = await Promise.all([
     getShortcodesTodayByClient(client.client_id),
-    getPostsOperationalTodayByClient(client.client_id),
+    getPostsTodayByClient(client.client_id),
   ]);
 
   const instagramLinks = instagramShortcodes.map(

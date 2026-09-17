@@ -1,6 +1,13 @@
 // src/model/userModel.js
 
 import { query } from '../repository/db.js';
+
+function getSocialUsernameSelect(alias = 'u') {
+  return {
+    insta: `COALESCE((SELECT usa.username FROM user_social_accounts usa WHERE usa.user_id = ${alias}.user_id AND LOWER(usa.platform) = 'instagram' AND usa.is_active = TRUE ORDER BY usa.account_order ASC, usa.created_at ASC LIMIT 1), ${alias}.insta)`,
+    tiktok: `COALESCE((SELECT usa.username FROM user_social_accounts usa WHERE usa.user_id = ${alias}.user_id AND LOWER(usa.platform) = 'tiktok' AND usa.is_active = TRUE ORDER BY usa.account_order ASC, usa.created_at ASC LIMIT 1), ${alias}.tiktok)`,
+  };
+}
 import { PRIORITY_USER_NAMES } from '../utils/constants.js';
 import { normalizeEmail, normalizeUserId } from '../utils/utilsHelper.js';
 import { minPhoneDigitLength, normalizeWhatsappNumber } from '../utils/waHelper.js';
@@ -154,7 +161,7 @@ async function buildClientFilter(
       clause = `EXISTS (
         SELECT 1 FROM user_roles ur
         JOIN roles r ON ur.role_id = r.role_id
-        WHERE ur.user_id = ${alias}.user_id AND r.role_name = ${rolePlaceholder}
+        WHERE ur.user_id = ${alias}.user_id AND LOWER(r.role_name) = LOWER(${rolePlaceholder})
       )`;
       params.push(roleName);
     } else {
@@ -216,8 +223,9 @@ export async function getClientsByRole(roleName, clientId = null) {
 // Ambil semua user aktif (status = true), tanpa filter insta
 export async function getUsersByClient(client_id, roleFilter = null) {
   const { clause, params } = await buildClientFilter(client_id, 'u', 1, roleFilter);
+  const social = getSocialUsernameSelect('u');
   const res = await query(
-    `SELECT u.user_id, u.nama, u.tiktok, u.insta, u.divisi, u.title, u.status, u.exception, u.jabatan,
+    `SELECT u.user_id, u.nama, ${social.tiktok} AS tiktok, ${social.insta} AS insta, u.divisi, u.title, u.status, u.exception, u.jabatan,
             u.whatsapp, u.email, u.client_id, c.nama AS client_name, c.regional_id AS regional_id
      FROM "user" u
      LEFT JOIN clients c ON LOWER(c.client_id) = LOWER(u.client_id)
@@ -229,8 +237,9 @@ export async function getUsersByClient(client_id, roleFilter = null) {
 
 // Ambil semua user aktif berdasarkan client_id yang spesifik dan role tertentu
 export async function getUsersByClientAndRole(client_id, roleFilter = null) {
+  const social = getSocialUsernameSelect('u');
   const params = [client_id];
-  let sql = `SELECT u.user_id, u.nama, u.tiktok, u.insta, u.divisi, u.title, u.status, u.exception, u.jabatan,
+  let sql = `SELECT u.user_id, u.nama, ${social.tiktok} AS tiktok, ${social.insta} AS insta, u.divisi, u.title, u.status, u.exception, u.jabatan,
             u.whatsapp, u.email, u.client_id, c.nama AS client_name, c.regional_id AS regional_id
      FROM "user" u
      LEFT JOIN clients c ON LOWER(c.client_id) = LOWER(u.client_id)
@@ -267,8 +276,9 @@ export async function getOperatorsByClient(client_id) {
 // Ambil semua user aktif (status = true/NULL), khusus absensi TikTok
 export async function getUsersByClientFull(client_id, roleFilter = null) {
   const { clause, params } = await buildClientFilter(client_id, 'u', 1, roleFilter);
+  const social = getSocialUsernameSelect('u');
   const res = await query(
-    `SELECT user_id, nama, tiktok, divisi, title, exception
+    `SELECT user_id, nama, ${social.tiktok} AS tiktok, divisi, title, exception
      FROM "user" u
      WHERE ${clause} AND (status IS TRUE OR status IS NULL)`,
     params
@@ -299,10 +309,11 @@ export async function getAllUsers(client_id, roleFilter = null) {
 // Ambil user yang SUDAH mengisi Instagram (status true)
 export async function getInstaFilledUsersByClient(clientId, roleFilter = null) {
   const { clause, params } = await buildClientFilter(clientId, 'u', 1, roleFilter);
+  const social = getSocialUsernameSelect('u');
   const result = await query(
-    `SELECT divisi, nama, user_id, title, insta
+    `SELECT divisi, nama, user_id, title, ${social.insta} AS insta
      FROM "user" u
-     WHERE ${clause} AND insta IS NOT NULL AND insta <> '' AND status = true
+     WHERE ${clause} AND ${social.insta} IS NOT NULL AND ${social.insta} <> '' AND status = true
      ORDER BY ${NAME_PRIORITY_CASE_U}, divisi, nama`,
     params
   );
@@ -312,10 +323,11 @@ export async function getInstaFilledUsersByClient(clientId, roleFilter = null) {
 // Ambil user yang BELUM mengisi Instagram (status true)
 export async function getInstaEmptyUsersByClient(clientId, roleFilter = null) {
   const { clause, params } = await buildClientFilter(clientId, 'u', 1, roleFilter);
+  const social = getSocialUsernameSelect('u');
   const result = await query(
     `SELECT divisi, nama, user_id, title
      FROM "user" u
-     WHERE ${clause} AND (insta IS NULL OR insta = '') AND status = true
+     WHERE ${clause} AND (${social.insta} IS NULL OR ${social.insta} = '') AND status = true
      ORDER BY ${NAME_PRIORITY_CASE_U}, divisi, nama`,
     params
   );
@@ -325,10 +337,11 @@ export async function getInstaEmptyUsersByClient(clientId, roleFilter = null) {
 // Ambil user yang SUDAH mengisi TikTok (status true)
 export async function getTiktokFilledUsersByClient(clientId, roleFilter = null) {
   const { clause, params } = await buildClientFilter(clientId, 'u', 1, roleFilter);
+  const social = getSocialUsernameSelect('u');
   const result = await query(
-    `SELECT divisi, nama, user_id, title, tiktok
+    `SELECT divisi, nama, user_id, title, ${social.tiktok} AS tiktok
      FROM "user" u
-     WHERE ${clause} AND tiktok IS NOT NULL AND tiktok <> '' AND status = true
+     WHERE ${clause} AND ${social.tiktok} IS NOT NULL AND ${social.tiktok} <> '' AND status = true
      ORDER BY ${NAME_PRIORITY_CASE_U}, divisi, nama`,
     params
   );
@@ -338,10 +351,11 @@ export async function getTiktokFilledUsersByClient(clientId, roleFilter = null) 
 // Ambil user yang BELUM mengisi TikTok (status true)
 export async function getTiktokEmptyUsersByClient(clientId, roleFilter = null) {
   const { clause, params } = await buildClientFilter(clientId, 'u', 1, roleFilter);
+  const social = getSocialUsernameSelect('u');
   const result = await query(
     `SELECT divisi, nama, user_id, title
      FROM "user" u
-     WHERE ${clause} AND (tiktok IS NULL OR tiktok = '') AND status = true
+     WHERE ${clause} AND (${social.tiktok} IS NULL OR ${social.tiktok} = '') AND status = true
      ORDER BY ${NAME_PRIORITY_CASE_U}, divisi, nama`,
     params
   );
@@ -406,8 +420,9 @@ export async function getUsersSocialByClient(clientId, roleFilter = null) {
     }
   }
 
+  const social = getSocialUsernameSelect('u');
   const res = await query(
-      `SELECT u.user_id, u.nama, u.title, u.divisi, u.insta, u.tiktok, u.client_id, u.status
+      `SELECT u.user_id, u.nama, u.title, u.divisi, ${social.insta} AS insta, ${social.tiktok} AS tiktok, u.client_id, u.status
        FROM "user" u
        WHERE ${directorateClause} AND status = true
        ORDER BY u.client_id, u.divisi, u.nama`,
@@ -564,10 +579,13 @@ export async function getUsersByDirektorat(flag, clientId = null) {
   }
 
   const params = [flag];
+  const social = getSocialUsernameSelect('u');
   let p = 2;
 
   let sql = `SELECT
       u.*,
+      ${social.insta} AS effective_insta,
+      ${social.tiktok} AS effective_tiktok,
       c.regional_id AS regional_id,
       bool_or(r.role_name='ditbinmas') AS ditbinmas,
       bool_or(r.role_name='ditlantas') AS ditlantas,
@@ -607,7 +625,10 @@ export async function getUsersByDirektorat(flag, clientId = null) {
   console.log('[USER MODEL] getUsersByDirektorat Params:', params);
   const { rows } = await query(sql, params);
   console.log(`[USER MODEL] getUsersByDirektorat returning ${rows.length} users`);
-  return rows;
+  return rows.map((row) => {
+    const { effective_insta, effective_tiktok, ...user } = row;
+    return { ...user, tiktok_legacy: user.tiktok, insta: effective_insta ?? user.insta, tiktok: effective_tiktok ?? user.tiktok };
+  });
 }
 
 

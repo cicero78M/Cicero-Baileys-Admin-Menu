@@ -4,10 +4,7 @@ import {
   getUsersByDirektorat,
   getClientsByRole,
 } from "../../../model/userModel.js";
-import {
-  getPostsOperationalTodayByClient,
-  getPostsTodayByClient,
-} from "../../../model/tiktokPostModel.js";
+import { getPostsTodayByClient } from "../../../model/tiktokPostModel.js";
 import { getCommentsByVideoId } from "../../../model/tiktokCommentModel.js";
 import { getOperationalAttendanceDate } from "../../../utils/attendanceOperationalDate.js";
 import { formatJakartaQueryDateKey } from "../../../utils/dateJakarta.js";
@@ -67,6 +64,14 @@ export function normalizeUsername(username) {
     .trim()
     .replace(/^@/, "")
     .toLowerCase();
+}
+
+export function getTikTokUsernameAliases(user) {
+  return [...new Set(
+    [user?.effective_tiktok, user?.tiktok_legacy, user?.tiktok]
+      .filter((value) => typeof value === "string" && value.trim() !== "")
+      .map(normalizeUsername),
+  )];
 }
 
 // Use the comprehensive sorting function from sortingHelper
@@ -164,9 +169,9 @@ export async function collectKomentarRecap(clientId, opts = {}) {
           nama: u.nama || "",
           satfung: div,
         };
+        const usernameAliases = getTikTokUsernameAliases(u);
         videoIds.forEach((vid, idx) => {
-          const uname = normalizeUsername(u.tiktok);
-          row[vid] = uname && commentSets[idx].has(uname) ? 1 : 0;
+          row[vid] = usernameAliases.some((username) => commentSets[idx].has(username)) ? 1 : 0;
         });
         rows.push(row);
       });
@@ -199,10 +204,9 @@ export async function absensiKomentar(client_id, opts = {}) {
   }
   // Filter out sat intelkam users for direktorat clients
   const users = filterAttendanceUsers(allUsers, clientType);
-  // Seluruh rekap absensi memakai hari operasional dengan cutoff 17.00 WIB.
-  // Ini menjaga post yang diunggah setelah 17.00 tetap masuk pada rekap
-  // operasional yang sama, termasuk alur operator pada menu oprrequest.
-  const posts = await getPostsOperationalTodayByClient(client_id);
+  // Rekap absensi dan tugas hari ini harus memakai tanggal kalender Jakarta.
+  // Bucket operasional H-1 sebelum 17.00 WIB dapat memasukkan tugas kemarin.
+  const posts = await getPostsTodayByClient(client_id);
 
   sendDebug({
     tag: "ABSEN TTK",
@@ -256,11 +260,7 @@ export async function absensiKomentar(client_id, opts = {}) {
 
   commentSets.forEach((commentSet) => {
     users.forEach((u) => {
-      if (
-        u.tiktok &&
-        u.tiktok.trim() !== "" &&
-        commentSet.has(u.tiktok.replace(/^@/, "").toLowerCase())
-      ) {
+      if (getTikTokUsernameAliases(u).some((username) => commentSet.has(username))) {
         userStats[u.user_id].count += 1;
       }
     });
@@ -274,7 +274,7 @@ export async function absensiKomentar(client_id, opts = {}) {
       {
         totalTarget: totalKonten,
         getCount: (u) => u.count || 0,
-        hasUsername: (u) => !!(u.tiktok && u.tiktok.trim() !== ""),
+        hasUsername: (u) => getTikTokUsernameAliases(u).length > 0,
       }
     );
 
@@ -388,7 +388,8 @@ export async function absensiKomentar(client_id, opts = {}) {
         };
       const g = groups[cid];
       g.total++;
-      if (!u.tiktok || u.tiktok.trim() === "") {
+      const usernameAliases = getTikTokUsernameAliases(u);
+      if (usernameAliases.length === 0) {
         g.noUsername++;
       } else if (u.count >= Math.ceil(totalKonten / 2)) {
         g.sudah++;
@@ -667,7 +668,7 @@ export async function absensiKomentarDitbinmasSimple(clientId = "DITBINMAS", opt
   const clientNameUpper = String(clientName || targetClientId).toUpperCase();
   const posts = Array.isArray(opts?.posts)
     ? opts.posts.filter((post) => post?.video_id)
-    : await getPostsOperationalTodayByClient(targetClientId);
+    : await getPostsTodayByClient(targetClientId);
   const periodLabel = String(opts?.periodLabel || "hari ini").trim();
   if (!posts.length)
     return `Tidak ada konten TikTok pada akun Official ${clientNameUpper} untuk periode ${periodLabel}.`;
@@ -719,14 +720,14 @@ export async function absensiKomentarDitbinmasSimple(clientId = "DITBINMAS", opt
   };
 
   allUsers.forEach((u) => {
-    if (!u.tiktok || u.tiktok.trim() === "") {
+    const usernameAliases = getTikTokUsernameAliases(u);
+    if (usernameAliases.length === 0) {
       categorizedUsers.tanpaUsername.push(u);
       return;
     }
-    const uname = normalizeUsername(u.tiktok);
     let count = 0;
     commentSets.forEach((set) => {
-      if (set.has(uname)) count += 1;
+      if (usernameAliases.some((username) => set.has(username))) count += 1;
     });
     if (count === posts.length) {
       categorizedUsers.lengkap.push(u);
@@ -824,7 +825,7 @@ export async function absensiKomentarDitbinmasReport(clientId = "DITBINMAS") {
 
   const { tiktok: mainUsername, nama: clientName, clientType } = await getClientInfo(targetClientId);
 
-  const posts = await getPostsOperationalTodayByClient(targetClientId);
+  const posts = await getPostsTodayByClient(targetClientId);
   if (!posts.length)
     return `Tidak ada konten TikTok pada akun Official ${clientName.toUpperCase()} hari ini.`;
   const kontenLinks = posts.map(
@@ -891,20 +892,19 @@ export async function absensiKomentarDitbinmasReport(clientId = "DITBINMAS") {
 
     users.forEach((u) => {
       const baseData = { user: u, commentCount: 0 };
-      if (!u.tiktok || u.tiktok.trim() === "") {
+      const usernameAliases = getTikTokUsernameAliases(u);
+      if (usernameAliases.length === 0) {
         tanpaUsername.push(baseData);
         return;
       }
-      const uname = normalizeUsername(u.tiktok);
       let count = 0;
       commentSets.forEach((set) => {
-        if (set.has(uname)) count += 1;
+        if (usernameAliases.some((username) => set.has(username))) count += 1;
       });
       totalPelaksanaanDivisi += count;
       const payload = { user: u, commentCount: count };
-      const percentage = totalKonten ? (count / totalKonten) * 100 : 0;
-      if (percentage >= 50) sudah.push(payload);
-      else if (percentage > 0) kurang.push(payload);
+      if (count === totalKonten) sudah.push(payload);
+      else if (count > 0) kurang.push(payload);
       else belum.push(payload);
     });
 
@@ -1019,7 +1019,7 @@ export async function lapharTiktokDitbinmas(clientId = "DITBINMAS") {
   const { tiktok: mainUsername, nama: clientName } = await getClientInfo(clientId);
   const clientNameUpper = String(clientName || clientId || roleName).toUpperCase();
 
-  const posts = await getPostsOperationalTodayByClient(roleName);
+  const posts = await getPostsTodayByClient(roleName);
   if (!posts.length)
     return { filename, text: `Tidak ada konten TikTok untuk ${clientNameUpper} hari ini.` };
   const kontenLinks = [];
@@ -1128,17 +1128,17 @@ export async function lapharTiktokDitbinmas(clientId = "DITBINMAS") {
     let noTiktok = 0;
 
     users.forEach((u) => {
-      if (!u.insta || u.insta.trim() === "") {
+      if (getTikTokUsernameAliases(u).length === 0) {
         noUname.push(u);
       }
-      if (!u.tiktok || u.tiktok.trim() === "") {
+      const usernameAliases = getTikTokUsernameAliases(u);
+      if (usernameAliases.length === 0) {
         noTiktok++;
         return;
       }
-      const uname = normalizeUsername(u.tiktok);
       let count = 0;
       commentSets.forEach((set) => {
-        if (set.has(uname)) count += 1;
+        if (usernameAliases.some((username) => set.has(username))) count += 1;
       });
       if (count === posts.length) already.push({ ...u, count });
       else if (count > 0) partial.push({ ...u, count });
@@ -1368,7 +1368,7 @@ export async function absensiKomentarTiktokPerKonten(client_id, opts = {}) {
   const allUsers = await getUsersByClient(client_id);
   // Filter out sat intelkam users for direktorat clients
   const users = filterAttendanceUsers(allUsers, clientType);
-  const posts = await getPostsOperationalTodayByClient(client_id);
+  const posts = await getPostsTodayByClient(client_id);
   sendDebug({
     tag: "ABSEN TTK",
     msg: `Start per-konten absensi. Posts=${posts.length} users=${users.length}`,

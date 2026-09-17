@@ -4,7 +4,10 @@ import { getShortcodesTodayByClient } from "../model/instaPostModel.js";
 import { getPostsTodayByClient } from "../model/tiktokPostModel.js";
 import { getLikesSets, normalizeUsername as normalizeInstagramUsername } from "../utils/likesHelper.js";
 import { getCommentsByVideoId } from "../model/tiktokCommentModel.js";
-import { extractUsernamesFromComments, normalizeUsername as normalizeTiktokUsername } from "../handler/fetchabsensi/tiktok/absensiKomentarTiktok.js";
+import {
+  extractUsernamesFromComments,
+  normalizeUsername as normalizeTiktokUsername,
+} from "../handler/fetchabsensi/tiktok/absensiKomentarTiktok.js";
 import { filterAttendanceUsers } from "../utils/utilsHelper.js";
 import { getOperationalAttendanceDate, formatOperationalDateLabel } from "../utils/attendanceOperationalDate.js";
 import { formatJakartaDisplayDate, formatJakartaDisplayTime } from "../utils/dateJakarta.js";
@@ -22,6 +25,14 @@ const isSatIntelkamDivision = (division) => {
     normalized === "satintelkam"
   );
 };
+
+function getTikTokUsernameAliases(user) {
+  return [...new Set(
+    [user?.effective_tiktok, user?.tiktok_legacy, user?.tiktok]
+      .filter((value) => typeof value === "string" && value.trim() !== "")
+      .map(normalizeTiktokUsername),
+  )];
+}
 
 const shouldApplyChakranarayanaJajaranSatikFilter = (options, client) =>
   options?.menuName === "chakranarayana" &&
@@ -378,19 +389,19 @@ export async function collectTiktokJajaranAttendance(clientId, roleFlag = null, 
     }
     
     const totalPersonil = users.length;
-    const sudahInputUsername = users.filter((u) => u.tiktok && u.tiktok.trim() !== "").length;
+    const sudahInputUsername = users.filter((u) => getTikTokUsernameAliases(u).length > 0).length;
     const belumInputUsername = totalPersonil - sudahInputUsername;
     
     // Calculate execution stats
     let sudahMelaksanakan = 0;
     let melaksanakanKurangLengkap = 0;
     users.forEach((u) => {
-      if (!u.tiktok || u.tiktok.trim() === "") return;
-      
-      const uname = normalizeTiktokUsername(u.tiktok);
+      const usernameAliases = getTikTokUsernameAliases(u);
+      if (usernameAliases.length === 0) return;
+
       let count = 0;
       commentSets.forEach((set) => {
-        if (set.has(uname)) count += 1;
+        if (usernameAliases.some((username) => set.has(username))) count += 1;
       });
       
       if (count >= totalKonten) {

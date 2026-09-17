@@ -47,7 +47,7 @@ export async function upsertInstaPost(data) {
   // created_at bisa dihandle via taken_at di service (lihat service)
   await query(
     `INSERT INTO insta_post_khusus (client_id, shortcode, caption, comment_count, like_count, thumbnail_url, is_video, video_url, image_url, images_url, is_carousel, source_type, created_at, original_created_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,COALESCE($13::timestamp, NOW()), $14::timestamptz)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,COALESCE(($13::timestamptz AT TIME ZONE 'Asia/Jakarta'), (NOW() AT TIME ZONE 'Asia/Jakarta')), $14::timestamptz)
      ON CONFLICT (shortcode) DO UPDATE
       SET client_id = EXCLUDED.client_id,
           caption = EXCLUDED.caption,
@@ -143,7 +143,7 @@ export async function getPostsByClientAndDateRange(
 
   if (days) {
     const safeDays = parseInt(days);
-    text += ` AND created_at >= NOW() - INTERVAL '${safeDays} days'`;
+    text += ` AND created_at >= (NOW() AT TIME ZONE 'Asia/Jakarta') - INTERVAL '${safeDays} days'`;
   } else {
     if (startDate) {
       values.push(startDate);

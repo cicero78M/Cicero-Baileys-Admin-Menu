@@ -6,6 +6,7 @@ import { getNamaPriorityIndex } from '../utils/sqlPriority.js';
 import { getRekapKomentarByClient } from '../model/tiktokCommentModel.js';
 import { countPostsByClient } from '../model/tiktokPostModel.js';
 import { generateSheetName } from '../utils/excelHelper.js';
+import { formatJakartaQueryDateKey } from '../utils/dateJakarta.js';
 
 const RANK_ORDER = [
   'KOMISARIS BESAR POLISI',
@@ -31,8 +32,15 @@ function rankWeight(rank) {
 
 export async function saveMonthlyCommentRecapExcel(clientId, { regionalId } = {}) {
   const now = new Date();
-  const startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-  const endDate = new Date(now);
+  // Use the operational date in Asia/Jakarta. The process timezone may be UTC,
+  // which otherwise makes Menu 57 switch month at the wrong time.
+  const operationalDateKey = formatJakartaQueryDateKey(now);
+  const [operationalYear, operationalMonth] = operationalDateKey
+    .split('-')
+    .map(Number);
+  const startDate = new Date(Date.UTC(operationalYear, operationalMonth - 1, 1));
+  const endDate = new Date(Date.UTC(operationalYear, operationalMonth - 1, 1));
+  endDate.setUTCDate(Number(operationalDateKey.split('-')[2]));
 
   const formatIso = (d) => d.toISOString().slice(0, 10);
   const formatDisplay = (d) =>
@@ -43,7 +51,7 @@ export async function saveMonthlyCommentRecapExcel(clientId, { regionalId } = {}
     });
 
   const dateList = [];
-  for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+  for (let d = new Date(startDate); d <= endDate; d.setUTCDate(d.getUTCDate() + 1)) {
     dateList.push(formatIso(d));
   }
 

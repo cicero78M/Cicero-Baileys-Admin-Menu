@@ -15,6 +15,7 @@ import { sensitivePathGuard } from './src/middleware/sensitivePathGuard.js';
 import { authLimiter, claimLimiter } from './src/middleware/rateLimiters.js';
 import { startOtpWorker } from './src/service/otpQueue.js';
 import { getWaReadinessSummary } from './src/service/waService.js';
+import { close as closeDatabase } from './src/db/postgres.js';
 
 startOtpWorker().catch(err => console.error('[OTP] worker error', err));
 
@@ -70,4 +71,23 @@ app.use(notFound);
 app.use(errorHandler);
 
 const PORT = env.PORT;
-app.listen(PORT, () => console.log(`Backend server running on port ${PORT}`));
+const server = app.listen(PORT, () => console.log(`Backend server running on port ${PORT}`));
+
+let shuttingDown = false;
+for (const signal of ['SIGTERM', 'SIGINT']) {
+  process.once(signal, async () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`[APP] ${signal} received; draining HTTP server and database pool`);
+    const forceExit = setTimeout(() => process.exit(1), 10_000);
+    forceExit.unref();
+    try {
+      await new Promise((resolve) => server.close(resolve));
+      await closeDatabase();
+      process.exit(0);
+    } catch (error) {
+      console.error('[APP] Graceful shutdown failed:', error?.message || error);
+      process.exit(1);
+    }
+  });
+}

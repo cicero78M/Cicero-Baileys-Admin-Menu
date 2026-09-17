@@ -41,7 +41,7 @@ beforeEach(() => {
 test('uses getUsersByDirektorat when roleFlag is a directorate', async () => {
   mockQuery.mockResolvedValueOnce({ rows: [{ nama: 'POLRES ABC', client_tiktok: '@abc', client_type: 'org' }] });
   mockGetUsersByDirektorat.mockResolvedValueOnce([]);
-  mockGetPostsOperationalTodayByClient.mockResolvedValueOnce([]);
+  mockGetPostsTodayByClient.mockResolvedValueOnce([]);
 
   await absensiKomentar('POLRES', { roleFlag: 'ditbinmas' });
 
@@ -49,12 +49,12 @@ test('uses getUsersByDirektorat when roleFlag is a directorate', async () => {
   expect(mockGetUsersByClient).not.toHaveBeenCalled();
 });
 
-test('operator attendance uses operational-day posts across the 17:00 WIB cutoff', async () => {
+test('operator attendance uses calendar-day posts and excludes yesterday tasks', async () => {
   mockQuery.mockResolvedValueOnce({
     rows: [{ nama: 'POLRES ABC', client_tiktok: '@abc', client_type: 'org' }],
   });
   mockGetUsersByClient.mockResolvedValueOnce([]);
-  mockGetPostsOperationalTodayByClient.mockResolvedValueOnce([
+  mockGetPostsTodayByClient.mockResolvedValueOnce([
     { video_id: '1' },
     { video_id: '2' },
     { video_id: '3' },
@@ -69,8 +69,8 @@ test('operator attendance uses operational-day posts across the 17:00 WIB cutoff
     roleFlag: 'operator',
   });
 
-  expect(mockGetPostsOperationalTodayByClient).toHaveBeenCalledWith('POLRES');
-  expect(mockGetPostsTodayByClient).not.toHaveBeenCalled();
+  expect(mockGetPostsTodayByClient).toHaveBeenCalledWith('POLRES');
+  expect(mockGetPostsOperationalTodayByClient).not.toHaveBeenCalled();
   expect(message).toContain('*Jumlah Konten:* 6');
   expect(message).toContain('https://www.tiktok.com/@abc/video/6');
 });

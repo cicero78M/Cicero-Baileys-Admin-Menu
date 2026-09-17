@@ -33,7 +33,7 @@ test('getPostsByClientAndDateRange supports days option', async () => {
   mockQuery.mockResolvedValueOnce({ rows: [] });
   await getPostsByClientAndDateRange('c1', { days: 7 });
   const sql = mockQuery.mock.calls[0][0];
-  expect(sql).toContain("created_at >= NOW() - INTERVAL '7 days'");
+  expect(sql).toContain("created_at >= (NOW() AT TIME ZONE 'Asia/Jakarta') - INTERVAL '7 days'");
   expect(mockQuery.mock.calls[0][1]).toEqual(['c1']);
 });
 
@@ -69,5 +69,6 @@ test('upsertInstaPost khusus persists like_count in insert and update payload', 
   const [sql, params] = mockQuery.mock.calls[0];
   expect(sql).toContain('INSERT INTO insta_post_khusus (client_id, shortcode, caption, comment_count, like_count');
   expect(sql).toContain('like_count = EXCLUDED.like_count');
+  expect(sql).toContain("$13::timestamptz AT TIME ZONE 'Asia/Jakarta'");
   expect(params[4]).toBe(15);
 });

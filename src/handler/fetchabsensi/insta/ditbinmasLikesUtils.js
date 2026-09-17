@@ -1,5 +1,13 @@
 import { normalizeUsername } from "../../../utils/likesHelper.js";
 
+function getInstagramUsernameAliases(user) {
+  return [...new Set([
+    user?.effective_insta,
+    user?.insta,
+    user?.insta_legacy,
+  ].filter((value) => typeof value === "string" && value.trim() !== "").map(normalizeUsername))];
+}
+
 export function computeDitbinmasLikesStats(
   users = [],
   likesSets = [],
@@ -11,16 +19,14 @@ export function computeDitbinmasLikesStats(
     if (!user || typeof user !== "object") return user;
 
     const base = { ...user, count: 0 };
-    const insta = user.insta ? String(user.insta).trim() : "";
+    const aliases = getInstagramUsernameAliases(user);
 
-    if (!insta) {
+    if (aliases.length === 0) {
       return { ...base, status: "noUsername" };
     }
-
-    const username = normalizeUsername(insta);
     let count = 0;
     safeLikesSets.forEach((set) => {
-      if (set && typeof set.has === "function" && set.has(username)) {
+      if (set && typeof set.has === "function" && aliases.some((username) => set.has(username))) {
         count += 1;
       }
     });

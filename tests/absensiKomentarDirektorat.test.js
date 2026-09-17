@@ -135,3 +135,31 @@ test('absensiKomentarDitbinmasSimple supports detail mode lengkap', async () => 
   expect(msg).not.toContain('❌ *Belum Melaksanakan (');
   expect(msg).not.toContain('⚠️❌ *Belum Input Username TikTok (');
 });
+
+test('absensiKomentarDitbinmasSimple menghitung username TikTok legacy', async () => {
+  mockQuery.mockResolvedValueOnce({
+    rows: [{ nama: 'DIT A', client_tiktok: 'dita', client_type: 'direktorat' }],
+  });
+  mockGetUsersByDirektorat.mockResolvedValueOnce([
+    {
+      user_id: 1,
+      client_id: 'DITBINMAS',
+      tiktok: '@ary.murtini',
+      tiktok_legacy: '@arymurtini',
+      status: true,
+      exception: false,
+      nama: 'ARY MURTINI',
+      title: 'AKBP',
+    },
+  ]);
+  mockGetPostsTodayByClient.mockResolvedValueOnce([{ video_id: 'v1' }, { video_id: 'v2' }]);
+  mockGetCommentsByVideoId
+    .mockResolvedValueOnce({ comments: [{ username: '@arymurtini' }] })
+    .mockResolvedValueOnce({ comments: [{ username: '@arymurtini' }] });
+
+  const msg = await absensiKomentarDitbinmasSimple('DITBINMAS');
+
+  expect(msg).toContain('✅ *Melaksanakan Lengkap :* 1 pers');
+  expect(msg).toContain('✅ *Melaksanakan Lengkap (1 pers):*');
+  expect(msg).not.toContain('❌ *Belum :* 1 pers');
+});
