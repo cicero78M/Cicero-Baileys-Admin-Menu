@@ -24,8 +24,6 @@ import * as linkReportModel from "../../model/linkReportModel.js";
 import { saveLinkReportExcel } from "../../service/linkReportExcelService.js";
 import fs from "fs/promises";
 import path from "path";
-import os from "os";
-import { mdToPdf } from "md-to-pdf";
 import { query } from "../../db/index.js";
 import { formatToWhatsAppId } from "../../utils/waHelper.js";
 import { fetchInstagramInfo } from "../../service/instaRapidService.js";
@@ -53,6 +51,7 @@ import { extractVideoId } from "../../utils/tiktokHelper.js";
 import * as satbinmasOfficialAccountService from "../../service/satbinmasOfficialAccountService.js";
 import { clearSession } from "../../utils/sessionsHelper.js";
 import { appendSubmenuBackInstruction } from "./menuPromptHelpers.js";
+import { sortUsersByPositionRankAndName } from "../../utils/sortingHelper.js";
 
 function ignore(..._args) {}
 
@@ -129,6 +128,30 @@ function formatSatbinmasAttendanceEntry(row, index) {
   const tiktok = row.tiktok ? "✅" : "❌";
 
   return `${index}. ${name}\n   Instagram: ${instagram}\n   TikTok: ${tiktok}`;
+}
+
+function formatInactiveUsersBySatfung(users = [], clientLabel = "client") {
+  if (!users.length) {
+    return `✅ Tidak ada user nonaktif pada client *${clientLabel}*.`;
+  }
+
+  const grouped = new Map();
+  for (const user of users) {
+    const satfung = String(user.divisi || "TANPA SATFUNG").trim() || "TANPA SATFUNG";
+    if (!grouped.has(satfung)) grouped.set(satfung, []);
+    grouped.get(satfung).push(user);
+  }
+
+  const sections = [...grouped.entries()]
+    .sort(([a], [b]) => a.localeCompare(b, "id-ID", { sensitivity: "base" }))
+    .map(([satfung, satfungUsers]) => {
+      const rows = sortUsersByPositionRankAndName(satfungUsers).map((user, index) =>
+        `${index + 1}. ${user.title || "-"} — ${user.nama || "-"} — NRP: ${user.user_id || "-"}`
+      );
+      return `*${satfung}*\n${rows.join("\n")}`;
+    });
+
+  return `🔴 *Daftar User Nonaktif*\nClient: *${clientLabel}*\nJumlah: *${users.length}*\n\n${sections.join("\n\n")}`;
 }
 
 const BULK_STATUS_HEADER_REGEX = /Permohonan Penghapusan Data Personil/i;
@@ -1010,47 +1033,6 @@ async function maybeHandleAutoSolution(session, chatId, waClient) {
   return false;
 }
 
-async function collectMarkdownFiles(dir, files = []) {
-  const entries = await fs.readdir(dir, { withFileTypes: true });
-  for (const entry of entries) {
-    if (entry.name === "node_modules" || entry.name.startsWith(".")) continue;
-    const res = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      await collectMarkdownFiles(res, files);
-    } else if (entry.isFile() && entry.name.toLowerCase().endsWith(".md")) {
-      files.push(res);
-    }
-  }
-  return files;
-}
-
-async function buildDocsPdf(rootDir, filename) {
-  const files = await collectMarkdownFiles(rootDir);
-  if (!files.length) throw new Error("Tidak ada file Markdown ditemukan.");
-  files.sort();
-  const parts = [];
-  for (const file of files) {
-    const name = path.basename(file);
-    const content = await fs.readFile(file, "utf8");
-    if (parts.length)
-      parts.push("\n<div style=\"page-break-before: always;\"></div>\n");
-    parts.push(`# ${name}\n\n${content}\n`);
-  }
-  const mdContent = parts.join("\n");
-  const pdf = await mdToPdf({ content: mdContent });
-  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "docs-"));
-  const pdfPath = path.join(tmpDir, filename);
-  await fs.writeFile(pdfPath, pdf.content);
-  const buffer = await fs.readFile(pdfPath);
-  try {
-    await fs.unlink(pdfPath);
-    await fs.rmdir(tmpDir);
-  } catch (e) {
-    ignore(e);
-  }
-  return buffer;
-}
-
 async function absensiUsernameInsta(client_id, userModel, mode = "all") {
   let sudah = [], belum = [];
   if (mode === "sudah") {
@@ -1585,12 +1567,11 @@ Ketik *angka* sumber data, atau *batal* untuk kembali.
 ┏━━━ *Administratif* ━━━
 1️⃣ Exception Info
 2️⃣ Hapus WA Admin
-3️⃣ Download Docs
 ┗━━━━━━━━━━━━━━━━━━━━━━
 Ketik *angka* menu, atau *batal* untuk kembali.
 `.trim());
 
-    if (!/^[1-3]$/.test(text.trim())) {
+    if (!/^[1-2]$/.test(text.trim())) {
       session.step = "clientMenu_admin";
       await waClient.sendMessage(chatId, msg);
       return;
@@ -1599,7 +1580,6 @@ Ketik *angka* menu, atau *batal* untuk kembali.
     const mapStep = {
       1: "exceptionInfo_chooseClient",
       2: "hapusWAAdmin_confirm",
-      3: "downloadDocs_choose",
     };
 
     session.step = mapStep[text.trim()];
@@ -2465,7 +2445,7 @@ Ketik *angka* menu, atau *batal* untuk kembali.
     await waClient.sendMessage(
       chatId,
       appendSubmenuBackInstruction(
-        `Kelola User:\n1️⃣ Update Data User\n2️⃣ Update Exception\n3️⃣ Update Status\n4️⃣ Update Exception TikTok\n5️⃣ Ubah Client ID\nKetik angka menu atau *batal* untuk keluar.`
+        `Kelola User:\n1️⃣ Update Data User\n2️⃣ Update Exception\n3️⃣ Update Status\n4️⃣ Update Exception TikTok\n5️⃣ Ubah Client ID\n6️⃣ User Nonaktif\nKetik angka menu atau *batal* untuk keluar.`
       )
     );
     session.step = "kelolaUser_menu";
@@ -2478,7 +2458,7 @@ Ketik *angka* menu, atau *batal* untuk kembali.
     pool,
     userModel
   ) => {
-    if (!/^[1-5]$/.test(text.trim())) {
+    if (!/^[1-6]$/.test(text.trim())) {
       await waClient.sendMessage(
         chatId,
         "Pilihan tidak valid. Balas angka menu."
@@ -2486,9 +2466,55 @@ Ketik *angka* menu, atau *batal* untuk kembali.
       return;
     }
     session.kelolaUser_mode = text.trim();
+    if (session.kelolaUser_mode === "6") {
+      session.step = "kelolaUser_inactive_chooseClient";
+      await clientRequestHandlers.kelolaUser_inactive_chooseClient(
+        session, chatId, "", waClient, pool, userModel
+      );
+      return;
+    }
     session.step = "kelolaUser_nrp";
     await waClient.sendMessage(chatId, "Masukkan *user_id* / NRP/NIP user:");
   },
+  kelolaUser_inactive_chooseClient: async (session, chatId, _text, waClient) => {
+    const { rows } = await query(
+      `SELECT client_id, nama
+       FROM clients
+       WHERE client_status = true
+       ORDER BY nama NULLS LAST, client_id`
+    );
+    if (!rows.length) {
+      session.step = "kelolaUser_menu";
+      await waClient.sendMessage(chatId, "Tidak ada client aktif.");
+      return;
+    }
+    session.inactiveClientList = rows;
+    const msg = rows
+      .map((client, index) => `${index + 1}. *${client.client_id}* - ${client.nama || client.client_id}`)
+      .join("\n");
+    session.step = "kelolaUser_inactive_list";
+    await waClient.sendMessage(
+      chatId,
+      appendSubmenuBackInstruction(`Pilih client aktif untuk melihat user nonaktif:\n${msg}`)
+    );
+  },
+
+  kelolaUser_inactive_list: async (session, chatId, text, waClient, _pool, userModel) => {
+    const index = Number.parseInt(text.trim(), 10) - 1;
+    const client = session.inactiveClientList?.[index];
+    if (!client) {
+      await waClient.sendMessage(chatId, "Pilihan client tidak valid. Balas nomor sesuai daftar.");
+      return;
+    }
+    const users = await userModel.getInactiveUsersByClient(client.client_id);
+    const report = formatInactiveUsersBySatfung(users, client.nama || client.client_id);
+    session.step = "kelolaUser_menu";
+    await waClient.sendMessage(
+      chatId,
+      appendSubmenuBackInstruction(`${report}\n\nPilih menu Kelola User berikutnya atau ketik *batal* untuk kembali.`)
+    );
+  },
+
   kelolaUser_nrp: async (
     session,
     chatId,
@@ -3819,49 +3845,6 @@ Ketik *angka* menu, atau *batal* untuk kembali.
       await waClient.sendMessage(chatId, msg.trim());
     } catch (err) {
       await waClient.sendMessage(chatId, `❌ Gagal refresh aggregator: ${err.message}`);
-    }
-  },
-
-  // ================== DOWNLOAD DOCS ==================
-  downloadDocs_choose: async (session, chatId, _text, waClient) => {
-    const msg = appendSubmenuBackInstruction(
-      `*Download Dokumentasi*\n1️⃣ Front End\n2️⃣ Back End\nBalas angka menu atau *batal* untuk keluar.`
-    );
-    session.step = "downloadDocs_send";
-    await waClient.sendMessage(chatId, msg);
-  },
-  downloadDocs_send: async (session, chatId, text, waClient) => {
-    const choice = text.trim();
-    let targetDir = "";
-    let filename = "";
-    if (choice === "1") {
-      targetDir = path.join(process.cwd(), "..", "Cicero_Web");
-      filename = "frontend-docs.pdf";
-    } else if (choice === "2") {
-      targetDir = process.cwd();
-      filename = "backend-docs.pdf";
-    } else if (choice.toLowerCase() === "batal") {
-      session.step = "main";
-      await waClient.sendMessage(chatId, "Dibatalkan.");
-      return;
-    } else {
-      await waClient.sendMessage(chatId, "Pilihan tidak valid. Balas *1* atau *2*.");
-      return;
-    }
-    session.step = "main";
-    try {
-      await fs.access(targetDir);
-    } catch (_e) {
-      await waClient.sendMessage(chatId, "❌ Folder tidak ditemukan.");
-      return;
-    }
-    try {
-      await waClient.sendMessage(chatId, "⏳ Menyiapkan dokumen...");
-      const buffer = await buildDocsPdf(targetDir, filename);
-      await sendWAFile(waClient, buffer, filename, chatId, "application/pdf");
-      await waClient.sendMessage(chatId, "✅ Dokumen dikirim.");
-    } catch (err) {
-      await waClient.sendMessage(chatId, `❌ Gagal membuat dokumen: ${err.message}`);
     }
   },
 

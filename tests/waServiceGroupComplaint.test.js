@@ -47,14 +47,14 @@ describe('waService createHandleMessage group complaints', () => {
       .mockResolvedValue(true);
 
     const createClientInstances = [];
-    const createWwebjsClientMock = jest.fn(() => {
+    const createBaileysClientMock = jest.fn(() => {
       const instance = createClientStub();
       createClientInstances.push(instance);
       return instance;
     });
 
-    jest.unstable_mockModule('../src/service/wwebjsAdapter.js', () => ({
-      createWwebjsClient: createWwebjsClientMock,
+    jest.unstable_mockModule('../src/service/baileysAdapter.js', () => ({
+      createBaileysClient: createBaileysClientMock,
     }));
 
     jest.unstable_mockModule('../src/service/waAutoComplaintService.js', () => ({
@@ -201,4 +201,3 @@ describe('waService createHandleMessage group complaints', () => {
     );
   });
 });
-
