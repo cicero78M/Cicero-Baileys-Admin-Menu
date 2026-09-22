@@ -145,7 +145,7 @@ export async function handleFetchKomentarTiktokBatch(waClient = null, chatId = n
     }
     const videoIds = rows.map((r) => r.video_id);
     const excRes = await query(
-      `SELECT tiktok FROM "user" WHERE exception = true AND tiktok IS NOT NULL`
+      `SELECT tiktok FROM "user" WHERE exception_tiktok = true AND tiktok IS NOT NULL`
     );
     const exceptionUsernames = excRes.rows
       .map((r) => normalizeUsername(r.tiktok))

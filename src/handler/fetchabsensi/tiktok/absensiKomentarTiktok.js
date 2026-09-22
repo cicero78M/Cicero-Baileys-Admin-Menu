@@ -1412,7 +1412,7 @@ export async function absensiKomentarTiktokPerKonten(client_id, opts = {}) {
     let userSudah = [];
     let userBelum = [];
     users.forEach((u) => {
-      if (u.exception === true) {
+      if (u.exception_tiktok === true) {
         userSudah.push(u);
       } else if (
         u.tiktok &&
@@ -1424,7 +1424,7 @@ export async function absensiKomentarTiktokPerKonten(client_id, opts = {}) {
         userBelum.push(u);
       }
     });
-    userBelum = userBelum.filter(u => !u.exception);
+    userBelum = userBelum.filter(u => !u.exception_tiktok);
 
     // *** PATCH: Gunakan username client untuk membangun link ***
     msg += `\nKonten: https://www.tiktok.com/@${tiktokUsername}/video/${p.video_id}\n`;

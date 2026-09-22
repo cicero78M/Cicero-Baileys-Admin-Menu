@@ -225,7 +225,7 @@ export async function getUsersByClient(client_id, roleFilter = null) {
   const { clause, params } = await buildClientFilter(client_id, 'u', 1, roleFilter);
   const social = getSocialUsernameSelect('u');
   const res = await query(
-    `SELECT u.user_id, u.nama, ${social.tiktok} AS tiktok, ${social.insta} AS insta, u.divisi, u.title, u.status, u.exception, u.jabatan,
+    `SELECT u.user_id, u.nama, ${social.tiktok} AS tiktok, ${social.insta} AS insta, u.divisi, u.title, u.status, u.exception, u.exception_tiktok, u.jabatan,
             u.whatsapp, u.email, u.client_id, c.nama AS client_name, c.regional_id AS regional_id
      FROM "user" u
      LEFT JOIN clients c ON LOWER(c.client_id) = LOWER(u.client_id)
@@ -254,7 +254,7 @@ export async function getInactiveUsersByClient(client_id, roleFilter = null) {
 export async function getUsersByClientAndRole(client_id, roleFilter = null) {
   const social = getSocialUsernameSelect('u');
   const params = [client_id];
-  let sql = `SELECT u.user_id, u.nama, ${social.tiktok} AS tiktok, ${social.insta} AS insta, u.divisi, u.title, u.status, u.exception, u.jabatan,
+  let sql = `SELECT u.user_id, u.nama, ${social.tiktok} AS tiktok, ${social.insta} AS insta, u.divisi, u.title, u.status, u.exception, u.exception_tiktok, u.jabatan,
             u.whatsapp, u.email, u.client_id, c.nama AS client_name, c.regional_id AS regional_id
      FROM "user" u
      LEFT JOIN clients c ON LOWER(c.client_id) = LOWER(u.client_id)
@@ -278,7 +278,7 @@ export async function getUsersByClientAndRole(client_id, roleFilter = null) {
 export async function getOperatorsByClient(client_id) {
   const { clause, params } = await buildClientFilter(client_id, 'u', 1);
   const res = await query(
-    `SELECT u.user_id, u.nama, u.tiktok, u.insta, u.divisi, u.title, u.status, u.exception, u.whatsapp
+    `SELECT u.user_id, u.nama, u.tiktok, u.insta, u.divisi, u.title, u.status, u.exception, u.exception_tiktok, u.whatsapp
      FROM "user" u
      JOIN user_roles ur_opr ON ur_opr.user_id = u.user_id
      JOIN roles r_opr ON ur_opr.role_id = r_opr.role_id
@@ -293,7 +293,7 @@ export async function getUsersByClientFull(client_id, roleFilter = null) {
   const { clause, params } = await buildClientFilter(client_id, 'u', 1, roleFilter);
   const social = getSocialUsernameSelect('u');
   const res = await query(
-    `SELECT user_id, nama, ${social.tiktok} AS tiktok, divisi, title, exception
+    `SELECT user_id, nama, ${social.tiktok} AS tiktok, divisi, title, exception, exception_tiktok
      FROM "user" u
      WHERE ${clause} AND (status IS TRUE OR status IS NULL)`,
     params
