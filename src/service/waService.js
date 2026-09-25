@@ -54,7 +54,6 @@ import { getShortcodesTodayByClient } from "../model/instaPostModel.js";
 import { getUsersByClient } from "../model/userModel.js";
 
 // Handler Imports
-import { userMenuHandlers } from "../handler/menu/userMenuHandlers.js";
 import {
   clientRequestHandlers,
 } from "../handler/menu/clientRequestHandlers.js";
@@ -109,6 +108,10 @@ import {
   TT_PROFILE_REGEX,
   adminCommands,
 } from "../utils/constants.js";
+
+// Admin-Menu tidak menyediakan userrequest self-service.
+// Fitur tersebut dimiliki oleh repository Cicero-Baileys-User.
+const userMenuHandlers = Object.freeze({});
 
 dotenv.config();
 

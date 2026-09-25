@@ -133,9 +133,6 @@ describe('waService createHandleMessage group complaints', () => {
     jest.unstable_mockModule('../src/model/instaPostModel.js', () => ({
       getShortcodesTodayByClient: jest.fn(),
     }));
-    jest.unstable_mockModule('../src/handler/menu/userMenuHandlers.js', () => ({
-      userMenuHandlers: { main: jest.fn() },
-    }));
     jest.unstable_mockModule('../src/handler/menu/oprRequestHandlers.js', () => ({
       oprRequestHandlers: {},
     }));

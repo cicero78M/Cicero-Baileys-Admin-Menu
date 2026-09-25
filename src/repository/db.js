@@ -6,3 +6,4 @@ export const withTransaction =
   (async (callback) => {
     return callback({ query: db.query, release: () => {} });
   });
+export const close = db.close || (() => {});

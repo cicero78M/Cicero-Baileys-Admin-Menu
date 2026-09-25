@@ -13,6 +13,10 @@ import {
 } from "../../utils/dateJakarta.js";
 import { appendSubmenuBackInstruction } from "./menuPromptHelpers.js";
 import { sendDebug } from "../../middleware/debugHandler.js";
+import {
+  applyWhatsAppStatusChange,
+  isWhatsAppStatusHistoryEnabled,
+} from "../../service/whatsappStatusChangeService.js";
 
 function ignore(..._args) {}
 
@@ -2394,7 +2398,18 @@ Balas *angka* (1/2) sesuai status baru, atau *batal* untuk keluar.
     }
     try {
       if (status === true) {
-        await userModel.updateUserField(session.updateStatusNRP, "status", status);
+        if (isWhatsAppStatusHistoryEnabled()) {
+          await applyWhatsAppStatusChange({
+            userId: session.updateStatusNRP,
+            actionType: "activate",
+            chatId,
+            targetClientId: session.selected_client_id,
+            reasonCode: "whatsapp_operator",
+            reasonText: "Aktivasi melalui menu operator WhatsApp",
+          });
+        } else {
+          await userModel.updateUserField(session.updateStatusNRP, "status", status);
+        }
         const user = await userModel.findUserById(session.updateStatusNRP);
         let statusStr = "🟢 *AKTIF*";
         let msg = `✅ *Status user berhasil diubah!*
@@ -2418,7 +2433,17 @@ Balas *angka* (1/2) sesuai status baru, atau *batal* untuk keluar.
           return;
         }
         const roleToRemove = session.updateStatusRoleChoice || roles[0] || null;
-        const updatedUser = await userModel.deactivateRoleOrUser(session.updateStatusNRP, roleToRemove);
+        const updatedUser = isWhatsAppStatusHistoryEnabled()
+          ? await applyWhatsAppStatusChange({
+              userId: session.updateStatusNRP,
+              actionType: "role_remove",
+              roleName: roleToRemove,
+              chatId,
+              targetClientId: session.selected_client_id,
+              reasonCode: "whatsapp_operator",
+              reasonText: "Penonaktifan melalui menu operator WhatsApp",
+            })
+          : await userModel.deactivateRoleOrUser(session.updateStatusNRP, roleToRemove);
         const statusStr = updatedUser.status ? "🟢 *AKTIF*" : "🔴 *NONAKTIF*";
         const remainingRoles = await userModel.getUserRoles(session.updateStatusNRP);
         const activeRoles = remainingRoles.length ? remainingRoles.join(", ") : "-";
@@ -2456,7 +2481,17 @@ Balas *angka* (1/2) sesuai status baru, atau *batal* untuk keluar.
     }
     const selectedRole = roles[index];
     try {
-      const updatedUser = await userModel.deactivateRoleOrUser(session.updateStatusNRP, selectedRole);
+      const updatedUser = isWhatsAppStatusHistoryEnabled()
+        ? await applyWhatsAppStatusChange({
+            userId: session.updateStatusNRP,
+            actionType: "role_remove",
+            roleName: selectedRole,
+            chatId,
+            targetClientId: session.selected_client_id,
+            reasonCode: "whatsapp_operator",
+            reasonText: "Penonaktifan melalui menu operator WhatsApp",
+          })
+        : await userModel.deactivateRoleOrUser(session.updateStatusNRP, selectedRole);
       const remainingRoles = await userModel.getUserRoles(session.updateStatusNRP);
       const statusStr = updatedUser.status ? "🟢 *AKTIF*" : "🔴 *NONAKTIF*";
       const activeRoles = remainingRoles.length ? remainingRoles.join(", ") : "-";
