@@ -43,7 +43,7 @@ These tables are updated regularly by scheduled jobs and form the basis for anal
   - Cron tasks (`cronDirRequestFetchSosmed.js`, `cronRekapLink.js`, `cronAmplifyLinkMonthly.js`, etc.) send recaps to administrators through `waClient` or `waGatewayClient`.
    - OTP emails and complaint confirmations are sent immediately via SMTP to reduce follow-up latency.
 4. **Queue Processing (Optional)**
-   - Heavy operations can publish tasks to RabbitMQ with `rabbitMQService.js` and are processed asynchronously.
+   - Asynchronous work uses the repository's BullMQ/Redis workers where configured.
 
 ## 4. Final Output
 

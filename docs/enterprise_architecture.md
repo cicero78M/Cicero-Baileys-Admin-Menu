@@ -21,7 +21,7 @@ The backend exposes REST endpoints to manage clients, users, and social media an
 
 - `app.js` – Express entry point registering middleware, routes, and scheduled cron buckets based on WhatsApp readiness.
 - `src/controller` – Controller layer for clients, users, OAuth callbacks, dashboard metrics, aggregator feeds, premium flows, and social media endpoints.
-- `src/service` – Cron helpers, API wrappers, WhatsApp helpers, OTP/email delivery, RabbitMQ queues, and various utility functions.
+- `src/service` – Cron helpers, API wrappers, WhatsApp helpers, OTP/email delivery, and various utility functions.
 - `src/handler` – WhatsApp menu logic, link amplification processors, and fetch helpers for automation.
 - `src/routes` – API routes for auth, clients, users, Instagram/TikTok, logs, metadata, dashboards, aggregator widgets, OTP claim flows, premium requests, and link amplification.
 - `src/middleware` – Authentication (JWT and dashboard), request deduplication, debugging, and global error handling.
@@ -54,7 +54,7 @@ Located in the separate `Cicero_Web/cicero-dashboard` directory. The dashboard c
    - Cron buckets run in the backend to fetch new posts, calculate stats, deliver link amplification recaps, and send WhatsApp notifications to administrators.
 
 4. **Queue Processing**
-- High‑volume tasks can be published to RabbitMQ using `src/service/rabbitMQService.js` for asynchronous processing.
+- BullMQ/Redis is used where asynchronous processing is required.
 - OTP emails are dispatched synchronously through `src/service/otpQueue.js` → `src/service/emailService.js`, eliminating the earlier background worker delay.
 
 ## Deployment Considerations
@@ -62,7 +62,7 @@ Located in the separate `Cicero_Web/cicero-dashboard` directory. The dashboard c
 - Both frontend and backend are Node.js applications and can run on the same host or separately.
 - Environment variables are managed via `.env` files (`.env` for backend, `.env.local` for frontend).
 - Use PM2 for clustering and process management in production.
-- Monitor PostgreSQL, Redis, and RabbitMQ health for reliability.
+- Monitor PostgreSQL and Redis health for reliability.
 
 ## Diagram
 

@@ -40,7 +40,6 @@ export const env = cleanEnv(process.env, {
   INSTAGRAM_LIKES_MAX_PAGES: num({ default: 0 }),
   INSTAGRAM_COMMENTS_MAX_PAGES: num({ default: 10 }),
   INSTAGRAM_COMMENTS_PAGE_DELAY_MS: num({ default: 3000 }),
-  AMQP_URL: str({ default: 'amqp://localhost' }),
   BACKUP_DIR: str({ default: 'backups' }),
   GOOGLE_DRIVE_FOLDER_ID: str({ default: '' }),
   GOOGLE_SERVICE_ACCOUNT: str({ default: '' }),
