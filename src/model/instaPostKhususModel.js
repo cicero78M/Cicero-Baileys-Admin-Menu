@@ -45,7 +45,7 @@ export async function upsertInstaPost(data) {
   const canonicalSourceType = normalizeSourceType(source_type);
 
   // created_at bisa dihandle via taken_at di service (lihat service)
-  await query(
+  const result = await query(
     `INSERT INTO insta_post_khusus (client_id, shortcode, caption, comment_count, like_count, thumbnail_url, is_video, video_url, image_url, images_url, is_carousel, source_type, created_at, original_created_at)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,COALESCE(($13::timestamptz AT TIME ZONE 'Asia/Jakarta'), (NOW() AT TIME ZONE 'Asia/Jakarta')), $14::timestamptz)
      ON CONFLICT (shortcode) DO UPDATE
@@ -61,7 +61,9 @@ export async function upsertInstaPost(data) {
           is_carousel = EXCLUDED.is_carousel,
           source_type = EXCLUDED.source_type,
           created_at = EXCLUDED.created_at,
-          original_created_at = EXCLUDED.original_created_at`,
+          original_created_at = EXCLUDED.original_created_at
+      WHERE LOWER(insta_post_khusus.client_id) = LOWER(EXCLUDED.client_id)
+      RETURNING shortcode`,
     [
       client_id,
       shortcode,
@@ -79,6 +81,11 @@ export async function upsertInstaPost(data) {
       canonicalOriginalCreatedAt,
     ]
   );
+  if (!result.rows.length) {
+    const err = new Error('Link tugas khusus sudah digunakan oleh client lain');
+    err.statusCode = 409;
+    throw err;
+  }
 }
 
 export async function findPostByShortcode(shortcode) {

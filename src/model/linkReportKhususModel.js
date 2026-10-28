@@ -1,3 +1,4 @@
+import { isKediriAmplifierEnabled, kediriRawReportExclusion, kediriEligibleUserSql } from '../utils/amplificationRole.js';
 import { query } from '../repository/db.js';
 import { buildPriorityOrderClause } from '../utils/sqlPriority.js';
 
@@ -43,7 +44,7 @@ export async function createLinkReport(data) {
   return res.rows[0];
 }
 
-export async function getLinkReports({ userId, postId } = {}) {
+export async function getLinkReports({ userId, postId, kediriVisibility = null } = {}) {
   const params = [];
   const conditions = [];
 
@@ -57,6 +58,7 @@ export async function getLinkReports({ userId, postId } = {}) {
     conditions.push(`r.shortcode = $${params.length}`);
   }
 
+  if (typeof kediriVisibility === 'boolean') conditions.push(kediriRawReportExclusion(kediriVisibility, true));
   const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
   const res = await query(
@@ -70,15 +72,16 @@ export async function getLinkReports({ userId, postId } = {}) {
   return res.rows;
 }
 
-export async function findLinkReportByShortcode(shortcode, user_id) {
+export async function findLinkReportByShortcode(shortcode, user_id, { kediriVisibility = null } = {}) {
   const params = [shortcode];
   const condition = user_id ? 'AND r.user_id = $2' : '';
   if (user_id) params.push(user_id);
+  const roleGuard = typeof kediriVisibility === 'boolean' ? `AND ${kediriRawReportExclusion(kediriVisibility, true)}` : '';
   const res = await query(
     `SELECT r.*, p.caption, p.image_url, p.thumbnail_url
      FROM link_report_khusus r
      LEFT JOIN insta_post_khusus p ON p.shortcode = r.shortcode
-     WHERE r.shortcode = $1 ${condition}`,
+     WHERE r.shortcode = $1 ${condition} ${roleGuard}`,
     params
   );
   return res.rows[0] || null;
@@ -120,9 +123,17 @@ export async function getReportsTodayByClient(client_id, roleFlag = null) {
   let whereClause = 'u.client_id = $1';
   let joinClause = 'JOIN "user" u ON u.user_id = r.user_id';
   
-  if (roleFlag && roleFlag.toLowerCase() === OPERATOR_ROLE_NAME) {
+  if (isKediriAmplifierEnabled(client_id)) {
+    if (roleFlag != null && !['operator', 'amplifier'].includes(String(roleFlag).toLowerCase())) {
+      throw new Error('role tidak valid');
+    }
+    roleFlag = 'amplifier';
+    whereClause += ' AND u.status = true';
+  }
+  if (roleFlag && [OPERATOR_ROLE_NAME, 'amplifier'].includes(roleFlag.toLowerCase())) {
+    const role = roleFlag.toLowerCase();
     joinClause += ' JOIN user_roles ur ON ur.user_id = u.user_id JOIN roles ro ON ur.role_id = ro.role_id';
-    whereClause += ` AND LOWER(ro.role_name) = '${OPERATOR_ROLE_NAME}'`;
+    whereClause += ` AND LOWER(ro.role_name) = '${role}'`;
   }
   
   const res = await query(
@@ -139,9 +150,17 @@ export async function getReportsTodayByShortcode(client_id, shortcode, roleFlag 
   let whereClause = 'u.client_id = $1 AND r.shortcode = $2';
   let joinClause = 'JOIN "user" u ON u.user_id = r.user_id';
   
-  if (roleFlag && roleFlag.toLowerCase() === OPERATOR_ROLE_NAME) {
+  if (isKediriAmplifierEnabled(client_id)) {
+    if (roleFlag != null && !['operator', 'amplifier'].includes(String(roleFlag).toLowerCase())) {
+      throw new Error('role tidak valid');
+    }
+    roleFlag = 'amplifier';
+    whereClause += ' AND u.status = true';
+  }
+  if (roleFlag && [OPERATOR_ROLE_NAME, 'amplifier'].includes(roleFlag.toLowerCase())) {
+    const role = roleFlag.toLowerCase();
     joinClause += ' JOIN user_roles ur ON ur.user_id = u.user_id JOIN roles ro ON ur.role_id = ro.role_id';
-    whereClause += ` AND LOWER(ro.role_name) = '${OPERATOR_ROLE_NAME}'`;
+    whereClause += ` AND LOWER(ro.role_name) = '${role}'`;
   }
   
   const res = await query(
@@ -165,6 +184,16 @@ export async function getRekapLinkByClient(
     userClientId: userClientIdOverride = null,
     userRoleFilter = null
   } = options;
+  let resolvedUserRole = userRoleFilter ?? (roleFlag ? roleFlag.toLowerCase() : null);
+  if (isKediriAmplifierEnabled(client_id)) {
+    if (resolvedUserRole != null && !['operator', 'amplifier'].includes(String(resolvedUserRole).toLowerCase())) {
+      throw new Error('role tidak valid');
+    }
+    if (userClientIdOverride && String(userClientIdOverride).trim().toUpperCase() !== 'KEDIRI') {
+      throw new Error('client_id tidak diizinkan');
+    }
+    resolvedUserRole = 'amplifier';
+  }
   let dateFilterPost = "p.created_at::date = (NOW() AT TIME ZONE 'Asia/Jakarta')::date";
   let dateFilterReport = "r.created_at::date = (NOW() AT TIME ZONE 'Asia/Jakarta')::date";
   const params = [client_id];
@@ -211,11 +240,11 @@ export async function getRekapLinkByClient(
   const priorityExpr = `(${priorityCase})`;
 
   const resolvedUserClientId = userClientIdOverride ?? client_id;
-  const resolvedUserRole = userRoleFilter ?? (roleFlag ? roleFlag.toLowerCase() : null);
+
   
   let operatorRoleFilter = '';
-  if (resolvedUserRole === OPERATOR_ROLE_NAME) {
-    linkParams.push(OPERATOR_ROLE_NAME);
+  if ([OPERATOR_ROLE_NAME, 'amplifier'].includes(resolvedUserRole)) {
+    linkParams.push(resolvedUserRole);
     operatorRoleFilter = `AND EXISTS (
       SELECT 1 FROM user_roles ur
       JOIN roles r ON ur.role_id = r.role_id
@@ -227,7 +256,7 @@ export async function getRekapLinkByClient(
   // This ensures we filter by the authenticated user's client_id rather than the requested client_id
   // Only apply when they differ; if they're equal, the base WHERE clause already handles it
   let userClientFilter = '';
-  if (userClientIdOverride && userClientIdOverride !== client_id) {
+  if (isKediriAmplifierEnabled(client_id) || (userClientIdOverride && userClientIdOverride !== client_id)) {
     linkParams.push(resolvedUserClientId);
     userClientFilter = `AND u.client_id = $${linkParams.length}`;
   }
@@ -262,6 +291,7 @@ export async function getRekapLinkByClient(
      LEFT JOIN link_sum ls ON ls.user_id = u.user_id
      WHERE u.status = true
        AND (
+         ${isKediriAmplifierEnabled(client_id) ? "u.client_id = $1 OR" : ""}
          (SELECT client_type FROM cli) <> 'direktorat' AND u.client_id = $1
        OR (SELECT client_type FROM cli) = 'direktorat' AND EXISTS (
          SELECT 1 FROM user_roles ur
@@ -271,6 +301,7 @@ export async function getRekapLinkByClient(
       )
       ${operatorRoleFilter}
       ${userClientFilter}
+      AND ${kediriEligibleUserSql('u')}
     ORDER BY
       ${priorityExpr} ASC,
       CASE WHEN ${priorityExpr} = ${fallbackRank} THEN UPPER(u.nama) END ASC,

@@ -1,3 +1,5 @@
+import { authorizeReportMutation } from '../utils/reportMutationAuthorization.js';
+import { isKediriAmplifierEnabled, tokenAllowsClient } from '../utils/amplificationRole.js';
 import * as linkReportModel from '../model/linkReportModel.js';
 import { sendSuccess } from '../utils/response.js';
 import {
@@ -16,6 +18,8 @@ export async function getAllLinkReports(req, res, next) {
     const DEFAULT_PAGE = 1;
     const userId = req.query.user_id;
     const postId = req.query.post_id || req.query.shortcode;
+    const visibility = isKediriAmplifierEnabled('KEDIRI')
+      ? { kediriVisibility: tokenAllowsClient(req.user, 'KEDIRI') } : {};
 
     const requestedLimit = parseInt(req.query.limit, 10);
     const limit =
@@ -40,7 +44,8 @@ export async function getAllLinkReports(req, res, next) {
       limit,
       offset,
       userId,
-      postId
+      postId,
+      ...visibility
     });
 
     const page = Math.floor(result.offset / result.limit) + 1;
@@ -65,7 +70,9 @@ export async function getLinkReportByShortcode(req, res, next) {
   try {
     const report = await linkReportModel.findLinkReportByShortcode(
       req.params.shortcode,
-      req.query.user_id
+      req.query.user_id,
+      ...(isKediriAmplifierEnabled('KEDIRI')
+        ? [{ kediriVisibility: tokenAllowsClient(req.user, 'KEDIRI') }] : [])
     );
     sendSuccess(res, report);
   } catch (err) {
@@ -76,6 +83,7 @@ export async function getLinkReportByShortcode(req, res, next) {
 export async function createLinkReport(req, res) {
   try {
     const data = { ...req.body };
+    await authorizeReportMutation(req, { special: false, create: true });
     [
       'instagram_link',
       'facebook_link',
@@ -132,6 +140,7 @@ export async function createLinkReport(req, res) {
 export async function updateLinkReport(req, res, next) {
   try {
     const bodyData = { ...req.body };
+    await authorizeReportMutation(req, { special: false });
     [
       'instagram_link',
       'facebook_link',
@@ -171,6 +180,9 @@ export async function downloadMonthlyLinkReportExcel(req, res, next) {
       return res
         .status(400)
         .json({ success: false, message: 'client_id wajib diisi' });
+    }
+    if (isKediriAmplifierEnabled(clientId) && !tokenAllowsClient(req.user, clientId)) {
+      return res.status(403).json({ success: false, message: 'client_id tidak diizinkan' });
     }
     const rows = await linkReportModel.getReportsThisMonthByClient(clientId);
     const buffer = generateLinkReportExcelBuffer(rows);

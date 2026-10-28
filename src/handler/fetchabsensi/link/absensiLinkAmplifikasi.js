@@ -1,3 +1,4 @@
+import * as userModel from "../../../model/userModel.js";
 import { query } from "../../../db/index.js";
 import {
   getUsersByClient,
@@ -10,6 +11,7 @@ import {
   getReportsTodayByShortcode,
 } from "../../../model/linkReportModel.js";
 import { groupByDivision, sortDivisionKeys, getGreeting } from "../../../utils/utilsHelper.js";
+import { isKediriAmplifierEnabled } from "../../../utils/amplificationRole.js";
 import { getOperationalAttendanceDate } from "../../../utils/attendanceOperationalDate.js";
 
 async function getClientInfo(client_id) {
@@ -25,12 +27,19 @@ async function getClientInfo(client_id) {
 
 export async function absensiLink(client_id, opts = {}) {
   const { clientFilter, roleFlag } = opts;
+  if (isKediriAmplifierEnabled(client_id) && clientFilter &&
+      String(clientFilter).trim().toUpperCase() !== "KEDIRI") {
+    throw new Error("clientFilter tidak diizinkan");
+  }
   const { hari, tanggal, jam } = getOperationalAttendanceDate();
 
   const { nama: clientNama, clientType } = await getClientInfo(client_id);
   let users;
   let shortcodes;
-  if (clientType === "direktorat") {
+  if (isKediriAmplifierEnabled(client_id)) {
+    shortcodes = await getShortcodesTodayByClient(client_id);
+    users = await userModel.getUsersByClientAndRole(client_id, "amplifier");
+  } else if (clientType === "direktorat") {
     const allowedRoles = ["ditbinmas", "ditlantas", "bidhumas"];
     const flag = allowedRoles.includes((roleFlag || "").toLowerCase())
       ? roleFlag.toLowerCase()
@@ -189,7 +198,9 @@ export async function absensiLinkPerPost(client_id, opts = {}) {
 
   const { nama: clientNama, clientType } = await getClientInfo(client_id);
   const users =
-    clientType === "direktorat"
+    isKediriAmplifierEnabled(client_id)
+      ? await userModel.getUsersByClientAndRole(client_id, "amplifier")
+      : clientType === "direktorat"
       ? (
           await getUsersByDirektorat(client_id.toLowerCase(), client_id)
         ).filter((u) => u.status === true)
@@ -208,7 +219,11 @@ export async function absensiLinkPerPost(client_id, opts = {}) {
   msg += `*Jumlah Konten:* ${shortcodes.length}\n`;
 
   for (const sc of shortcodes) {
-    const reports = await getReportsTodayByShortcode(client_id, sc);
+    const allReports = await getReportsTodayByShortcode(client_id, sc);
+    const userIds = new Set(users.map((u) => u.user_id));
+    const reports = isKediriAmplifierEnabled(client_id)
+      ? allReports.filter((r) => userIds.has(r.user_id))
+      : allReports;
     const userSudah = [];
     const userBelum = [];
     const reportUsers = new Set(reports.map((r) => r.user_id));

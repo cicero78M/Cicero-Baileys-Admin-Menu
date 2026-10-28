@@ -1,3 +1,5 @@
+import { authorizeReportMutation } from '../utils/reportMutationAuthorization.js';
+import { isKediriAmplifierEnabled, tokenAllowsClient } from '../utils/amplificationRole.js';
 import * as linkReportModel from '../model/linkReportKhususModel.js';
 import { sendSuccess } from '../utils/response.js';
 import { extractFirstUrl, extractInstagramShortcode } from '../utils/utilsHelper.js';
@@ -7,7 +9,9 @@ export async function getAllLinkReports(req, res, next) {
   try {
     const userId = req.query.user_id;
     const postId = req.query.post_id || req.query.shortcode;
-    const data = await linkReportModel.getLinkReports({ userId, postId });
+    const visibility = isKediriAmplifierEnabled('KEDIRI')
+      ? { kediriVisibility: tokenAllowsClient(req.user, 'KEDIRI') } : {};
+    const data = await linkReportModel.getLinkReports({ userId, postId, ...visibility });
     sendSuccess(res, data);
   } catch (err) {
     next(err);
@@ -18,7 +22,9 @@ export async function getLinkReportByShortcode(req, res, next) {
   try {
     const report = await linkReportModel.findLinkReportByShortcode(
       req.params.shortcode,
-      req.query.user_id
+      req.query.user_id,
+      ...(isKediriAmplifierEnabled('KEDIRI')
+        ? [{ kediriVisibility: tokenAllowsClient(req.user, 'KEDIRI') }] : [])
     );
     sendSuccess(res, report);
   } catch (err) {
@@ -29,8 +35,10 @@ export async function getLinkReportByShortcode(req, res, next) {
 export async function createLinkReport(req, res, next) {
   try {
     const data = { ...req.body };
+    const target = await authorizeReportMutation(req, { special: true, create: true });
     
     // Validate required fields first (fail fast)
+    data.client_id = target.client_id;
     if (!data.client_id) {
       const error = new Error('client_id is required');
       error.statusCode = 400;
@@ -90,6 +98,7 @@ export async function createLinkReport(req, res, next) {
 export async function updateLinkReport(req, res, next) {
   try {
     const bodyData = { ...req.body };
+    await authorizeReportMutation(req, { special: true });
     
     // Extract Instagram link from payload
     const instagramLink = bodyData.instagram_link ? extractFirstUrl(bodyData.instagram_link) : null;

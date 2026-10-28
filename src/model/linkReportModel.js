@@ -1,3 +1,4 @@
+import { isKediriAmplifierEnabled, kediriRawReportExclusion, kediriEligibleUserSql } from '../utils/amplificationRole.js';
 import { query } from '../repository/db.js';
 import { buildPriorityOrderClause } from '../utils/sqlPriority.js';
 
@@ -63,7 +64,8 @@ export async function getLinkReports({
   limit = 20,
   offset = 0,
   userId = null,
-  postId = null
+  postId = null,
+  kediriVisibility = null
 } = {}) {
   const safeLimit = Number.isInteger(limit) && limit > 0 ? limit : 20;
   const safeOffset = Number.isInteger(offset) && offset >= 0 ? offset : 0;
@@ -83,6 +85,7 @@ export async function getLinkReports({
     conditions.push(`r.shortcode = ${addParam(postId)}`);
   }
 
+  if (typeof kediriVisibility === 'boolean') conditions.push(kediriRawReportExclusion(kediriVisibility));
   const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
   const [rowsResult, countResult] = await Promise.all([
@@ -97,7 +100,7 @@ export async function getLinkReports({
     ),
     query(
       `SELECT COUNT(*)::int AS count FROM link_report r ${whereClause}`,
-      params.slice(0, conditions.length)
+      params.slice(0, params.length - 2)
     )
   ]);
 
@@ -109,15 +112,16 @@ export async function getLinkReports({
   };
 }
 
-export async function findLinkReportByShortcode(shortcode, user_id) {
+export async function findLinkReportByShortcode(shortcode, user_id, { kediriVisibility = null } = {}) {
   const params = [shortcode];
   const condition = user_id ? 'AND r.user_id = $2' : '';
   if (user_id) params.push(user_id);
+  const roleGuard = typeof kediriVisibility === 'boolean' ? `AND ${kediriRawReportExclusion(kediriVisibility)}` : '';
   const res = await query(
     `SELECT r.*, p.caption, p.image_url, p.thumbnail_url
      FROM link_report r
      LEFT JOIN insta_post p ON p.shortcode = r.shortcode
-     WHERE r.shortcode = $1 ${condition}`,
+     WHERE r.shortcode = $1 ${condition} ${roleGuard}`,
     params
   );
   return res.rows[0] || null;
@@ -172,7 +176,7 @@ export async function getReportsTodayByClient(client_id) {
   }
   const res = await query(
     `SELECT r.* FROM link_report r ${joinClause}
-     WHERE ${whereClause} AND r.created_at::date = (NOW() AT TIME ZONE 'Asia/Jakarta')::date
+     WHERE ${whereClause} AND ${kediriEligibleUserSql('u')} AND r.created_at::date = (NOW() AT TIME ZONE 'Asia/Jakarta')::date
      ORDER BY r.created_at ASC`,
     [client_id]
   );
@@ -196,7 +200,7 @@ export async function getReportsYesterdayByClient(client_id) {
   }
   const res = await query(
     `SELECT r.* FROM link_report r ${joinClause}
-     WHERE ${whereClause} AND r.created_at::date = (NOW() AT TIME ZONE 'Asia/Jakarta' - INTERVAL '1 day')::date
+     WHERE ${whereClause} AND ${kediriEligibleUserSql('u')} AND r.created_at::date = (NOW() AT TIME ZONE 'Asia/Jakarta' - INTERVAL '1 day')::date
      ORDER BY r.created_at ASC`,
     [client_id]
   );
@@ -218,7 +222,7 @@ export async function getReportsTodayByShortcode(client_id, shortcode) {
   }
   const res = await query(
     `SELECT r.* FROM link_report r ${joinClause}
-     WHERE ${whereClause} AND r.shortcode = $2
+     WHERE ${whereClause} AND ${kediriEligibleUserSql('u')} AND r.shortcode = $2
        AND r.created_at::date = (NOW() AT TIME ZONE 'Asia/Jakarta')::date
      ORDER BY r.created_at ASC`,
     [client_id, shortcode]
@@ -451,6 +455,7 @@ export async function getRekapLinkByClient(
      LEFT JOIN link_sum ls ON ls.user_id = u.user_id
      WHERE u.status = true
      AND ${userWhere}
+     AND ${kediriEligibleUserSql('u')}
     GROUP BY u.client_id,  u.user_id, u.title, u.nama, u.insta, u.divisi, u.exception, ls.jumlah_link
     ORDER BY
       ${priorityExpr} ASC,
@@ -479,6 +484,10 @@ export async function getRekapLinkByClient(
 }
 
 export async function getReportsThisMonthByClient(client_id) {
+  const roleFilter = isKediriAmplifierEnabled(client_id)
+    ? `AND LOWER(u.client_id) = LOWER($1) AND u.status = true
+       AND EXISTS (SELECT 1 FROM user_roles ur JOIN roles ro ON ro.role_id = ur.role_id
+                   WHERE ur.user_id = u.user_id AND LOWER(ro.role_name) = 'amplifier')` : '';
   const { rows } = await query(
     `SELECT
        r.created_at::date AS date,
@@ -495,6 +504,7 @@ export async function getReportsThisMonthByClient(client_id) {
      JOIN insta_post p ON p.shortcode = r.shortcode
      JOIN "user" u ON u.user_id = r.user_id
      WHERE p.client_id = $1
+       ${roleFilter}
        AND date_trunc('month', r.created_at AT TIME ZONE 'Asia/Jakarta') = date_trunc('month', NOW() AT TIME ZONE 'Asia/Jakarta')
      ORDER BY r.created_at ASC`,
     [client_id]
@@ -503,6 +513,10 @@ export async function getReportsThisMonthByClient(client_id) {
 }
 
 export async function getReportsPrevMonthByClient(client_id) {
+  const roleFilter = isKediriAmplifierEnabled(client_id)
+    ? `AND LOWER(u.client_id) = LOWER($1) AND u.status = true
+       AND EXISTS (SELECT 1 FROM user_roles ur JOIN roles ro ON ro.role_id = ur.role_id
+                   WHERE ur.user_id = u.user_id AND LOWER(ro.role_name) = 'amplifier')` : '';
   const { rows } = await query(
     `SELECT
        r.created_at::date AS date,
@@ -519,6 +533,7 @@ export async function getReportsPrevMonthByClient(client_id) {
      JOIN insta_post p ON p.shortcode = r.shortcode
      JOIN "user" u ON u.user_id = r.user_id
      WHERE p.client_id = $1
+       ${roleFilter}
        AND date_trunc('month', r.created_at AT TIME ZONE 'Asia/Jakarta') = date_trunc('month', (NOW() AT TIME ZONE 'Asia/Jakarta') - INTERVAL '1 month')
      ORDER BY r.created_at ASC`,
     [client_id]

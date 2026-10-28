@@ -1,3 +1,4 @@
+import * as userModel from "../../../model/userModel.js";
 import { query } from "../../../db/index.js";
 import { getUsersByClient, getOperatorsByClient } from "../../../model/userModel.js";
 import {
@@ -8,6 +9,7 @@ import {
   getReportsTodayByShortcode,
 } from "../../../model/linkReportKhususModel.js";
 import { groupByDivision, sortDivisionKeys, getGreeting } from "../../../utils/utilsHelper.js";
+import { isKediriAmplifierEnabled } from "../../../utils/amplificationRole.js";
 import { getOperationalAttendanceDate } from "../../../utils/attendanceOperationalDate.js";
 
 async function getClientInfo(client_id) {
@@ -25,8 +27,11 @@ export async function absensiLinkKhusus(client_id, opts = {}) {
   const { hari, tanggal, jam } = getOperationalAttendanceDate();
 
   const { nama: clientNama, clientType } = await getClientInfo(client_id);
-  const roleFlag = opts.roleFlag?.toLowerCase() === "operator" ? "operator" : null;
-  const users = roleFlag
+  const switched = isKediriAmplifierEnabled(client_id);
+  const roleFlag = switched ? "amplifier" : opts.roleFlag?.toLowerCase() === "operator" ? "operator" : null;
+  const users = switched
+    ? await userModel.getUsersByClientAndRole(client_id, "amplifier")
+    : roleFlag
     ? await getOperatorsByClient(client_id)
     : clientType === "org"
       ? await getOperatorsByClient(client_id)
@@ -131,8 +136,11 @@ export async function absensiLinkKhususPerPost(client_id, opts = {}) {
   const { hari, tanggal, jam } = getOperationalAttendanceDate();
 
   const { nama: clientNama, clientType } = await getClientInfo(client_id);
-  const roleFlag = opts.roleFlag?.toLowerCase() === "operator" ? "operator" : null;
-  const users = roleFlag
+  const switched = isKediriAmplifierEnabled(client_id);
+  const roleFlag = switched ? "amplifier" : opts.roleFlag?.toLowerCase() === "operator" ? "operator" : null;
+  const users = switched
+    ? await userModel.getUsersByClientAndRole(client_id, "amplifier")
+    : roleFlag
     ? await getOperatorsByClient(client_id)
     : clientType === "org"
       ? await getOperatorsByClient(client_id)
@@ -151,7 +159,9 @@ export async function absensiLinkKhususPerPost(client_id, opts = {}) {
   msg += `*Jumlah Konten:* ${shortcodes.length}\n`;
 
   for (const sc of shortcodes) {
-    const reports = await getReportsTodayByShortcode(client_id, sc, roleFlag);
+    const allReports = await getReportsTodayByShortcode(client_id, sc, roleFlag);
+    const userIds = new Set(users.map((u) => u.user_id));
+    const reports = switched ? allReports.filter((r) => userIds.has(r.user_id)) : allReports;
     const userSudah = [];
     const userBelum = [];
     const reportUsers = new Set(reports.map((r) => r.user_id));

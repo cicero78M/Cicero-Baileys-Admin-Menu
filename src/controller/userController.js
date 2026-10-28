@@ -1,3 +1,4 @@
+import { tokenAllowsClient } from '../utils/amplificationRole.js';
 import * as userModel from '../model/userModel.js';
 import { getUserDirectoryUsers, UserDirectoryError } from '../service/userDirectoryService.js';
 import { sendSuccess } from '../utils/response.js';
@@ -21,11 +22,54 @@ export const getUserById = async (req, res, next) => {
   }
 };
 
+function hasAmplifierInput(data) {
+  return Object.prototype.hasOwnProperty.call(data || {}, 'amplifier') ||
+    (Array.isArray(data?.roles) && data.roles.some((role) => typeof role === 'string' && role.toLowerCase() === 'amplifier'));
+}
+
+function canManageKediri(req) {
+  return String(req.user?.role || '').toLowerCase() === 'operator' && tokenAllowsClient(req.user, 'KEDIRI');
+}
+
+function forbidden(res) {
+  return res.status(403).json({ success: false, message: 'client_id tidak diizinkan' });
+}
+
 export const createUser = async (req, res, next) => {
   try {
     const role = req.user?.role?.toLowerCase();
     const adminClientId = req.user?.client_id;
     const data = { ...req.body };
+    if (hasAmplifierInput(data)) {
+      if (!canManageKediri(req) || String(data.client_id || '').trim().toUpperCase() !== 'KEDIRI') return forbidden(res);
+      const rolesRequested = Array.isArray(data.roles) ? data.roles : [];
+      if (rolesRequested.some((r) => typeof r !== 'string' || !['amplifier', 'operator'].includes(r.toLowerCase()))) {
+        return res.status(400).json({ success: false, message: 'role tidak valid' });
+      }
+      if ('amplifier' in data && typeof data.amplifier !== 'boolean') {
+        return res.status(400).json({ success: false, message: 'amplifier harus boolean' });
+      }
+      if (data.amplifier === false || ('operator' in data && typeof data.operator !== 'boolean') ||
+          ['ditbinmas', 'ditlantas', 'bidhumas', 'ditsamapta', 'ditintelkam'].some((r) => r in data)) {
+        return res.status(400).json({ success: false, message: 'role tidak valid' });
+      }
+      const existing = await userModel.findUserById(data.user_id);
+      if (existing) {
+        if (String(existing.client_id || '').trim().toUpperCase() !== 'KEDIRI') return forbidden(res);
+        const wantsOperator = data.operator === true || rolesRequested.some((r) => r.toLowerCase() === 'operator');
+        if (wantsOperator && existing.operator !== true) {
+          return res.status(400).json({ success: false, message: 'Tambahkan operator secara terpisah' });
+        }
+        await userModel.setKediriAmplifierRole(existing.user_id, 'KEDIRI', true);
+        return sendSuccess(res, await userModel.findUserById(existing.user_id));
+      }
+      delete data.roles;
+      data.amplifier = true;
+      if (rolesRequested.some((r) => r.toLowerCase() === 'operator')) data.operator = true;
+      const user = await userModel.createUser(data);
+      return sendSuccess(res, user, 201);
+    }
+    if (String(data.client_id || '').trim().toUpperCase() === 'KEDIRI' && !canManageKediri(req)) return forbidden(res);
     let roles = [];
     const defaultRoleFlags = {
       ditbinmas: false,
@@ -55,6 +99,12 @@ export const createUser = async (req, res, next) => {
       const currentClientId = existingClientId?.toUpperCase();
 
       if (incomingClientId !== currentClientId) {
+        // Creation/reactivation is not an authorized cross-client transfer path.
+        if (incomingClientId === 'KEDIRI' || currentClientId === 'KEDIRI') {
+          const err = new Error('client_id tidak diizinkan');
+          err.statusCode = 403;
+          throw err;
+        }
         await userModel.updateUserField(existingUserId, 'client_id', incomingClientId);
       }
     };
@@ -101,6 +151,7 @@ export const createUser = async (req, res, next) => {
 
       const existing = await userModel.findUserById(data.user_id);
       if (existing) {
+        if (String(existing.client_id || '').trim().toUpperCase() === 'KEDIRI' && !canManageKediri(req)) return forbidden(res);
         await syncExistingUserClientId(existing.user_id, existing.client_id);
 
         if (existing.status === false) {
@@ -164,6 +215,25 @@ export const createUser = async (req, res, next) => {
 
 export const updateUser = async (req, res, next) => {
   try {
+    if (hasAmplifierInput(req.body)) {
+      if (!canManageKediri(req)) return forbidden(res);
+      if (typeof req.body.amplifier !== 'boolean' || Object.keys(req.body).some((key) => key !== 'amplifier')) {
+        return res.status(400).json({ success: false, message: 'amplifier harus boolean dan dikirim terpisah' });
+      }
+      const existing = await userModel.findUserById(req.params.id);
+      if (!existing || String(existing.client_id || '').trim().toUpperCase() !== 'KEDIRI') return forbidden(res);
+      await userModel.setKediriAmplifierRole(existing.user_id, 'KEDIRI', req.body.amplifier);
+      return sendSuccess(res, await userModel.findUserById(existing.user_id));
+    }
+    const existing = await userModel.findUserById(req.params.id);
+    const existingKediri = String(existing?.client_id || '').trim().toUpperCase() === 'KEDIRI';
+    const requestedKediri = String(req.body?.client_id || '').trim().toUpperCase() === 'KEDIRI';
+    if ((existingKediri || requestedKediri) && !canManageKediri(req)) return forbidden(res);
+    if ((existingKediri || requestedKediri) && (('client_id' in req.body &&
+        String(req.body.client_id || '').trim().toUpperCase() !== String(existing?.client_id || '').trim().toUpperCase()) ||
+        ('user_id' in req.body && String(req.body.user_id) !== String(req.params.id)))) {
+      return res.status(403).json({ success: false, message: 'Pemindahan user tidak diizinkan' });
+    }
     const user = await userModel.updateUser(req.params.id, req.body);
     sendSuccess(res, user);
   } catch (err) {
@@ -237,10 +307,20 @@ export const updateWaNotificationPreference = async (req, res, next) => {
 
 export const updateUserRoles = async (req, res, next) => {
   try {
+    if (hasAmplifierInput(req.body)) {
+      return res.status(400).json({ success: false, message: 'Ubah amplifier secara terpisah' });
+    }
     const roles = Array.isArray(req.body.roles)
       ? req.body.roles.map((r) => r.toLowerCase())
       : [];
     const allowed = ['ditbinmas', 'ditlantas', 'bidhumas', 'ditsamapta', 'ditintelkam', 'operator'];
+    const existing = await userModel.findUserById(req.params.id);
+    if (String(existing?.client_id || '').trim().toUpperCase() === 'KEDIRI') {
+      if (!canManageKediri(req)) return forbidden(res);
+      if (existing.operator === true && !roles.includes('operator')) {
+        return res.status(400).json({ success: false, message: 'Hapus operator secara eksplisit dan terpisah' });
+      }
+    }
     const data = {};
     for (const r of allowed) {
       data[r] = roles.includes(r);

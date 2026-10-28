@@ -1,3 +1,4 @@
+import { isKediriAmplifierEnabled, tokenAllowsClient } from '../utils/amplificationRole.js';
 import { getRekapLinkByClient } from '../model/linkReportKhususModel.js';
 import { sendConsoleDebug } from '../middleware/debugHandler.js';
 
@@ -18,13 +19,20 @@ export async function getAmplifyKhususRekap(req, res) {
   if (!client_id) {
     return res.status(400).json({ success: false, message: 'client_id wajib diisi' });
   }
-  if (req.user?.client_ids && !req.user.client_ids.includes(client_id)) {
+  const switched = isKediriAmplifierEnabled(client_id);
+  if (!switched && req.user?.client_ids && !req.user.client_ids.includes(client_id)) {
     return res.status(403).json({ success: false, message: 'client_id tidak diizinkan' });
   }
 
+  if (switched && !tokenAllowsClient(req.user, client_id)) {
+    return res.status(403).json({ success: false, message: 'client_id tidak diizinkan' });
+  }
+  if (switched && scopeLower && scopeLower !== 'org') {
+    return res.status(403).json({ success: false, message: 'scope tidak diizinkan' });
+  }
   try {
-    let rekapOptions = {};
-    let roleForQuery = null;
+    let rekapOptions = switched ? { userClientId: client_id, userRoleFilter: 'amplifier' } : {};
+    let roleForQuery = switched ? 'amplifier' : null;
 
     if (usesStandardPayload) {
       const resolvedRole = roleLower || null;
@@ -44,7 +52,7 @@ export async function getAmplifyKhususRekap(req, res) {
       let userRoleFilter = null;
 
       if (resolvedScope === 'org' && resolvedRole === OPERATOR_ROLE) {
-        const tokenClientId = req.user?.client_id;
+        const tokenClientId = switched ? client_id : req.user?.client_id;
         if (!tokenClientId) {
           return res.status(400).json({
             success: false,
@@ -56,6 +64,11 @@ export async function getAmplifyKhususRekap(req, res) {
         roleForQuery = OPERATOR_ROLE;
       }
 
+      if (switched) {
+        userClientId = client_id;
+        userRoleFilter = 'amplifier';
+        roleForQuery = 'amplifier';
+      }
       rekapOptions = {
         userClientId,
         userRoleFilter

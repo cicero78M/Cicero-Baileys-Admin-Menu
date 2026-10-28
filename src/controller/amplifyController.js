@@ -1,3 +1,4 @@
+import { isKediriAmplifierEnabled, tokenAllowsClient } from '../utils/amplificationRole.js';
 import { getRekapLinkByClient } from '../model/linkReportModel.js';
 import { sendConsoleDebug } from '../middleware/debugHandler.js';
 import { normalizeClientId } from '../utils/utilsHelper.js';
@@ -27,7 +28,7 @@ export async function getAmplifyRekap(req, res) {
   ];
   const usesStandardPayload = Boolean(requestedScope || req.query.role);
 
-  if (!usesStandardPayload && roleLower === 'ditbinmas') {
+  if (!usesStandardPayload && roleLower === 'ditbinmas' && !isKediriAmplifierEnabled(client_id)) {
     client_id = 'ditbinmas';
   }
 
@@ -36,7 +37,8 @@ export async function getAmplifyRekap(req, res) {
     return res.status(400).json({ success: false, message: 'client_id wajib diisi' });
   }
   client_id = normalizedClientId;
-  if (req.user?.client_ids) {
+  const switched = isKediriAmplifierEnabled(client_id);
+  if (!switched && req.user?.client_ids) {
     const userClientIds = Array.isArray(req.user.client_ids)
       ? req.user.client_ids
       : [req.user.client_ids];
@@ -51,7 +53,7 @@ export async function getAmplifyRekap(req, res) {
     }
   }
   if (
-    req.user?.client_id &&
+    !switched && req.user?.client_id &&
     req.user.client_id.toLowerCase() !== client_id.toLowerCase() &&
     roleLower !== client_id.toLowerCase()
   ) {
@@ -59,9 +61,17 @@ export async function getAmplifyRekap(req, res) {
       .status(403)
       .json({ success: false, message: 'client_id tidak diizinkan' });
   }
+  if (switched && !tokenAllowsClient(req.user, client_id)) {
+    return res.status(403).json({ success: false, message: 'client_id tidak diizinkan' });
+  }
+  if (switched && scopeLower && scopeLower !== 'org') {
+    return res.status(403).json({ success: false, message: 'scope tidak diizinkan' });
+  }
   try {
-    let rekapOptions = { regionalId };
-    let roleForQuery = requestedRole;
+    let rekapOptions = switched
+      ? { regionalId, userClientId: client_id, userRoleFilter: 'amplifier' }
+      : { regionalId };
+    let roleForQuery = switched ? null : requestedRole;
 
     if (usesStandardPayload) {
       const resolvedRole = roleLower || null;
@@ -89,7 +99,7 @@ export async function getAmplifyRekap(req, res) {
         userRoleFilter = resolvedRole;
       } else if (resolvedScope === 'org') {
         if (resolvedRole === 'operator') {
-          const tokenClientId = req.user?.client_id;
+          const tokenClientId = switched ? client_id : req.user?.client_id;
           if (!tokenClientId) {
             return res.status(400).json({
               success: false,
@@ -98,7 +108,7 @@ export async function getAmplifyRekap(req, res) {
           }
           postClientId = tokenClientId;
           userClientId = tokenClientId;
-          userRoleFilter = 'operator';
+          userRoleFilter = switched ? 'amplifier' : 'operator';
         } else if (directorateRoles.includes(resolvedRole)) {
           postClientId = resolvedRole;
           userClientId = req.user?.client_id || client_id;
@@ -107,6 +117,13 @@ export async function getAmplifyRekap(req, res) {
         }
       }
 
+      if (switched) {
+        postClientId = client_id;
+        userClientId = client_id;
+        userRoleFilter = 'amplifier';
+        includePostRoleFilter = false;
+        matchLinkClientId = true;
+      }
       rekapOptions = {
         postClientId,
         userClientId,

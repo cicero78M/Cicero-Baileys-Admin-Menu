@@ -1,6 +1,7 @@
+import { isKediriAmplifierEnabled, kediriEligibleUserSql } from '../utils/amplificationRole.js';
 // src/model/userModel.js
 
-import { query } from '../repository/db.js';
+import { query, withTransaction } from '../repository/db.js';
 
 function getSocialUsernameSelect(alias = 'u') {
   return {
@@ -222,6 +223,13 @@ export async function getClientsByRole(roleName, clientId = null) {
 
 // Ambil semua user aktif (status = true), tanpa filter insta
 export async function getUsersByClient(client_id, roleFilter = null) {
+  if (typeof roleFilter === 'string' && roleFilter.toLowerCase() === 'amplifier') {
+    return getUsersByClientAndRole(client_id, 'amplifier');
+  }
+  if (isKediriAmplifierEnabled(client_id) && roleFilter &&
+      !['operator', 'ditbinmas', 'ditlantas', 'bidhumas', 'ditsamapta', 'ditintelkam'].includes(String(roleFilter).toLowerCase())) {
+    throw new Error('role tidak valid');
+  }
   const { clause, params } = await buildClientFilter(client_id, 'u', 1, roleFilter);
   const social = getSocialUsernameSelect('u');
   const res = await query(
@@ -449,7 +457,7 @@ export async function getUsersSocialByClient(clientId, roleFilter = null) {
 export async function findUserById(user_id) {
   const uid = normalizeUserId(user_id);
   const { rows } = await query(
-      `SELECT u.*,\n      bool_or(r.role_name='ditbinmas') AS ditbinmas,\n      bool_or(r.role_name='ditlantas') AS ditlantas,\n      bool_or(r.role_name='bidhumas') AS bidhumas,\n      bool_or(r.role_name='ditsamapta') AS ditsamapta,\n      bool_or(r.role_name='ditintelkam') AS ditintelkam,\n      bool_or(r.role_name='operator') AS operator\n     FROM "user" u\n     LEFT JOIN user_roles ur ON u.user_id = ur.user_id\n     LEFT JOIN roles r ON ur.role_id = r.role_id\n     WHERE u.user_id=$1\n     GROUP BY u.user_id`,
+      `SELECT u.*,\n      bool_or(r.role_name='ditbinmas') AS ditbinmas,\n      bool_or(r.role_name='ditlantas') AS ditlantas,\n      bool_or(r.role_name='bidhumas') AS bidhumas,\n      bool_or(r.role_name='ditsamapta') AS ditsamapta,\n      bool_or(r.role_name='ditintelkam') AS ditintelkam,\n      bool_or(r.role_name='operator') AS operator,\n      bool_or(LOWER(r.role_name)='amplifier') AS amplifier\n     FROM "user" u\n     LEFT JOIN user_roles ur ON u.user_id = ur.user_id\n     LEFT JOIN roles r ON ur.role_id = r.role_id\n     WHERE u.user_id=$1\n     GROUP BY u.user_id`,
     [uid]
   );
   return rows[0];
@@ -467,7 +475,7 @@ export async function findUserByIdAndClient(user_id, client_id, roleFilter = nul
   const uid = normalizeUserId(user_id);
   const { clause, params: clientParams } = await buildClientFilter(client_id, 'u', 2, roleFilter);
   const { rows } = await query(
-      `SELECT u.*,\n      bool_or(r.role_name='ditbinmas') AS ditbinmas,\n      bool_or(r.role_name='ditlantas') AS ditlantas,\n      bool_or(r.role_name='bidhumas') AS bidhumas,\n      bool_or(r.role_name='ditsamapta') AS ditsamapta,\n      bool_or(r.role_name='ditintelkam') AS ditintelkam,\n      bool_or(r.role_name='operator') AS operator\n     FROM "user" u\n     LEFT JOIN user_roles ur ON u.user_id = ur.user_id\n     LEFT JOIN roles r ON ur.role_id = r.role_id\n     WHERE u.user_id=$1 AND ${clause}\n     GROUP BY u.user_id`,
+      `SELECT u.*,\n      bool_or(r.role_name='ditbinmas') AS ditbinmas,\n      bool_or(r.role_name='ditlantas') AS ditlantas,\n      bool_or(r.role_name='bidhumas') AS bidhumas,\n      bool_or(r.role_name='ditsamapta') AS ditsamapta,\n      bool_or(r.role_name='ditintelkam') AS ditintelkam,\n      bool_or(r.role_name='operator') AS operator,\n      bool_or(LOWER(r.role_name)='amplifier') AS amplifier\n     FROM "user" u\n     LEFT JOIN user_roles ur ON u.user_id = ur.user_id\n     LEFT JOIN roles r ON ur.role_id = r.role_id\n     WHERE u.user_id=$1 AND ${clause}\n     GROUP BY u.user_id`,
     [uid, ...clientParams]
   );
   return rows[0];
@@ -538,10 +546,12 @@ export async function updateUserField(user_id, field, value) {
       [normalizedClientId]
     );
     if (!rows.length) throw new Error('client_id tidak ditemukan');
-    await query(
-      `UPDATE "user" SET client_id=$1, updated_at=NOW() WHERE user_id=$2`,
-      [normalizedClientId, uid]
-    );
+    const updated = await query(
+      `UPDATE "user" SET client_id=$1, updated_at=NOW() WHERE user_id=$2
+       AND (LOWER(client_id) = LOWER($1) OR
+         (LOWER(COALESCE(client_id, '')) <> 'kediri' AND LOWER($1) <> 'kediri'))
+       RETURNING user_id`, [normalizedClientId, uid]);
+    if (!updated.rows.length) throw new Error('Pemindahan user KEDIRI tidak diizinkan');
     return findUserById(uid);
   }
   await query(
@@ -618,7 +628,8 @@ export async function getUsersByDirektorat(flag, clientId = null) {
       WHERE ur1.user_id = u.user_id
         AND r1.role_name = $1
     )
-    AND u.status = true`;
+    AND u.status = true
+    AND ${kediriEligibleUserSql('u')}`;
 
   const hasClientId =
     Array.isArray(clientId) ? clientId.length > 0 : typeof clientId === 'string' && clientId.trim() !== '';
@@ -650,7 +661,7 @@ export async function getUsersByDirektorat(flag, clientId = null) {
 export async function findUserByInsta(insta) {
   if (!insta) return null;
   const { rows } = await query(
-      `SELECT u.*,\n      c.nama AS client_name,\n      bool_or(r.role_name='ditbinmas') AS ditbinmas,\n      bool_or(r.role_name='ditlantas') AS ditlantas,\n      bool_or(r.role_name='bidhumas') AS bidhumas,\n      bool_or(r.role_name='ditsamapta') AS ditsamapta,\n      bool_or(r.role_name='ditintelkam') AS ditintelkam,\n      bool_or(r.role_name='operator') AS operator\n     FROM "user" u\n     LEFT JOIN clients c ON c.client_id = u.client_id\n     LEFT JOIN user_roles ur ON u.user_id = ur.user_id\n     LEFT JOIN roles r ON ur.role_id = r.role_id\n     WHERE LOWER(u.insta) = LOWER($1)\n     GROUP BY u.user_id, c.nama`,
+      `SELECT u.*,\n      c.nama AS client_name,\n      bool_or(r.role_name='ditbinmas') AS ditbinmas,\n      bool_or(r.role_name='ditlantas') AS ditlantas,\n      bool_or(r.role_name='bidhumas') AS bidhumas,\n      bool_or(r.role_name='ditsamapta') AS ditsamapta,\n      bool_or(r.role_name='ditintelkam') AS ditintelkam,\n      bool_or(r.role_name='operator') AS operator,\n      bool_or(LOWER(r.role_name)='amplifier') AS amplifier\n     FROM "user" u\n     LEFT JOIN clients c ON c.client_id = u.client_id\n     LEFT JOIN user_roles ur ON u.user_id = ur.user_id\n     LEFT JOIN roles r ON ur.role_id = r.role_id\n     WHERE LOWER(u.insta) = LOWER($1)\n     GROUP BY u.user_id, c.nama`,
     [insta]
   );
   return rows[0];
@@ -659,7 +670,7 @@ export async function findUserByInsta(insta) {
 export async function findUserByTiktok(tiktok) {
   if (!tiktok) return null;
   const { rows } = await query(
-      `SELECT u.*,\n      c.nama AS client_name,\n      bool_or(r.role_name='ditbinmas') AS ditbinmas,\n      bool_or(r.role_name='ditlantas') AS ditlantas,\n      bool_or(r.role_name='bidhumas') AS bidhumas,\n      bool_or(r.role_name='ditsamapta') AS ditsamapta,\n      bool_or(r.role_name='ditintelkam') AS ditintelkam,\n      bool_or(r.role_name='operator') AS operator\n     FROM "user" u\n     LEFT JOIN clients c ON c.client_id = u.client_id\n     LEFT JOIN user_roles ur ON u.user_id = ur.user_id\n     LEFT JOIN roles r ON ur.role_id = r.role_id\n     WHERE LOWER(u.tiktok) = LOWER($1)\n     GROUP BY u.user_id, c.nama`,
+      `SELECT u.*,\n      c.nama AS client_name,\n      bool_or(r.role_name='ditbinmas') AS ditbinmas,\n      bool_or(r.role_name='ditlantas') AS ditlantas,\n      bool_or(r.role_name='bidhumas') AS bidhumas,\n      bool_or(r.role_name='ditsamapta') AS ditsamapta,\n      bool_or(r.role_name='ditintelkam') AS ditintelkam,\n      bool_or(r.role_name='operator') AS operator,\n      bool_or(LOWER(r.role_name)='amplifier') AS amplifier\n     FROM "user" u\n     LEFT JOIN clients c ON c.client_id = u.client_id\n     LEFT JOIN user_roles ur ON u.user_id = ur.user_id\n     LEFT JOIN roles r ON ur.role_id = r.role_id\n     WHERE LOWER(u.tiktok) = LOWER($1)\n     GROUP BY u.user_id, c.nama`,
     [tiktok]
   );
   return rows[0];
@@ -669,7 +680,7 @@ export async function findUserByWhatsApp(wa) {
   if (!wa) return null;
   console.log(`[userModel] findUserByWhatsApp query: wa="${wa}"`);
   const { rows } = await query(
-      `SELECT u.*,\n      c.nama AS client_name,\n      bool_or(r.role_name='ditbinmas') AS ditbinmas,\n      bool_or(r.role_name='ditlantas') AS ditlantas,\n      bool_or(r.role_name='bidhumas') AS bidhumas,\n      bool_or(r.role_name='ditsamapta') AS ditsamapta,\n      bool_or(r.role_name='ditintelkam') AS ditintelkam,\n      bool_or(r.role_name='operator') AS operator\n     FROM "user" u\n     LEFT JOIN clients c ON c.client_id = u.client_id\n     LEFT JOIN user_roles ur ON u.user_id = ur.user_id\n     LEFT JOIN roles r ON ur.role_id = r.role_id\n     WHERE u.whatsapp = $1\n     GROUP BY u.user_id, c.nama`,
+      `SELECT u.*,\n      c.nama AS client_name,\n      bool_or(r.role_name='ditbinmas') AS ditbinmas,\n      bool_or(r.role_name='ditlantas') AS ditlantas,\n      bool_or(r.role_name='bidhumas') AS bidhumas,\n      bool_or(r.role_name='ditsamapta') AS ditsamapta,\n      bool_or(r.role_name='ditintelkam') AS ditintelkam,\n      bool_or(r.role_name='operator') AS operator,\n      bool_or(LOWER(r.role_name)='amplifier') AS amplifier\n     FROM "user" u\n     LEFT JOIN clients c ON c.client_id = u.client_id\n     LEFT JOIN user_roles ur ON u.user_id = ur.user_id\n     LEFT JOIN roles r ON ur.role_id = r.role_id\n     WHERE u.whatsapp = $1\n     GROUP BY u.user_id, c.nama`,
     [wa]
   );
   console.log(`[userModel] findUserByWhatsApp result: ${rows.length > 0 ? `found user_id=${rows[0].user_id}` : 'NOT FOUND'}`);
@@ -680,7 +691,7 @@ export async function findUserByIdAndWhatsApp(userId, wa) {
   if (!userId || !wa) return null;
   const uid = normalizeUserId(userId);
   const { rows } = await query(
-      `SELECT u.*,\n      c.nama AS client_name,\n      bool_or(r.role_name='ditbinmas') AS ditbinmas,\n      bool_or(r.role_name='ditlantas') AS ditlantas,\n      bool_or(r.role_name='bidhumas') AS bidhumas,\n      bool_or(r.role_name='ditsamapta') AS ditsamapta,\n      bool_or(r.role_name='ditintelkam') AS ditintelkam,\n      bool_or(r.role_name='operator') AS operator\n     FROM "user" u\n     LEFT JOIN clients c ON c.client_id = u.client_id\n     LEFT JOIN user_roles ur ON u.user_id = ur.user_id\n     LEFT JOIN roles r ON ur.role_id = r.role_id\n     WHERE u.user_id = $1 AND u.whatsapp = $2\n     GROUP BY u.user_id, c.nama`,
+      `SELECT u.*,\n      c.nama AS client_name,\n      bool_or(r.role_name='ditbinmas') AS ditbinmas,\n      bool_or(r.role_name='ditlantas') AS ditlantas,\n      bool_or(r.role_name='bidhumas') AS bidhumas,\n      bool_or(r.role_name='ditsamapta') AS ditsamapta,\n      bool_or(r.role_name='ditintelkam') AS ditintelkam,\n      bool_or(r.role_name='operator') AS operator,\n      bool_or(LOWER(r.role_name)='amplifier') AS amplifier\n     FROM "user" u\n     LEFT JOIN clients c ON c.client_id = u.client_id\n     LEFT JOIN user_roles ur ON u.user_id = ur.user_id\n     LEFT JOIN roles r ON ur.role_id = r.role_id\n     WHERE u.user_id = $1 AND u.whatsapp = $2\n     GROUP BY u.user_id, c.nama`,
     [uid, wa]
   );
   return rows[0];
@@ -716,13 +727,46 @@ export async function getAvailableSatfung(clientId = null, roleFilter = null) {
   return mergeStaticDivisions(divisions);
 }
 
+// Only explicit amplifier membership is changed; never modify operator or other roles.
+export async function setKediriAmplifierRole(userId, clientId, enabled) {
+  if (typeof clientId !== 'string' || clientId.trim().toUpperCase() !== 'KEDIRI' || typeof enabled !== 'boolean') {
+    throw new Error('Role amplifier atau client tidak valid');
+  }
+  const uid = normalizeUserId(userId);
+  return withTransaction(async (tx) => {
+    // Row lock serializes membership changes with ordinary UPDATEs that move a user.
+    const locked = await tx.query(
+      'SELECT client_id FROM "user" WHERE user_id = $1 FOR UPDATE', [uid]);
+    if (!locked.rows.length || String(locked.rows[0].client_id || '').trim().toUpperCase() !== 'KEDIRI') {
+      throw new Error('client_id tidak diizinkan');
+    }
+    const result = enabled
+      ? await tx.query(
+        `INSERT INTO user_roles (user_id, role_id)
+         SELECT $1, r.role_id FROM roles r WHERE LOWER(r.role_name) = 'amplifier'
+         ON CONFLICT DO NOTHING RETURNING user_id`, [uid])
+      : await tx.query(
+        `DELETE FROM user_roles ur USING roles r
+         WHERE ur.user_id = $1 AND ur.role_id = r.role_id
+           AND LOWER(r.role_name) = 'amplifier' RETURNING ur.user_id`, [uid]);
+    const { rows } = await tx.query(
+      `SELECT EXISTS (SELECT 1 FROM user_roles ur JOIN roles r ON r.role_id = ur.role_id
+         WHERE ur.user_id = $1 AND LOWER(r.role_name) = 'amplifier') AS amplifier`, [uid]);
+    if (rows[0]?.amplifier !== enabled) throw new Error('Gagal mengubah role amplifier');
+    return result.rowCount ?? result.rows.length;
+  });
+}
+
 // --- Tambahkan fungsi createUser ---
 export async function createUser(userData) {
   // Contoh userData: {user_id, nama, title, divisi, jabatan, ...}
   // Sesuaikan dengan struktur dan database-mu!
   userData.user_id = normalizeUserId(userData.user_id);
   normalizeUserFields(userData);
-  const roles = ['ditbinmas', 'ditlantas', 'bidhumas', 'ditsamapta', 'ditintelkam', 'operator'].filter(
+  if (userData.amplifier && String(userData.client_id || '').trim().toUpperCase() !== 'KEDIRI') {
+    throw new Error('Role amplifier hanya untuk KEDIRI');
+  }
+  const roles = ['ditbinmas', 'ditlantas', 'bidhumas', 'ditsamapta', 'ditintelkam', 'operator', 'amplifier'].filter(
     (r) => userData[r]
   );
   const q = `
@@ -753,6 +797,11 @@ export async function createUser(userData) {
 
 export async function updateUser(userId, userData) {
   let uid = normalizeUserId(userId);
+  userData = { ...userData };
+  const allowedFields = new Set(['user_id', 'nama', 'title', 'divisi', 'jabatan', 'desa', 'insta', 'tiktok', 'whatsapp', 'email', 'client_id', 'status', 'exception', 'exception_tiktok', 'premium_status', 'premium_end_date', 'wa_notification_opt_in', 'ditbinmas', 'ditlantas', 'bidhumas', 'ditsamapta', 'ditintelkam', 'operator']);
+  for (const field of Object.keys(userData)) {
+    if (!allowedFields.has(field)) throw new Error('Field tidak diizinkan!');
+  }
   normalizeUserFields(userData);
 
   if (userData.user_id) {
@@ -780,10 +829,14 @@ export async function updateUser(userId, userData) {
     const setClause = columns.map((c, i) => `${c}=$${i + 1}`).join(', ');
     const params = columns.map((c) => userData[c]);
     params.push(uid);
-    await query(
-      `UPDATE "user" SET ${setClause}, updated_at=NOW() WHERE user_id=$${columns.length + 1}`,
+    const clientParam = columns.indexOf('client_id') + 1;
+    const moveGuard = clientParam ? ` AND (LOWER(client_id) = LOWER($${clientParam}) OR
+      (LOWER(COALESCE(client_id, '')) <> 'kediri' AND LOWER(COALESCE($${clientParam}, '')) <> 'kediri'))` : '';
+    const updated = await query(
+      `UPDATE "user" SET ${setClause}, updated_at=NOW() WHERE user_id=$${columns.length + 1}${moveGuard} RETURNING user_id`,
       params
     );
+    if (clientParam && !updated.rows.length) throw new Error('Pemindahan user KEDIRI tidak diizinkan');
   } else if (hasRoleUpdates) {
     await query(
       'UPDATE "user" SET updated_at=NOW() WHERE user_id=$1',
