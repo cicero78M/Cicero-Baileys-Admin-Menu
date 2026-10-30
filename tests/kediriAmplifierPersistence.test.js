@@ -15,7 +15,7 @@ test('roster amplifier is exact client-scoped and active', async () => {
   await expect(users.getUsersByClient('KEDIRI', 'amplifer')).rejects.toThrow();
 });
 test.each([true, false])('membership update %s scopes role and client', async (enabled) => {
-  query.mockResolvedValueOnce({ rows: [{ client_id: 'KEDIRI' }] }).mockResolvedValueOnce({ rowCount: 1, rows: [{ user_id: '1' }] }).mockResolvedValueOnce({ rows: [{ amplifier: enabled }] });
+  query.mockResolvedValueOnce({ rows: [{ client_id: 'KEDIRI', status: true, operator: true }] }).mockResolvedValueOnce({ rowCount: 1, rows: [{ user_id: '1' }] }).mockResolvedValueOnce({ rows: [{ amplifier: enabled }] });
   await users.setKediriAmplifierRole('1', 'KEDIRI', enabled);
   expect(query.mock.calls[0][0]).toContain('FOR UPDATE');
   const [sql, params] = query.mock.calls[1];
@@ -46,4 +46,14 @@ test('role assignment checks tenant under row lock before writing', async () => 
   await expect(users.setKediriAmplifierRole('1', 'KEDIRI', true)).rejects.toThrow('client_id tidak diizinkan');
   expect(query).toHaveBeenCalledTimes(1);
   expect(query.mock.calls[0][0]).toContain('FOR UPDATE');
+});
+
+test.each([
+  ['inactive operator', { client_id: 'KEDIRI', status: false, operator: true }],
+  ['active non-operator', { client_id: 'KEDIRI', status: true, operator: false }],
+])('grant rejects %s before writing', async (_label, row) => {
+  query.mockResolvedValueOnce({ rows: [row] });
+  await expect(users.setKediriAmplifierRole('1', 'KEDIRI', true))
+    .rejects.toThrow('Role amplifier hanya untuk operator KEDIRI yang sudah aktif');
+  expect(query.mock.calls.every(([sql]) => !/^(INSERT|DELETE|UPDATE)/.test(sql))).toBe(true);
 });

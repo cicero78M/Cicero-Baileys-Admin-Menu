@@ -736,9 +736,21 @@ export async function setKediriAmplifierRole(userId, clientId, enabled) {
   return withTransaction(async (tx) => {
     // Row lock serializes membership changes with ordinary UPDATEs that move a user.
     const locked = await tx.query(
-      'SELECT client_id FROM "user" WHERE user_id = $1 FOR UPDATE', [uid]);
+      `SELECT u.client_id, u.status,
+              EXISTS (
+                SELECT 1
+                FROM user_roles ur
+                JOIN roles r ON r.role_id = ur.role_id
+                WHERE ur.user_id = u.user_id AND LOWER(r.role_name) = 'operator'
+              ) AS operator
+       FROM "user" u
+       WHERE u.user_id = $1
+       FOR UPDATE`, [uid]);
     if (!locked.rows.length || String(locked.rows[0].client_id || '').trim().toUpperCase() !== 'KEDIRI') {
       throw new Error('client_id tidak diizinkan');
+    }
+    if (enabled && (locked.rows[0].status !== true || locked.rows[0].operator !== true)) {
+      throw new Error('Role amplifier hanya untuk operator KEDIRI yang sudah aktif');
     }
     const result = enabled
       ? await tx.query(
